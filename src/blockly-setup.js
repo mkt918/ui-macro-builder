@@ -268,6 +268,7 @@ Blockly.Blocks["value_math"] = {
         ["−", "-"],
         ["×", "*"],
         ["÷", "/"],
+        ["のあまり", "mod"],
       ]),
       "OP"
     );
@@ -275,7 +276,7 @@ Blockly.Blocks["value_math"] = {
     this.setInputsInline(true);
     this.setOutput(true, "Number");
     this.setColour(CAT_COLORS.value);
-    this.setTooltip("計算をします");
+    this.setTooltip("計算をします（「のあまり」は割り算の余り。偶数判定に使えます）");
   },
 };
 

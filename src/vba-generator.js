@@ -158,7 +158,8 @@ vbaGenerator.forBlock["value_math"] = function (block) {
   const a = vbaGenerator.valueToCode(block, "A", vbaGenerator.ORDER_NONE) || "0";
   const op = block.getFieldValue("OP");
   const b = vbaGenerator.valueToCode(block, "B", vbaGenerator.ORDER_NONE) || "0";
-  return [`(${a} ${op} ${b})`, vbaGenerator.ORDER_ATOMIC];
+  const vbaOp = op === "mod" ? "Mod" : op;
+  return [`(${a} ${vbaOp} ${b})`, vbaGenerator.ORDER_ATOMIC];
 };
 
 // ===== ワークスペース全体 → Sub MyMacro() でラップ =====

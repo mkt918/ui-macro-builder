@@ -38,6 +38,10 @@
           <div class="task-difficulty" id="task-difficulty"></div>
         </div>
         <p class="task-goal" id="task-goal"></p>
+        <div class="goal-preview" id="goal-preview" hidden>
+          <div class="goal-preview-label">🎯 完成イメージ</div>
+          <table class="goal-preview-grid" id="goal-preview-grid"></table>
+        </div>
       </section>
 
       <section class="hint-section">
@@ -56,6 +60,9 @@
     <section class="editor-pane">
       <div class="editor-toolbar">
         <span class="toolbar-label">📌 ブロックをつなげてマクロを組み立てよう</span>
+        <span class="toolbar-spacer"></span>
+        <button class="tool-btn" id="share-btn" title="今のブロックを共有リンクにする">🔗 共有</button>
+        <button class="tool-btn danger" id="clear-all-btn" title="ブロックを全部消す">🗑 全部消す</button>
       </div>
       <div id="blockly-area" class="blockly-area"></div>
       <div class="error-banner" id="error-banner"></div>
@@ -89,7 +96,10 @@
           <button class="step-btn" id="reset-btn">↺ リセット</button>
         </div>
         <div class="step-status" id="step-status">準備完了</div>
-        <div class="clear-banner" id="clear-banner">🎉 クエストクリア！おめでとう！</div>
+        <div class="clear-banner" id="clear-banner">
+          🎉 クエストクリア！おめでとう！
+          <button class="next-quest-btn" id="next-quest-btn" hidden>次のクエストへ ▶</button>
+        </div>
       </div>
 
       <div class="code-panel">
@@ -125,6 +135,9 @@
       </div>
     </div>
   </div>
+
+  <!-- 紙吹雪レイヤー -->
+  <div class="confetti-layer" id="confetti-layer"></div>
 
   <!-- ブロック定義用のツールボックス (非表示) -->
   <xml id="toolbox" style="display:none"></xml>

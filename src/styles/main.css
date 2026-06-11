@@ -266,12 +266,28 @@ body.light-mode .quest-item:hover { background: #f0f0f0; }
   position: relative;
 }
 .editor-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 6px 14px;
   background: #161b22;
   border-bottom: 1px solid #30363d;
   font-size: 12px;
   color: var(--text-muted);
 }
+body.light-mode .editor-toolbar { background: #f0f0f0; }
+.toolbar-spacer { flex: 1; }
+.tool-btn {
+  padding: 3px 10px;
+  background: var(--border);
+  color: var(--text);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+}
+.tool-btn:hover { background: var(--accent-blue); color: #fff; }
+.tool-btn.danger:hover { background: var(--accent); }
 .blockly-area { flex: 1; width: 100%; }
 .error-banner {
   display: none;
@@ -540,6 +556,105 @@ body.light-mode .quest-item:hover { background: #f0f0f0; }
 }
 .modal-btn.cancel { background: var(--border); color: var(--text); }
 .modal-btn.confirm { background: var(--accent); color: #fff; }
+
+/* ===== Phase 6 追加スタイル ===== */
+
+/* VBA シンタックスハイライト */
+.vba-kw { color: #ff7b72; }
+.vba-st { color: #a5d6ff; }
+.vba-nm { color: #79c0ff; }
+.vba-cm { color: #8b949e; font-style: italic; }
+body.light-mode .vba-kw { color: #cf222e; }
+body.light-mode .vba-st { color: #0a3069; }
+body.light-mode .vba-nm { color: #0550ae; }
+body.light-mode .vba-cm { color: #6e7781; }
+
+/* 配列の省略表示 */
+.array-cell.array-more {
+  min-width: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #117a65;
+  font-size: 11px;
+  font-weight: 700;
+  border-style: dashed;
+}
+
+/* 次のクエストへボタン */
+.next-quest-btn {
+  margin-left: 10px;
+  padding: 3px 12px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #e67e22;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+}
+.next-quest-btn:hover { background: #fff; }
+
+/* 完成イメージのミニグリッド（F7） */
+.goal-preview {
+  margin-top: 12px;
+  padding: 8px;
+  background: rgba(88, 166, 255, 0.08);
+  border-radius: 6px;
+}
+.goal-preview-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent-blue);
+  margin-bottom: 6px;
+}
+.goal-preview-grid {
+  border-collapse: collapse;
+}
+.goal-preview-grid th {
+  background: var(--border);
+  color: var(--text-muted);
+  font-weight: normal;
+  font-size: 10px;
+  padding: 1px 4px;
+  min-width: 30px;
+  border: 1px solid var(--border);
+}
+.goal-preview-grid td {
+  border: 1px solid var(--border);
+  padding: 2px 5px;
+  min-width: 30px;
+  height: 18px;
+  font-size: 11px;
+  text-align: center;
+  color: var(--text);
+}
+.goal-preview-grid .gp-rownum {
+  background: var(--border);
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+/* 紙吹雪（F5） */
+.confetti-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 2000;
+}
+.confetti {
+  position: absolute;
+  top: -10px;
+  width: 9px;
+  height: 9px;
+  opacity: 0.9;
+  animation: confettiFall linear forwards;
+}
+@keyframes confettiFall {
+  0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(105vh) rotate(540deg); opacity: 0.8; }
+}
 
 /* ===== レスポンシブ ===== */
 @media (max-width: 1100px) {

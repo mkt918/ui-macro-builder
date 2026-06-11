@@ -41,6 +41,7 @@ const TASKS = [
     ],
     answer: 'Sub MyMacro()\n    Range("A1").Value = "山田太郎"\nEnd Sub',
     check: (m) => String(cellVal(m, "A1")).length > 0,
+    goalPreview: [{ addr: "A1", value: "なまえ" }],
   },
   {
     id: "t02",
@@ -60,6 +61,7 @@ const TASKS = [
       "Sub MyMacro()\n    Dim i As Integer\n    For i = 1 To 5\n        Range(\"A\" & i).Value = i\n    Next i\nEnd Sub",
     check: (m) =>
       [1, 2, 3, 4, 5].every((n) => String(cellVal(m, "A" + n)) === String(n)),
+    goalPreview: [1, 2, 3, 4, 5].map((n) => ({ addr: "A" + n, value: n })),
   },
   {
     id: "t03",
@@ -81,6 +83,7 @@ const TASKS = [
     check: (m) =>
       [2, 4, 6].every((n) => cellBg(m, "B" + n)) &&
       [1, 3, 5].every((n) => !cellBg(m, "B" + n)),
+    goalPreview: [2, 4, 6].map((n) => ({ addr: "B" + n, value: "", bg: "#217346" })),
   },
   {
     id: "t04",
@@ -119,5 +122,6 @@ const TASKS = [
       "Sub MyMacro()\n    Dim i As Integer\n    Dim arr(1 To 100) As Variant\n    For i = 1 To 5\n        arr(i) = i * 10\n    Next i\n    For i = 1 To 5\n        Range(\"A\" & i).Value = arr(i)\n    Next i\nEnd Sub",
     check: (m) =>
       [1, 2, 3, 4, 5].every((n) => String(cellVal(m, "A" + n)) === String(n * 10)),
+    goalPreview: [1, 2, 3, 4, 5].map((n) => ({ addr: "A" + n, value: n * 10 })),
   },
 ];

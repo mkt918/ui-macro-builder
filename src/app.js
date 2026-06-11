@@ -6,8 +6,43 @@
   let workspace = null;
   let view = null;
   let currentTaskId = null;
+  let suppressSave = false; // 復元中の保存抑制フラグ（B7）
   const savedBlocks = {}; // taskId -> XML文字列（課題ごとのセーブスロット）
   const solved = new Set();
+
+  const LS_BLOCKS = "umb_blocks";
+  const LS_SOLVED = "umb_solved";
+
+  // ----- テーマ（一度だけ定義: B5）-----
+  let _themes = null;
+  function getThemes() {
+    if (_themes) return _themes;
+    _themes = {
+      dark: Blockly.Theme.defineTheme("umb_dark", {
+        base: Blockly.Themes.Classic,
+        componentStyles: {
+          workspaceBackgroundColour: "#0d1117",
+          toolboxBackgroundColour: "#16213e",
+          toolboxForegroundColour: "#e0e0e0",
+          flyoutBackgroundColour: "#12182e",
+          flyoutForegroundColour: "#e0e0e0",
+          scrollbarColour: "#30363d",
+        },
+      }),
+      light: Blockly.Theme.defineTheme("umb_light", {
+        base: Blockly.Themes.Classic,
+        componentStyles: {
+          workspaceBackgroundColour: "#fafafa",
+          toolboxBackgroundColour: "#ffffff",
+          toolboxForegroundColour: "#333333",
+          flyoutBackgroundColour: "#f5f5f5",
+          flyoutForegroundColour: "#333333",
+          scrollbarColour: "#cccccc",
+        },
+      }),
+    };
+    return _themes;
+  }
 
   // ----- テーマ管理 -----
   function initTheme() {
@@ -15,72 +50,47 @@
     applyTheme(saved);
   }
   function applyTheme(mode) {
+    const themes = workspace ? getThemes() : null;
     if (mode === "light") {
       document.body.classList.add("light-mode");
       document.getElementById("theme-toggle-btn").textContent = "☀️";
-      if (workspace) {
-        const lightTheme = Blockly.Theme.defineTheme("light", {
-          base: Blockly.Themes.Classic,
-          componentStyles: {
-            workspaceBackgroundColour: "#fafafa",
-            toolboxBackgroundColour: "#ffffff",
-            toolboxForegroundColour: "#333333",
-            flyoutBackgroundColour: "#f5f5f5",
-            flyoutForegroundColour: "#333333",
-            scrollbarColour: "#cccccc",
-          },
-        });
-        workspace.setTheme(lightTheme);
-      }
+      if (workspace) workspace.setTheme(themes.light);
     } else {
       document.body.classList.remove("light-mode");
       document.getElementById("theme-toggle-btn").textContent = "🌙";
-      if (workspace) {
-        const darkTheme = Blockly.Theme.defineTheme("dark", {
-          base: Blockly.Themes.Classic,
-          componentStyles: {
-            workspaceBackgroundColour: "#0d1117",
-            toolboxBackgroundColour: "#16213e",
-            toolboxForegroundColour: "#e0e0e0",
-            flyoutBackgroundColour: "#12182e",
-            flyoutForegroundColour: "#e0e0e0",
-            scrollbarColour: "#30363d",
-          },
-        });
-        workspace.setTheme(darkTheme);
-      }
+      if (workspace) workspace.setTheme(themes.dark);
     }
     localStorage.setItem("theme", mode);
+  }
+
+  // ----- 永続化（B4 / F1）-----
+  function persist() {
+    try {
+      localStorage.setItem(LS_BLOCKS, JSON.stringify(savedBlocks));
+      localStorage.setItem(LS_SOLVED, JSON.stringify([...solved]));
+    } catch (e) {
+      console.warn("保存失敗:", e);
+    }
+  }
+  function loadPersisted() {
+    try {
+      const b = JSON.parse(localStorage.getItem(LS_BLOCKS) || "{}");
+      Object.assign(savedBlocks, b);
+      const s = JSON.parse(localStorage.getItem(LS_SOLVED) || "[]");
+      s.forEach((id) => solved.add(id));
+    } catch (e) {
+      console.warn("読み込み失敗:", e);
+    }
   }
 
   // ----- 初期化 -----
   window.addEventListener("load", () => {
     initTheme();
+    loadPersisted();
     Blockly.setLocale(Blockly.Msg);
 
     const isDark = !document.body.classList.contains("light-mode");
-    const darkTheme = Blockly.Theme.defineTheme("dark", {
-      base: Blockly.Themes.Classic,
-      componentStyles: {
-        workspaceBackgroundColour: "#0d1117",
-        toolboxBackgroundColour: "#16213e",
-        toolboxForegroundColour: "#e0e0e0",
-        flyoutBackgroundColour: "#12182e",
-        flyoutForegroundColour: "#e0e0e0",
-        scrollbarColour: "#30363d",
-      },
-    });
-    const lightTheme = Blockly.Theme.defineTheme("light", {
-      base: Blockly.Themes.Classic,
-      componentStyles: {
-        workspaceBackgroundColour: "#fafafa",
-        toolboxBackgroundColour: "#ffffff",
-        toolboxForegroundColour: "#333333",
-        flyoutBackgroundColour: "#f5f5f5",
-        flyoutForegroundColour: "#333333",
-        scrollbarColour: "#cccccc",
-      },
-    });
+    const themes = getThemes();
 
     workspace = Blockly.inject("blockly-area", {
       toolbox: TOOLBOX,
@@ -88,7 +98,7 @@
       zoom: { controls: true, wheel: true, startScale: 0.95, maxScale: 2, minScale: 0.4 },
       trashcan: true,
       move: { scrollbars: true, drag: true, wheel: true },
-      theme: isDark ? darkTheme : lightTheme,
+      theme: isDark ? themes.dark : themes.light,
     });
 
     view = new ExcelView({
@@ -105,7 +115,7 @@
 
     bindControls();
     loadTask(TASKS[0].id);
-    buildQuestModal();
+    loadFromShareUrl(); // 共有リンクがあればブロック復元（F8）
   });
 
   // ----- クエスト一覧モーダル描画 -----
@@ -134,7 +144,9 @@
   function updateCurrentQuestDisplay() {
     const task = TASKS.find((t) => t.id === currentTaskId);
     if (task) {
-      document.getElementById("current-quest").textContent = `📍 ${task.title} ${"★".repeat(task.difficulty)}`;
+      const check = solved.has(task.id) ? "✓ " : "";
+      document.getElementById("current-quest").textContent =
+        `${check}📍 ${task.title} ${"★".repeat(task.difficulty)}`;
     }
   }
 
@@ -153,11 +165,13 @@
     document.getElementById("task-difficulty").textContent = "★".repeat(task.difficulty) +
       "☆".repeat(5 - task.difficulty);
     document.getElementById("task-goal").textContent = task.goal;
+    renderGoalPreview(task);
 
     // ヒントUIリセット
     resetHints(task);
 
-    // ブロック復元（無ければ真っ白）
+    // ブロック復元（無ければ真っ白）。復元中は保存抑制（B7）
+    suppressSave = true;
     workspace.clear();
     const xml = savedBlocks[taskId];
     if (xml) {
@@ -168,15 +182,57 @@
         console.warn("ブロック復元失敗:", e);
       }
     }
+    suppressSave = false;
 
     updateCurrentQuestDisplay();
     onWorkspaceChange();
   }
 
+  // ----- 完成イメージのミニグリッド描画（F7）-----
+  function renderGoalPreview(task) {
+    const wrap = document.getElementById("goal-preview");
+    const grid = document.getElementById("goal-preview-grid");
+    if (!task.goalPreview || task.goalPreview.length === 0) {
+      wrap.hidden = true;
+      grid.innerHTML = "";
+      return;
+    }
+    wrap.hidden = false;
+    // 範囲を算出（最小 A1..C3）
+    let maxRow = 3,
+      maxCol = 3;
+    const byAddr = {};
+    task.goalPreview.forEach((g) => {
+      byAddr[g.addr] = g;
+      const m = g.addr.match(/^([A-Z]+)(\d+)$/);
+      if (m) {
+        maxRow = Math.max(maxRow, parseInt(m[2], 10));
+        maxCol = Math.max(maxCol, m[1].charCodeAt(0) - 64);
+      }
+    });
+    const colL = (n) => String.fromCharCode(64 + n);
+    let html = "<tr><th></th>";
+    for (let c = 1; c <= maxCol; c++) html += `<th>${colL(c)}</th>`;
+    html += "</tr>";
+    for (let r = 1; r <= maxRow; r++) {
+      html += `<tr><td class='gp-rownum'>${r}</td>`;
+      for (let c = 1; c <= maxCol; c++) {
+        const g = byAddr[colL(c) + r];
+        const bg = g && g.bg ? `background:${g.bg};color:#fff;` : "";
+        const val = g && g.value !== undefined ? g.value : "";
+        html += `<td style="${bg}">${val}</td>`;
+      }
+      html += "</tr>";
+    }
+    grid.innerHTML = html;
+  }
+
   function saveCurrentBlocks() {
+    if (suppressSave) return;
     try {
       const dom = Blockly.Xml.workspaceToDom(workspace);
       savedBlocks[currentTaskId] = Blockly.Xml.domToText(dom);
+      persist();
     } catch (e) {
       console.warn("ブロック保存失敗:", e);
     }
@@ -186,17 +242,17 @@
   function onWorkspaceChange(event) {
     if (event && event.isUiEvent) return;
 
-    // VBA コード生成
+    // VBA コード生成 + シンタックスハイライト（F6）
     const code = generateVBA(workspace);
-    document.querySelector("#code-output code").textContent = code;
+    document.querySelector("#code-output code").innerHTML = highlightVBA(code);
 
     // エラーチェック（未接続の値ブロックなど簡易検出）
     checkErrors();
 
     // ステップ再構築
     try {
-      const steps = buildSteps(workspace);
-      view.load(steps);
+      const result = buildSteps(workspace);
+      view.load(result.steps, result.limitHit);
       checkQuestClear();
     } catch (e) {
       console.warn("ステップ生成エラー:", e);
@@ -205,24 +261,83 @@
     if (currentTaskId) saveCurrentBlocks();
   }
 
+  // ----- VBA シンタックスハイライト（F6）-----
+  // 単一パスのトークナイザ。挿入したタグを再処理しないので安全。
+  function highlightVBA(code) {
+    const tokenRe =
+      /('[^\n]*)|("[^"]*")|\b(\d+)\b|\b(Sub|End|Dim|As|Integer|Variant|For|To|Next|If|Then|Else|And|Or|Not|Mod|True|False)\b/g;
+    let out = "";
+    let last = 0;
+    let m;
+    while ((m = tokenRe.exec(code)) !== null) {
+      out += escapeHtml(code.slice(last, m.index));
+      if (m[1]) out += `<span class="vba-cm">${escapeHtml(m[1])}</span>`;
+      else if (m[2]) out += `<span class="vba-st">${escapeHtml(m[2])}</span>`;
+      else if (m[3]) out += `<span class="vba-nm">${escapeHtml(m[3])}</span>`;
+      else if (m[4]) out += `<span class="vba-kw">${escapeHtml(m[4])}</span>`;
+      last = m.index + m[0].length;
+    }
+    out += escapeHtml(code.slice(last));
+    return out;
+  }
+
   // ----- クエストクリア自動判定 -----
   function checkQuestClear() {
     const task = TASKS.find((t) => t.id === currentTaskId);
-    if (!task || typeof task.check !== "function") return;
+    const banner = document.getElementById("clear-banner");
+    const nextBtn = document.getElementById("next-quest-btn");
+    if (!task || typeof task.check !== "function") {
+      banner.classList.remove("show");
+      if (nextBtn) nextBtn.hidden = true;
+      return;
+    }
     let passed = false;
     try {
       passed = task.check(view.finalModel());
     } catch (e) {
       passed = false;
     }
-    const banner = document.getElementById("clear-banner");
     if (passed) {
-      if (!solved.has(currentTaskId)) {
+      const firstTime = !solved.has(currentTaskId);
+      if (firstTime) {
         solved.add(currentTaskId);
+        persist();
+        celebrate(); // 🎉 演出（F5）
+        updateCurrentQuestDisplay();
       }
       banner.classList.add("show");
+      // 次のクエストへボタン（F4）
+      if (nextBtn) {
+        const idx = TASKS.findIndex((t) => t.id === currentTaskId);
+        nextBtn.hidden = idx < 0 || idx >= TASKS.length - 1;
+      }
     } else {
       banner.classList.remove("show");
+      if (nextBtn) nextBtn.hidden = true;
+    }
+  }
+
+  // ----- クリア演出（紙吹雪）F5 -----
+  function celebrate() {
+    const layer = document.getElementById("confetti-layer");
+    if (!layer) return;
+    const colors = ["#e94560", "#f1c40f", "#1abc9c", "#3498db", "#9b59b6", "#e67e22"];
+    for (let i = 0; i < 40; i++) {
+      const piece = document.createElement("div");
+      piece.className = "confetti";
+      piece.style.left = Math.random() * 100 + "%";
+      piece.style.background = colors[i % colors.length];
+      piece.style.animationDelay = Math.random() * 0.3 + "s";
+      piece.style.animationDuration = 1.2 + Math.random() * 0.8 + "s";
+      layer.appendChild(piece);
+      setTimeout(() => piece.remove(), 2200);
+    }
+  }
+
+  function goNextQuest() {
+    const idx = TASKS.findIndex((t) => t.id === currentTaskId);
+    if (idx >= 0 && idx < TASKS.length - 1) {
+      loadTask(TASKS[idx + 1].id);
     }
   }
 
@@ -248,6 +363,13 @@
           warn = warn || "値が空の差込口があります";
         }
       });
+      // カウンタ i / {i} をループの外で使っている（B8）
+      if (b.type === "loop_index" && !isInsideLoop(b)) {
+        warn = warn || "カウンタ i は繰り返しの中で使います";
+      }
+      if (usesDynamicCell(b) && !isInsideLoop(b)) {
+        warn = warn || "{i} は繰り返しの中で使います";
+      }
       b.setWarningText(warn);
       if (warn) errorCount++;
     });
@@ -258,6 +380,23 @@
     } else {
       banner.classList.remove("show");
     }
+  }
+
+  // ブロックがループ（loop_repeat/loop_range）の中にあるか
+  function isInsideLoop(block) {
+    let p = block.getSurroundParent();
+    while (p) {
+      if (p.type === "loop_repeat" || p.type === "loop_range") return true;
+      p = p.getSurroundParent();
+    }
+    return false;
+  }
+  // セルアドレス系フィールドに {i} を含むか
+  function usesDynamicCell(block) {
+    return ["CELL", "FROM", "TO"].some((f) => {
+      const v = block.getFieldValue && block.getFieldValue(f);
+      return v && /\{i\}/.test(v);
+    });
   }
 
   // ----- ヒント -----
@@ -352,6 +491,58 @@
         setTimeout(() => (btn.textContent = "📋 コピー"), 1500);
       });
     });
+
+    // 全部消す（F2）
+    document.getElementById("clear-all-btn").addEventListener("click", () => {
+      if (workspace.getTopBlocks(false).length === 0) return;
+      if (confirm("組み立てたブロックを全部消しますか？")) {
+        workspace.clear();
+        onWorkspaceChange();
+      }
+    });
+
+    // 次のクエストへ（F4）
+    const nextBtn = document.getElementById("next-quest-btn");
+    if (nextBtn) nextBtn.addEventListener("click", goNextQuest);
+
+    // 共有リンク（F8）
+    const shareBtn = document.getElementById("share-btn");
+    if (shareBtn) {
+      shareBtn.addEventListener("click", () => {
+        try {
+          const dom = Blockly.Xml.workspaceToDom(workspace);
+          const xml = Blockly.Xml.domToText(dom);
+          const encoded = encodeURIComponent(btoa(unescape(encodeURIComponent(xml))));
+          const url = `${location.origin}${location.pathname}#share=${encoded}`;
+          navigator.clipboard.writeText(url).then(() => {
+            shareBtn.textContent = "✅ リンクをコピー";
+            setTimeout(() => (shareBtn.textContent = "🔗 共有"), 1500);
+          });
+        } catch (e) {
+          console.warn("共有リンク生成失敗:", e);
+        }
+      });
+    }
+  }
+
+  // 共有 URL からブロックを復元（F8）
+  function loadFromShareUrl() {
+    const m = location.hash.match(/share=([^&]+)/);
+    if (!m) return false;
+    try {
+      const xml = decodeURIComponent(escape(atob(decodeURIComponent(m[1]))));
+      suppressSave = true;
+      workspace.clear();
+      const dom = Blockly.utils.xml.textToDom(xml);
+      Blockly.Xml.domToWorkspace(dom, workspace);
+      suppressSave = false;
+      history.replaceState(null, "", location.pathname); // ハッシュ消去
+      onWorkspaceChange();
+      return true;
+    } catch (e) {
+      console.warn("共有リンク復元失敗:", e);
+      return false;
+    }
   }
 
   function escapeHtml(s) {

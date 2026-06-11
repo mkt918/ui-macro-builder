@@ -7,8 +7,12 @@
  * ExcelView   : HTML テーブルへの描画とアニメーション
  */
 
-const GRID_ROWS = 12;
-const GRID_COLS = 8; // A..H
+const GRID_ROWS = 12; // 最小表示行数
+const GRID_COLS = 8; // 最小表示列数 A..H
+const MAX_GRID_ROWS = 50; // 安全上限
+const MAX_GRID_COLS = 26; // A..Z
+const MAX_STEPS = 5000; // ステップ爆発ガード
+const MAX_ARRAY_DISPLAY = 30; // 配列ビジュアライザの表示上限
 
 const COLOR_HEX = {
   RED: "#e74c3c",
@@ -98,6 +102,11 @@ class Interpreter {
 
   // scope: 'cell' | 'array' | 'sheet'
   record(scope, key, desc) {
+    if (this.steps.length >= MAX_STEPS) {
+      const err = new Error("STEP_LIMIT");
+      err.code = "STEP_LIMIT";
+      throw err;
+    }
     this.steps.push({ scope, key, model: this.snapshot(), desc });
   }
 
@@ -225,7 +234,11 @@ class Interpreter {
         const a = Number(this.evalValue(block.getInputTargetBlock("A"))) || 0;
         const b = Number(this.evalValue(block.getInputTargetBlock("B"))) || 0;
         const op = block.getFieldValue("OP");
-        return op === "+" ? a + b : op === "-" ? a - b : op === "*" ? a * b : b ? a / b : 0;
+        if (op === "+") return a + b;
+        if (op === "-") return a - b;
+        if (op === "*") return a * b;
+        if (op === "mod") return b ? a % b : 0;
+        return b ? a / b : 0;
       }
       case "cond_compare": {
         const a = this.evalValue(block.getInputTargetBlock("A"));
@@ -261,16 +274,20 @@ class ExcelView {
     this.cursor = 0;
     this.timer = null;
     this.speed = 500;
-    this.buildGrid();
+    this.rows = GRID_ROWS;
+    this.cols = GRID_COLS;
+    this.buildGrid(GRID_ROWS, GRID_COLS);
   }
 
-  buildGrid() {
+  buildGrid(rows, cols) {
+    this.rows = rows;
+    this.cols = cols;
     let html = "<tr><th class='corner'></th>";
-    for (let c = 1; c <= GRID_COLS; c++) html += `<th>${colLetter(c)}</th>`;
+    for (let c = 1; c <= cols; c++) html += `<th>${colLetter(c)}</th>`;
     html += "</tr>";
-    for (let r = 1; r <= GRID_ROWS; r++) {
+    for (let r = 1; r <= rows; r++) {
       html += `<tr><td class='row-num'>${r}</td>`;
-      for (let c = 1; c <= GRID_COLS; c++) {
+      for (let c = 1; c <= cols; c++) {
         html += `<td id='cell-${colLetter(c)}${r}'></td>`;
       }
       html += "</tr>";
@@ -278,12 +295,31 @@ class ExcelView {
     this.table.innerHTML = html;
   }
 
+  // 全ステップから必要なグリッドサイズを算出して再構築
+  fitGrid(steps) {
+    let maxRow = GRID_ROWS;
+    let maxCol = GRID_COLS;
+    for (const step of steps) {
+      for (const addr in step.model.cells) {
+        const p = parseAddr(addr);
+        if (!p) continue;
+        if (p.row > maxRow) maxRow = p.row;
+        if (p.col > maxCol) maxCol = p.col;
+      }
+    }
+    maxRow = Math.min(maxRow, MAX_GRID_ROWS);
+    maxCol = Math.min(maxCol, MAX_GRID_COLS);
+    if (maxRow !== this.rows || maxCol !== this.cols) {
+      this.buildGrid(maxRow, maxCol);
+    }
+  }
+
   // モデルを丸ごと描画
   renderModel(model, active, changed) {
     const cells = model.cells || {};
     // セル
-    for (let r = 1; r <= GRID_ROWS; r++) {
-      for (let c = 1; c <= GRID_COLS; c++) {
+    for (let r = 1; r <= this.rows; r++) {
+      for (let c = 1; c <= this.cols; c++) {
         const addr = colLetter(c) + r;
         const td = document.getElementById("cell-" + addr);
         if (!td) continue;
@@ -312,14 +348,18 @@ class ExcelView {
     }
     this.arrayEl.classList.add("show");
     const max = Math.max(...keys);
+    const shown = Math.min(max, MAX_ARRAY_DISPLAY); // 表示上限ガード
     let html = '<span class="array-label">📦 配列 arr</span><div class="array-cells">';
-    for (let i = 1; i <= max; i++) {
+    for (let i = 1; i <= shown; i++) {
       const v = arr[i] !== undefined ? arr[i] : "";
       const isActive = active && active.scope === "array" && Number(active.key) === i;
       html += `<div class="array-cell ${isActive ? "active-cell" : ""}">
         <div class="array-idx">${i}</div>
         <div class="array-val">${v}</div>
       </div>`;
+    }
+    if (max > shown) {
+      html += `<div class="array-cell array-more">… +${max - shown}</div>`;
     }
     html += "</div>";
     this.arrayEl.innerHTML = html;
@@ -333,16 +373,22 @@ class ExcelView {
       .join("");
   }
 
-  load(steps) {
+  load(steps, limitHit) {
     this.stop();
     this.steps = steps;
     this.cursor = 0;
+    this.fitGrid(steps);
     this.renderModel(EMPTY_MODEL, null, null);
     this.refEl.textContent = "A1";
     this.formulaEl.textContent = "";
-    this.statusEl.textContent = steps.length
-      ? `準備完了（全 ${steps.length} ステップ）`
-      : "ブロックがありません";
+    if (limitHit) {
+      this.statusEl.textContent =
+        `⚠️ 処理が多すぎます（${MAX_STEPS}ステップで打ち切り）。くり返し回数を減らしてください`;
+    } else {
+      this.statusEl.textContent = steps.length
+        ? `準備完了（全 ${steps.length} ステップ）`
+        : "ブロックがありません";
+    }
   }
 
   applyStep(idx) {
@@ -419,13 +465,23 @@ class ExcelView {
 }
 
 // ワークスペースからステップ列を生成
+// 戻り値: { steps, limitHit }
 function buildSteps(workspace) {
   const interp = new Interpreter();
-  const topBlocks = workspace.getTopBlocks(true);
-  for (const block of topBlocks) {
-    // 出力ブロック（値ブロック単体）は実行対象外。文ブロックの先頭のみ実行
-    if (block.outputConnection) continue;
-    interp.run(block);
+  let limitHit = false;
+  try {
+    const topBlocks = workspace.getTopBlocks(true);
+    for (const block of topBlocks) {
+      // 出力ブロック（値ブロック単体）は実行対象外。文ブロックの先頭のみ実行
+      if (block.outputConnection) continue;
+      interp.run(block);
+    }
+  } catch (e) {
+    if (e && e.code === "STEP_LIMIT") {
+      limitHit = true; // それまでのステップは保持
+    } else {
+      throw e;
+    }
   }
-  return interp.steps;
+  return { steps: interp.steps, limitHit };
 }
