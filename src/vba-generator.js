@@ -118,6 +118,31 @@ vbaGenerator.forBlock["fmt_bold"] = function (block) {
   return `${rangeExpr(cell)}.Font.Bold = True`;
 };
 
+// ===== 配列 =====
+
+vbaGenerator.forBlock["array_set"] = function (block) {
+  const idx = vbaGenerator.valueToCode(block, "INDEX", vbaGenerator.ORDER_NONE) || "1";
+  const val = vbaGenerator.valueToCode(block, "VALUE", vbaGenerator.ORDER_NONE) || "0";
+  return `arr(${idx}) = ${val}`;
+};
+
+vbaGenerator.forBlock["array_get"] = function (block) {
+  const idx = vbaGenerator.valueToCode(block, "INDEX", vbaGenerator.ORDER_NONE) || "1";
+  return [`arr(${idx})`, vbaGenerator.ORDER_ATOMIC];
+};
+
+// ===== シート操作 =====
+
+vbaGenerator.forBlock["sheet_add"] = function (block) {
+  const name = block.getFieldValue("NAME");
+  return `Worksheets.Add.Name = "${name}"`;
+};
+
+vbaGenerator.forBlock["sheet_select"] = function (block) {
+  const name = block.getFieldValue("NAME");
+  return `Worksheets("${name}").Select`;
+};
+
 // ===== 値ブロック =====
 
 vbaGenerator.forBlock["value_number"] = function (block) {
@@ -142,13 +167,15 @@ function generateVBA(workspace) {
   if (!body.trim()) {
     return "Sub MyMacro()\n    ' ブロックを組み立てるとここにコードが表示されます\nEnd Sub";
   }
-  // i を使っているか判定
+  // i / arr を使っているか判定して宣言を入れる
   const usesI = /\bi\b/.test(body);
+  const usesArr = /\barr\(/.test(body);
   const indented = body
     .split("\n")
     .map((line) => (line.trim() ? "    " + line : line))
     .join("\n");
   let header = "Sub MyMacro()\n";
   if (usesI) header += "    Dim i As Integer\n";
+  if (usesArr) header += "    Dim arr(1 To 100) As Variant\n";
   return header + indented + "\nEnd Sub";
 }

@@ -9,6 +9,8 @@ const CAT_COLORS = {
   loop: "#e67e22",
   cond: "#9b59b6",
   fmt: "#1abc9c",
+  array: "#16a085",
+  sheet: "#e74c3c",
   value: "#5c6bc0",
 };
 
@@ -182,6 +184,60 @@ Blockly.Blocks["fmt_bold"] = {
   },
 };
 
+// ===== 配列 =====
+
+Blockly.Blocks["array_set"] = {
+  init: function () {
+    this.appendValueInput("INDEX").appendField("📦 配列の");
+    this.appendValueInput("VALUE").appendField("番目に");
+    this.appendDummyInput().appendField("を入れる");
+    this.setInputsInline(true);
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(CAT_COLORS.array);
+    this.setTooltip("配列の指定した番目に値を入れます（arr(番目) = 値）");
+  },
+};
+
+Blockly.Blocks["array_get"] = {
+  init: function () {
+    this.appendValueInput("INDEX").appendField("📦 配列の");
+    this.appendDummyInput().appendField("番目の値");
+    this.setInputsInline(true);
+    this.setOutput(true, null);
+    this.setColour(CAT_COLORS.array);
+    this.setTooltip("配列の指定した番目の値を取り出します（arr(番目)）");
+  },
+};
+
+// ===== シート操作 =====
+
+Blockly.Blocks["sheet_add"] = {
+  init: function () {
+    this.appendDummyInput()
+      .appendField("➕ シート")
+      .appendField(new Blockly.FieldTextInput("Sheet2"), "NAME")
+      .appendField("を追加");
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(CAT_COLORS.sheet);
+    this.setTooltip("新しいシートを追加します");
+  },
+};
+
+Blockly.Blocks["sheet_select"] = {
+  init: function () {
+    this.appendDummyInput()
+      .appendField("↩ シート")
+      .appendField(new Blockly.FieldTextInput("Sheet1"), "NAME")
+      .appendField("に切り替え");
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(CAT_COLORS.sheet);
+    this.setTooltip("指定したシートに切り替えます");
+  },
+};
+
 // ===== 値ブロック =====
 
 Blockly.Blocks["value_number"] = {
@@ -264,6 +320,24 @@ const TOOLBOX = {
       contents: [
         { kind: "block", type: "fmt_bgcolor" },
         { kind: "block", type: "fmt_bold" },
+      ],
+    },
+    {
+      kind: "category",
+      name: "配列",
+      colour: CAT_COLORS.array,
+      contents: [
+        { kind: "block", type: "array_set" },
+        { kind: "block", type: "array_get" },
+      ],
+    },
+    {
+      kind: "category",
+      name: "シート操作",
+      colour: CAT_COLORS.sheet,
+      contents: [
+        { kind: "block", type: "sheet_add" },
+        { kind: "block", type: "sheet_select" },
       ],
     },
     {

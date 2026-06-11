@@ -36,6 +36,9 @@ function parseAddr(addr) {
 class ExcelModel {
   constructor() {
     this.cells = {}; // "A1" -> { value, bg, bold }
+    this.arr = {}; // 配列: index -> value
+    this.sheet = "Sheet1"; // 現在のシート名
+    this.sheets = ["Sheet1"]; // 存在するシート一覧
   }
   key(col, row) {
     return colLetter(col) + row;
@@ -59,6 +62,18 @@ class ExcelModel {
   clearContents(addr) {
     if (this.cells[addr]) this.cells[addr].value = "";
   }
+  setArr(idx, value) {
+    this.arr[idx] = value;
+  }
+  getArr(idx) {
+    return this.arr[idx] !== undefined ? this.arr[idx] : "";
+  }
+  addSheet(name) {
+    if (!this.sheets.includes(name)) this.sheets.push(name);
+  }
+  selectSheet(name) {
+    this.sheet = name;
+  }
 }
 
 /* ---------- インタプリタ ----------
@@ -73,11 +88,17 @@ class Interpreter {
   }
 
   snapshot() {
-    return JSON.parse(JSON.stringify(this.model.cells));
+    return {
+      cells: JSON.parse(JSON.stringify(this.model.cells)),
+      arr: JSON.parse(JSON.stringify(this.model.arr)),
+      sheet: this.model.sheet,
+      sheets: this.model.sheets.slice(),
+    };
   }
 
-  record(addr, type, desc) {
-    this.steps.push({ addr, type, model: this.snapshot(), desc });
+  // scope: 'cell' | 'array' | 'sheet'
+  record(scope, key, desc) {
+    this.steps.push({ scope, key, model: this.snapshot(), desc });
   }
 
   // セルアドレスの {i} 置換
@@ -103,20 +124,39 @@ class Interpreter {
         const addr = this.resolveAddr(block.getFieldValue("CELL"));
         const val = this.evalValue(block.getInputTargetBlock("VALUE"));
         this.model.set(addr, val);
-        this.record(addr, "value", `${addr} に「${val}」を入力`);
+        this.record("cell", addr, `${addr} に「${val}」を入力`);
         break;
       }
       case "cell_copy": {
         const from = this.resolveAddr(block.getFieldValue("FROM"));
         const to = this.resolveAddr(block.getFieldValue("TO"));
         this.model.set(to, this.model.get(from));
-        this.record(to, "value", `${from} を ${to} にコピー`);
+        this.record("cell", to, `${from} を ${to} にコピー`);
         break;
       }
       case "cell_clear": {
         const addr = this.resolveAddr(block.getFieldValue("CELL"));
         this.model.clearContents(addr);
-        this.record(addr, "clear", `${addr} をクリア`);
+        this.record("cell", addr, `${addr} をクリア`);
+        break;
+      }
+      case "array_set": {
+        const idx = this.evalValue(block.getInputTargetBlock("INDEX"));
+        const val = this.evalValue(block.getInputTargetBlock("VALUE"));
+        this.model.setArr(idx, val);
+        this.record("array", idx, `配列の ${idx} 番目に「${val}」を入れる`);
+        break;
+      }
+      case "sheet_add": {
+        const name = block.getFieldValue("NAME");
+        this.model.addSheet(name);
+        this.record("sheet", name, `シート「${name}」を追加`);
+        break;
+      }
+      case "sheet_select": {
+        const name = block.getFieldValue("NAME");
+        this.model.selectSheet(name);
+        this.record("sheet", name, `シート「${name}」に切り替え`);
         break;
       }
       case "loop_repeat": {
@@ -153,13 +193,13 @@ class Interpreter {
         const addr = this.resolveAddr(block.getFieldValue("CELL"));
         const color = block.getFieldValue("COLOR");
         this.model.setBg(addr, COLOR_HEX[color]);
-        this.record(addr, "bg", `${addr} の背景色を変更`);
+        this.record("cell", addr, `${addr} の背景色を変更`);
         break;
       }
       case "fmt_bold": {
         const addr = this.resolveAddr(block.getFieldValue("CELL"));
         this.model.setBold(addr);
-        this.record(addr, "bold", `${addr} を太字に`);
+        this.record("cell", addr, `${addr} を太字に`);
         break;
       }
     }
@@ -177,6 +217,10 @@ class Interpreter {
         return this.i;
       case "cell_get_value":
         return this.model.get(this.resolveAddr(block.getFieldValue("CELL")));
+      case "array_get": {
+        const idx = this.evalValue(block.getInputTargetBlock("INDEX"));
+        return this.model.getArr(idx);
+      }
       case "value_math": {
         const a = Number(this.evalValue(block.getInputTargetBlock("A"))) || 0;
         const b = Number(this.evalValue(block.getInputTargetBlock("B"))) || 0;
@@ -203,12 +247,16 @@ class Interpreter {
 }
 
 /* ---------- ビュー ---------- */
+const EMPTY_MODEL = { cells: {}, arr: {}, sheet: "Sheet1", sheets: ["Sheet1"] };
+
 class ExcelView {
-  constructor(tableEl, refEl, formulaEl, statusEl) {
-    this.table = tableEl;
-    this.refEl = refEl;
-    this.formulaEl = formulaEl;
-    this.statusEl = statusEl;
+  constructor(els) {
+    this.table = els.table;
+    this.refEl = els.ref;
+    this.formulaEl = els.formula;
+    this.statusEl = els.status;
+    this.arrayEl = els.array; // 配列ビジュアライザのコンテナ
+    this.tabsEl = els.tabs; // シートタブのコンテナ
     this.steps = [];
     this.cursor = 0;
     this.timer = null;
@@ -231,7 +279,9 @@ class ExcelView {
   }
 
   // モデルを丸ごと描画
-  renderModel(cells, activeAddr, changedAddr) {
+  renderModel(model, active, changed) {
+    const cells = model.cells || {};
+    // セル
     for (let r = 1; r <= GRID_ROWS; r++) {
       for (let c = 1; c <= GRID_COLS; c++) {
         const addr = colLetter(c) + r;
@@ -243,17 +293,51 @@ class ExcelView {
         td.style.fontWeight = cell.bold ? "bold" : "";
         td.style.color = cell.bg && cell.bg !== "#ffffff" ? "#fff" : "#000";
         td.classList.remove("active-cell", "changed");
-        if (addr === activeAddr) td.classList.add("active-cell");
-        if (addr === changedAddr) td.classList.add("changed");
+        if (active && active.scope === "cell" && addr === active.key) td.classList.add("active-cell");
+        if (changed && changed.scope === "cell" && addr === changed.key) td.classList.add("changed");
       }
     }
+    this.renderArray(model.arr || {}, active);
+    this.renderTabs(model.sheets || ["Sheet1"], model.sheet || "Sheet1");
+  }
+
+  // 配列ビジュアライザ
+  renderArray(arr, active) {
+    if (!this.arrayEl) return;
+    const keys = Object.keys(arr).map(Number).sort((a, b) => a - b);
+    if (keys.length === 0) {
+      this.arrayEl.classList.remove("show");
+      this.arrayEl.innerHTML = "";
+      return;
+    }
+    this.arrayEl.classList.add("show");
+    const max = Math.max(...keys);
+    let html = '<span class="array-label">📦 配列 arr</span><div class="array-cells">';
+    for (let i = 1; i <= max; i++) {
+      const v = arr[i] !== undefined ? arr[i] : "";
+      const isActive = active && active.scope === "array" && Number(active.key) === i;
+      html += `<div class="array-cell ${isActive ? "active-cell" : ""}">
+        <div class="array-idx">${i}</div>
+        <div class="array-val">${v}</div>
+      </div>`;
+    }
+    html += "</div>";
+    this.arrayEl.innerHTML = html;
+  }
+
+  // シートタブ
+  renderTabs(sheets, current) {
+    if (!this.tabsEl) return;
+    this.tabsEl.innerHTML = sheets
+      .map((s) => `<div class="sheet-tab ${s === current ? "active" : ""}">${s}</div>`)
+      .join("");
   }
 
   load(steps) {
     this.stop();
     this.steps = steps;
     this.cursor = 0;
-    this.renderModel({}, null, null);
+    this.renderModel(EMPTY_MODEL, null, null);
     this.refEl.textContent = "A1";
     this.formulaEl.textContent = "";
     this.statusEl.textContent = steps.length
@@ -264,14 +348,23 @@ class ExcelView {
   applyStep(idx) {
     const step = this.steps[idx];
     if (!step) return;
-    this.renderModel(step.model, step.addr, step.addr);
-    this.refEl.textContent = step.addr;
-    const val = step.model[step.addr];
-    this.formulaEl.textContent = val && val.value !== undefined ? val.value : "";
+    const marker = { scope: step.scope, key: step.key };
+    this.renderModel(step.model, marker, marker);
+    // フォーミュラバー表示
+    if (step.scope === "cell") {
+      this.refEl.textContent = step.key;
+      const cell = step.model.cells[step.key];
+      this.formulaEl.textContent = cell && cell.value !== undefined ? cell.value : "";
+      const td = document.getElementById("cell-" + step.key);
+      if (td) td.scrollIntoView({ block: "nearest", inline: "nearest" });
+    } else if (step.scope === "array") {
+      this.refEl.textContent = `arr(${step.key})`;
+      this.formulaEl.textContent = step.model.arr[step.key];
+    } else {
+      this.refEl.textContent = step.model.sheet;
+      this.formulaEl.textContent = "";
+    }
     this.statusEl.textContent = `ステップ ${idx + 1} / ${this.steps.length}: ${step.desc}`;
-    // ハイライトしたセルへスクロール
-    const td = document.getElementById("cell-" + step.addr);
-    if (td) td.scrollIntoView({ block: "nearest", inline: "nearest" });
   }
 
   stepForward() {
@@ -307,7 +400,7 @@ class ExcelView {
   reset() {
     this.stop();
     this.cursor = 0;
-    this.renderModel({}, null, null);
+    this.renderModel(EMPTY_MODEL, null, null);
     this.refEl.textContent = "A1";
     this.formulaEl.textContent = "";
     this.statusEl.textContent = this.steps.length
@@ -317,6 +410,11 @@ class ExcelView {
 
   setSpeed(ms) {
     this.speed = ms;
+  }
+
+  // 最終結果のモデル（クリア判定用）
+  finalModel() {
+    return this.steps.length ? this.steps[this.steps.length - 1].model : EMPTY_MODEL;
   }
 }
 

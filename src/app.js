@@ -91,12 +91,14 @@
       theme: isDark ? darkTheme : lightTheme,
     });
 
-    view = new ExcelView(
-      document.getElementById("excel-table"),
-      document.getElementById("cell-ref"),
-      document.getElementById("formula-bar"),
-      document.getElementById("step-status")
-    );
+    view = new ExcelView({
+      table: document.getElementById("excel-table"),
+      ref: document.getElementById("cell-ref"),
+      formula: document.getElementById("formula-bar"),
+      status: document.getElementById("step-status"),
+      array: document.getElementById("array-viz"),
+      tabs: document.getElementById("excel-tabs"),
+    });
 
     // ブロック変更 → コード再生成 + ステップ再構築
     workspace.addChangeListener(onWorkspaceChange);
@@ -195,6 +197,7 @@
     try {
       const steps = buildSteps(workspace);
       view.load(steps);
+      checkQuestClear();
     } catch (e) {
       console.warn("ステップ生成エラー:", e);
     }
@@ -202,15 +205,55 @@
     if (currentTaskId) saveCurrentBlocks();
   }
 
-  // ----- 簡易エラーチェック -----
+  // ----- クエストクリア自動判定 -----
+  function checkQuestClear() {
+    const task = TASKS.find((t) => t.id === currentTaskId);
+    if (!task || typeof task.check !== "function") return;
+    let passed = false;
+    try {
+      passed = task.check(view.finalModel());
+    } catch (e) {
+      passed = false;
+    }
+    const banner = document.getElementById("clear-banner");
+    if (passed) {
+      if (!solved.has(currentTaskId)) {
+        solved.add(currentTaskId);
+      }
+      banner.classList.add("show");
+    } else {
+      banner.classList.remove("show");
+    }
+  }
+
+  // ----- 簡易エラーチェック（ブロックを赤くハイライト） -----
   function checkErrors() {
     const banner = document.getElementById("error-banner");
-    const orphans = workspace
-      .getAllBlocks(false)
-      .filter((b) => b.outputConnection && !b.outputConnection.isConnected() && !b.isInFlyout);
-    if (orphans.length > 0) {
-      banner.textContent =
-        "⚠️ つながっていない値ブロックがあります。文ブロックの差込口につなげましょう。";
+    const allBlocks = workspace.getAllBlocks(false).filter((b) => !b.isInFlyout);
+    let errorCount = 0;
+
+    allBlocks.forEach((b) => {
+      let warn = null;
+      // 未接続の値ブロック（出力があるのにどこにも刺さっていない）
+      if (b.outputConnection && !b.outputConnection.isConnected()) {
+        warn = "この値ブロックは差込口につなげる必要があります";
+      }
+      // 値の差込口が空のブロック
+      b.inputList.forEach((input) => {
+        if (
+          input.connection &&
+          input.connection.type === Blockly.INPUT_VALUE &&
+          !input.connection.isConnected()
+        ) {
+          warn = warn || "値が空の差込口があります";
+        }
+      });
+      b.setWarningText(warn);
+      if (warn) errorCount++;
+    });
+
+    if (errorCount > 0) {
+      banner.textContent = `⚠️ ${errorCount} 個のブロックに問題があります（赤いマークを確認してください）`;
       banner.classList.add("show");
     } else {
       banner.classList.remove("show");

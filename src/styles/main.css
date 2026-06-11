@@ -364,6 +364,51 @@ body.light-mode .quest-item:hover { background: #f0f0f0; }
   100% { background: transparent; }
 }
 
+/* ===== 配列ビジュアライザ ===== */
+.array-viz {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: #e8f6f3;
+  border-top: 2px solid #16a085;
+  overflow-x: auto;
+}
+.array-viz.show { display: flex; }
+.array-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #117a65;
+  white-space: nowrap;
+}
+.array-cells { display: flex; gap: 3px; }
+.array-cell {
+  min-width: 34px;
+  border: 1px solid #16a085;
+  border-radius: 3px;
+  background: #fff;
+  text-align: center;
+  overflow: hidden;
+}
+.array-cell.active-cell {
+  outline: 2px solid #e67e22;
+  outline-offset: -2px;
+  background: #fff3cd;
+}
+.array-idx {
+  font-size: 9px;
+  color: #fff;
+  background: #16a085;
+  padding: 1px 0;
+}
+.array-val {
+  font-size: 12px;
+  color: #000;
+  padding: 2px 4px;
+  min-height: 18px;
+  font-weight: 600;
+}
+
 .excel-tabs {
   display: flex;
   gap: 2px;
@@ -406,6 +451,22 @@ body.light-mode .quest-item:hover { background: #f0f0f0; }
   background: #1b5e3a;
   color: #c8e6c9;
   font-size: 11px;
+}
+.clear-banner {
+  display: none;
+  padding: 8px 10px;
+  background: linear-gradient(90deg, #f1c40f, #e67e22);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  animation: clearPop 0.5s ease;
+}
+.clear-banner.show { display: block; }
+@keyframes clearPop {
+  0% { transform: scale(0.8); opacity: 0; }
+  60% { transform: scale(1.05); }
+  100% { transform: scale(1); opacity: 1; }
 }
 
 /* ===== コードパネル ===== */
@@ -479,3 +540,25 @@ body.light-mode .quest-item:hover { background: #f0f0f0; }
 }
 .modal-btn.cancel { background: var(--border); color: var(--text); }
 .modal-btn.confirm { background: var(--accent); color: #fff; }
+
+/* ===== レスポンシブ ===== */
+@media (max-width: 1100px) {
+  .main-layout {
+    grid-template-columns: 200px 1fr 280px;
+  }
+}
+@media (max-width: 880px) {
+  html, body { overflow: auto; }
+  .main-layout {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+  }
+  .left-pane, .right-pane {
+    border: none;
+    border-bottom: 1px solid var(--border);
+  }
+  .editor-pane { height: 400px; }
+  .blockly-area { min-height: 360px; }
+  .right-pane { min-height: 500px; }
+}
