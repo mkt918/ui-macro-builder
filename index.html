@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>⚡ UI Macro Builder — Excel VBA ビジュアルプログラミング</title>
+  <link rel="stylesheet" href="src/styles/main.css" />
+  <!-- Blockly (CDN) -->
+  <script src="https://unpkg.com/blockly@11.2.1/blockly.min.js"></script>
+  <script src="https://unpkg.com/blockly@11.2.1/msg/ja.js"></script>
+</head>
+<body>
+
+  <!-- ===== ヘッダー ===== -->
+  <header class="app-header">
+    <div class="app-title">⚡ UI Macro Builder</div>
+    <div class="app-subtitle">Excel VBA ビジュアルプログラミング</div>
+    <div class="header-actions">
+      <span id="task-progress" class="task-progress"></span>
+    </div>
+  </header>
+
+  <!-- ===== 課題セレクタ ===== -->
+  <nav class="task-selector" id="task-selector">
+    <!-- JS で課題チップを描画 -->
+  </nav>
+
+  <!-- ===== メインレイアウト (3ペイン) ===== -->
+  <main class="main-layout">
+
+    <!-- 左: ブロックパレット + 課題説明 + ヒント -->
+    <aside class="left-pane">
+      <section class="task-info" id="task-info">
+        <div class="task-info-header">
+          <h2 id="task-title">課題を選んでください</h2>
+          <div class="task-difficulty" id="task-difficulty"></div>
+        </div>
+        <p class="task-goal" id="task-goal"></p>
+      </section>
+
+      <section class="hint-section">
+        <h3>💡 ヒント</h3>
+        <div class="hint-buttons" id="hint-buttons">
+          <button class="hint-btn" data-hint="0" disabled>ヒント1</button>
+          <button class="hint-btn" data-hint="1" disabled>ヒント2</button>
+          <button class="hint-btn" data-hint="2" disabled>ヒント3</button>
+        </div>
+        <div class="hint-display" id="hint-display"></div>
+        <button class="answer-btn" id="answer-btn" disabled>📖 答えを見る</button>
+      </section>
+    </aside>
+
+    <!-- 中央: ブロックエディタ -->
+    <section class="editor-pane">
+      <div class="editor-toolbar">
+        <span class="toolbar-label">📌 ブロックをつなげてマクロを組み立てよう</span>
+      </div>
+      <div id="blockly-area" class="blockly-area"></div>
+      <div class="error-banner" id="error-banner"></div>
+    </section>
+
+    <!-- 右: 仮想Excelプレビュー + コード -->
+    <aside class="right-pane">
+      <div class="excel-panel">
+        <div class="excel-header">
+          <span>📊 仮想 Excel プレビュー</span>
+        </div>
+        <div class="excel-formula-bar">
+          <span class="cell-ref" id="cell-ref">A1</span>
+          <span class="fx">fx</span>
+          <span class="formula-input" id="formula-bar"></span>
+        </div>
+        <div class="excel-grid-wrap">
+          <table class="excel-table" id="excel-table"></table>
+        </div>
+        <div class="excel-tabs">
+          <div class="sheet-tab active">Sheet1</div>
+        </div>
+        <div class="step-controls">
+          <label class="speed-label">
+            速度
+            <input type="range" id="speed-slider" min="100" max="1500" value="500" step="100" />
+          </label>
+          <button class="step-btn" id="run-btn">▶ 実行</button>
+          <button class="step-btn" id="step-btn">⏭ ステップ</button>
+          <button class="step-btn" id="reset-btn">↺ リセット</button>
+        </div>
+        <div class="step-status" id="step-status">準備完了</div>
+      </div>
+
+      <div class="code-panel">
+        <div class="code-header">
+          <span>🤖 生成された VBA コード</span>
+          <button class="copy-btn" id="copy-btn">📋 コピー</button>
+        </div>
+        <pre id="code-output"><code></code></pre>
+      </div>
+    </aside>
+
+  </main>
+
+  <!-- 答え確認ダイアログ -->
+  <div class="modal-overlay" id="answer-modal" hidden>
+    <div class="modal">
+      <h3>⚠️ 本当に答えを見ますか？</h3>
+      <p>まずは自分で挑戦してみましょう。答えを見ると学習効果が下がるかもしれません。</p>
+      <div class="modal-actions">
+        <button class="modal-btn cancel" id="answer-cancel">もう少し頑張る</button>
+        <button class="modal-btn confirm" id="answer-confirm">答えを見る</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ブロック定義用のツールボックス (非表示) -->
+  <xml id="toolbox" style="display:none"></xml>
+
+  <!-- スクリプト -->
+  <script src="src/blockly-setup.js"></script>
+  <script src="src/vba-generator.js"></script>
+  <script src="src/excel-preview.js"></script>
+  <script src="src/tasks/tasks.js"></script>
+  <script src="src/app.js"></script>
+</body>
+</html>
