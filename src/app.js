@@ -9,27 +9,86 @@
   const savedBlocks = {}; // taskId -> XML文字列（課題ごとのセーブスロット）
   const solved = new Set();
 
+  // ----- テーマ管理 -----
+  function initTheme() {
+    const saved = localStorage.getItem("theme") || "dark";
+    applyTheme(saved);
+  }
+  function applyTheme(mode) {
+    if (mode === "light") {
+      document.body.classList.add("light-mode");
+      document.getElementById("theme-toggle-btn").textContent = "☀️";
+      if (workspace) {
+        const lightTheme = Blockly.Theme.defineTheme("light", {
+          base: Blockly.Themes.Classic,
+          componentStyles: {
+            workspaceBackgroundColour: "#fafafa",
+            toolboxBackgroundColour: "#ffffff",
+            toolboxForegroundColour: "#333333",
+            flyoutBackgroundColour: "#f5f5f5",
+            flyoutForegroundColour: "#333333",
+            scrollbarColour: "#cccccc",
+          },
+        });
+        workspace.setTheme(lightTheme);
+      }
+    } else {
+      document.body.classList.remove("light-mode");
+      document.getElementById("theme-toggle-btn").textContent = "🌙";
+      if (workspace) {
+        const darkTheme = Blockly.Theme.defineTheme("dark", {
+          base: Blockly.Themes.Classic,
+          componentStyles: {
+            workspaceBackgroundColour: "#0d1117",
+            toolboxBackgroundColour: "#16213e",
+            toolboxForegroundColour: "#e0e0e0",
+            flyoutBackgroundColour: "#12182e",
+            flyoutForegroundColour: "#e0e0e0",
+            scrollbarColour: "#30363d",
+          },
+        });
+        workspace.setTheme(darkTheme);
+      }
+    }
+    localStorage.setItem("theme", mode);
+  }
+
   // ----- 初期化 -----
   window.addEventListener("load", () => {
+    initTheme();
     Blockly.setLocale(Blockly.Msg);
+
+    const isDark = !document.body.classList.contains("light-mode");
+    const darkTheme = Blockly.Theme.defineTheme("dark", {
+      base: Blockly.Themes.Classic,
+      componentStyles: {
+        workspaceBackgroundColour: "#0d1117",
+        toolboxBackgroundColour: "#16213e",
+        toolboxForegroundColour: "#e0e0e0",
+        flyoutBackgroundColour: "#12182e",
+        flyoutForegroundColour: "#e0e0e0",
+        scrollbarColour: "#30363d",
+      },
+    });
+    const lightTheme = Blockly.Theme.defineTheme("light", {
+      base: Blockly.Themes.Classic,
+      componentStyles: {
+        workspaceBackgroundColour: "#fafafa",
+        toolboxBackgroundColour: "#ffffff",
+        toolboxForegroundColour: "#333333",
+        flyoutBackgroundColour: "#f5f5f5",
+        flyoutForegroundColour: "#333333",
+        scrollbarColour: "#cccccc",
+      },
+    });
 
     workspace = Blockly.inject("blockly-area", {
       toolbox: TOOLBOX,
-      grid: { spacing: 24, length: 3, colour: "#222", snap: true },
+      grid: { spacing: 24, length: 3, colour: isDark ? "#222" : "#ddd", snap: true },
       zoom: { controls: true, wheel: true, startScale: 0.95, maxScale: 2, minScale: 0.4 },
       trashcan: true,
       move: { scrollbars: true, drag: true, wheel: true },
-      theme: Blockly.Theme.defineTheme("dark", {
-        base: Blockly.Themes.Classic,
-        componentStyles: {
-          workspaceBackgroundColour: "#0d1117",
-          toolboxBackgroundColour: "#16213e",
-          toolboxForegroundColour: "#e0e0e0",
-          flyoutBackgroundColour: "#12182e",
-          flyoutForegroundColour: "#e0e0e0",
-          scrollbarColour: "#30363d",
-        },
-      }),
+      theme: isDark ? darkTheme : lightTheme,
     });
 
     view = new ExcelView(
@@ -42,30 +101,39 @@
     // ブロック変更 → コード再生成 + ステップ再構築
     workspace.addChangeListener(onWorkspaceChange);
 
-    buildTaskSelector();
     bindControls();
     loadTask(TASKS[0].id);
+    buildQuestModal();
   });
 
-  // ----- 課題セレクタ描画 -----
-  function buildTaskSelector() {
-    const nav = document.getElementById("task-selector");
-    nav.innerHTML = "";
-    TASKS.forEach((task) => {
-      const chip = document.createElement("button");
-      chip.className = "task-chip";
-      chip.dataset.id = task.id;
-      chip.innerHTML = `${task.title}<span class="stars">${"★".repeat(task.difficulty)}</span>`;
-      chip.addEventListener("click", () => loadTask(task.id));
-      nav.appendChild(chip);
+  // ----- クエスト一覧モーダル描画 -----
+  function buildQuestModal() {
+    const list = document.getElementById("quest-list");
+    list.innerHTML = "";
+    TASKS.forEach((quest) => {
+      const item = document.createElement("div");
+      item.className = "quest-item";
+      if (solved.has(quest.id)) item.classList.add("solved");
+      item.innerHTML = `
+        <div class="quest-item-left">
+          <div class="quest-item-title">${quest.title}</div>
+          <div class="quest-item-goal">${quest.goal.split("\n")[0]}</div>
+        </div>
+        <div class="quest-item-stars">${"★".repeat(quest.difficulty)}</div>
+      `;
+      item.addEventListener("click", () => {
+        loadTask(quest.id);
+        document.getElementById("quest-modal").hidden = true;
+      });
+      list.appendChild(item);
     });
   }
 
-  function refreshSelector() {
-    document.querySelectorAll(".task-chip").forEach((chip) => {
-      chip.classList.toggle("active", chip.dataset.id === currentTaskId);
-      chip.classList.toggle("solved", solved.has(chip.dataset.id));
-    });
+  function updateCurrentQuestDisplay() {
+    const task = TASKS.find((t) => t.id === currentTaskId);
+    if (task) {
+      document.getElementById("current-quest").textContent = `📍 ${task.title} ${"★".repeat(task.difficulty)}`;
+    }
   }
 
   // ----- 課題読み込み -----
@@ -99,7 +167,7 @@
       }
     }
 
-    refreshSelector();
+    updateCurrentQuestDisplay();
     onWorkspaceChange();
   }
 
@@ -161,6 +229,28 @@
   }
 
   function bindControls() {
+    // テーマ切り替え
+    document.getElementById("theme-toggle-btn").addEventListener("click", () => {
+      const current = localStorage.getItem("theme") || "dark";
+      const next = current === "dark" ? "light" : "dark";
+      applyTheme(next);
+    });
+
+    // クエスト選択ボタン
+    buildQuestModal();
+    document.getElementById("quest-list-btn").addEventListener("click", () => {
+      buildQuestModal();
+      document.getElementById("quest-modal").hidden = false;
+    });
+    document.getElementById("quest-modal-close").addEventListener("click", () => {
+      document.getElementById("quest-modal").hidden = true;
+    });
+    document.getElementById("quest-modal").addEventListener("click", (e) => {
+      if (e.target === document.getElementById("quest-modal")) {
+        document.getElementById("quest-modal").hidden = true;
+      }
+    });
+
     // ヒントボタン
     document.querySelectorAll(".hint-btn").forEach((btn) => {
       btn.addEventListener("click", () => {

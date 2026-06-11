@@ -17,12 +17,14 @@
     <div class="app-subtitle">Excel VBA ビジュアルプログラミング</div>
     <div class="header-actions">
       <span id="task-progress" class="task-progress"></span>
+      <button id="theme-toggle-btn" class="header-btn" title="ダーク/ライトモード">🌙</button>
     </div>
   </header>
 
-  <!-- ===== 課題セレクタ ===== -->
-  <nav class="task-selector" id="task-selector">
-    <!-- JS で課題チップを描画 -->
+  <!-- ===== クエストセレクタ ===== -->
+  <nav class="quest-selector">
+    <button id="quest-list-btn" class="quest-btn">🎮 クエスト選択</button>
+    <span id="current-quest" class="current-quest">—</span>
   </nav>
 
   <!-- ===== メインレイアウト (3ペイン) ===== -->
@@ -98,6 +100,17 @@
     </aside>
 
   </main>
+
+  <!-- クエスト選択モーダル -->
+  <div class="modal-overlay" id="quest-modal" hidden>
+    <div class="modal quest-list-modal">
+      <div class="modal-header">
+        <h3>🎮 クエスト一覧</h3>
+        <button class="close-btn" id="quest-modal-close">&times;</button>
+      </div>
+      <div class="quest-list" id="quest-list"></div>
+    </div>
+  </div>
 
   <!-- 答え確認ダイアログ -->
   <div class="modal-overlay" id="answer-modal" hidden>

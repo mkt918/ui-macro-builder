@@ -1,6 +1,7 @@
 /* ===== UI Macro Builder — メインスタイル ===== */
 
 :root {
+  /* ダークモード */
   --bg-dark: #1a1a2e;
   --bg-panel: #16213e;
   --bg-editor: #0d1117;
@@ -17,6 +18,56 @@
   --cat-cond: #9b59b6;
   --cat-fmt: #1abc9c;
   --cat-sheet: #e74c3c;
+}
+
+body.light-mode {
+  --bg-dark: #f5f5f5;
+  --bg-panel: #ffffff;
+  --bg-editor: #fafafa;
+  --border: #e0e0e0;
+  --accent: #d32f2f;
+  --accent-blue: #1976d2;
+  --text: #333333;
+  --text-muted: #666666;
+  --excel-green: #2e7d32;
+}
+
+body.light-mode .blockly-area {
+  background: #fafafa;
+}
+
+body.light-mode .task-selector {
+  background: #f9f9f9;
+}
+
+body.light-mode .left-pane {
+  background: #ffffff;
+}
+
+body.light-mode .editor-toolbar {
+  background: #f9f9f9;
+}
+
+body.light-mode .code-panel {
+  background: #fafafa;
+}
+
+body.light-mode .code-panel pre {
+  color: #333333;
+  background: #f5f5f5;
+}
+
+body.light-mode .excel-panel {
+  background: #ffffff;
+  color: #000;
+}
+
+body.light-mode .modal {
+  background: #ffffff;
+}
+
+body.light-mode .hint-item {
+  background: rgba(255, 193, 7, 0.1);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -44,31 +95,93 @@ html, body {
 .header-actions { margin-left: auto; }
 .task-progress { font-size: 12px; color: var(--text-muted); }
 
-/* ===== 課題セレクタ ===== */
-.task-selector {
-  display: flex;
-  gap: 8px;
-  padding: 8px 18px;
-  background: #12182e;
-  border-bottom: 1px solid var(--border);
-  overflow-x: auto;
-}
-.task-chip {
-  flex-shrink: 0;
-  padding: 6px 12px;
-  background: var(--bg-panel);
+/* ===== ヘッダー追加 ===== */
+.header-btn {
+  padding: 4px 8px;
+  background: transparent;
   border: 1px solid var(--border);
-  border-radius: 16px;
+  color: var(--text);
+  border-radius: 4px;
   cursor: pointer;
-  font-size: 12px;
-  white-space: nowrap;
+  font-size: 14px;
   transition: all 0.15s;
 }
-.task-chip:hover { border-color: var(--accent-blue); }
-.task-chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
-.task-chip .stars { color: #f1c40f; font-size: 11px; margin-left: 4px; }
-.task-chip.active .stars { color: #fff3cd; }
-.task-chip.solved::before { content: "✓ "; color: #2ecc71; }
+.header-btn:hover { background: var(--accent); border-color: var(--accent); }
+
+/* ===== クエストセレクタ ===== */
+.quest-selector {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 18px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+}
+.quest-btn {
+  padding: 6px 14px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.15s;
+}
+.quest-btn:hover { opacity: 0.9; transform: scale(1.02); }
+.current-quest {
+  font-size: 13px;
+  color: var(--text-muted);
+  flex: 1;
+}
+
+/* ===== クエスト一覧モーダル ===== */
+.quest-list-modal {
+  max-width: 480px;
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+}
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.modal-header h3 {
+  margin: 0;
+  color: var(--accent);
+}
+.close-btn {
+  background: transparent;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+.close-btn:hover { color: var(--text); }
+
+.quest-list {
+  overflow-y: auto;
+  flex: 1;
+}
+.quest-item {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.quest-item:hover { background: var(--bg-panel); }
+body.light-mode .quest-item:hover { background: #f0f0f0; }
+.quest-item-left { flex: 1; }
+.quest-item-title { font-weight: 600; color: var(--text); }
+.quest-item-goal { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+.quest-item-stars { color: #f1c40f; font-size: 12px; }
+.quest-item.solved .quest-item-title::before { content: "✓ "; color: #2ecc71; }
 
 /* ===== メインレイアウト ===== */
 .main-layout {
