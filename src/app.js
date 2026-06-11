@@ -8,10 +8,12 @@
   let currentTaskId = null;
   let suppressSave = false; // 復元中の保存抑制フラグ（B7）
   const savedBlocks = {}; // taskId -> XML文字列（課題ごとのセーブスロット）
+  const savedInitial = {}; // taskId -> 仮想Excelの初期データ
   const solved = new Set();
 
   const LS_BLOCKS = "umb_blocks";
   const LS_SOLVED = "umb_solved";
+  const LS_INITIAL = "umb_initial";
 
   // ----- テーマ（一度だけ定義: B5）-----
   let _themes = null;
@@ -68,6 +70,7 @@
     try {
       localStorage.setItem(LS_BLOCKS, JSON.stringify(savedBlocks));
       localStorage.setItem(LS_SOLVED, JSON.stringify([...solved]));
+      localStorage.setItem(LS_INITIAL, JSON.stringify(savedInitial));
     } catch (e) {
       console.warn("保存失敗:", e);
     }
@@ -78,9 +81,21 @@
       Object.assign(savedBlocks, b);
       const s = JSON.parse(localStorage.getItem(LS_SOLVED) || "[]");
       s.forEach((id) => solved.add(id));
+      const ini = JSON.parse(localStorage.getItem(LS_INITIAL) || "{}");
+      Object.assign(savedInitial, ini);
     } catch (e) {
       console.warn("読み込み失敗:", e);
     }
+  }
+
+  // ----- 仮想Excelのセル編集時（F: 直接入力）-----
+  function onCellEdited() {
+    if (currentTaskId) {
+      savedInitial[currentTaskId] = view.getInitialCells();
+      persist();
+    }
+    // 初期データが変わったのでステップを作り直す
+    onWorkspaceChange();
   }
 
   // ----- 初期化 -----
@@ -108,6 +123,7 @@
       status: document.getElementById("step-status"),
       array: document.getElementById("array-viz"),
       tabs: document.getElementById("excel-tabs"),
+      onEdit: onCellEdited, // 仮想Excelのセル編集時
     });
 
     // ブロック変更 → コード再生成 + ステップ再構築
@@ -169,6 +185,9 @@
 
     // ヒントUIリセット
     resetHints(task);
+
+    // 仮想Excelの初期データを復元（課題ごと）
+    view.setInitialCells(savedInitial[taskId] || {});
 
     // ブロック復元（無ければ真っ白）。復元中は保存抑制（B7）
     suppressSave = true;
@@ -249,9 +268,9 @@
     // エラーチェック（未接続の値ブロックなど簡易検出）
     checkErrors();
 
-    // ステップ再構築
+    // ステップ再構築（仮想Excelの初期データを土台にする）
     try {
-      const result = buildSteps(workspace);
+      const result = buildSteps(workspace, view.getInitialCells());
       view.load(result.steps, result.limitHit);
       checkQuestClear();
     } catch (e) {

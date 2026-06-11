@@ -85,8 +85,17 @@ class ExcelModel {
  * 各 step = { addr, type:'value'|'bg'|'bold'|'clear', model:<snapshot>, desc }
  */
 class Interpreter {
-  constructor() {
+  constructor(initialCells) {
     this.model = new ExcelModel();
+    // 生徒が仮想Excelに直接入力した初期データを種付け
+    if (initialCells) {
+      for (const addr in initialCells) {
+        const c = initialCells[addr];
+        if (c && c.value !== undefined && c.value !== "") {
+          this.model.set(addr, c.value);
+        }
+      }
+    }
     this.steps = [];
     this.i = 0; // ループカウンタ
   }
@@ -270,13 +279,18 @@ class ExcelView {
     this.statusEl = els.status;
     this.arrayEl = els.array; // 配列ビジュアライザのコンテナ
     this.tabsEl = els.tabs; // シートタブのコンテナ
+    this.onEdit = els.onEdit || null; // セル編集時のコールバック
     this.steps = [];
     this.cursor = 0;
     this.timer = null;
     this.speed = 500;
     this.rows = GRID_ROWS;
     this.cols = GRID_COLS;
+    this.initialCells = {}; // 生徒が直接入力した初期データ
+    this.editing = false; // 編集中フラグ（描画でclobberしない用）
+    this.playing = false; // アニメーション中は編集不可
     this.buildGrid(GRID_ROWS, GRID_COLS);
+    this.bindEditing();
   }
 
   buildGrid(rows, cols) {
@@ -288,25 +302,109 @@ class ExcelView {
     for (let r = 1; r <= rows; r++) {
       html += `<tr><td class='row-num'>${r}</td>`;
       for (let c = 1; c <= cols; c++) {
-        html += `<td id='cell-${colLetter(c)}${r}'></td>`;
+        const addr = colLetter(c) + r;
+        html += `<td id='cell-${addr}' data-addr='${addr}' class='editable'></td>`;
       }
       html += "</tr>";
     }
     this.table.innerHTML = html;
   }
 
-  // 全ステップから必要なグリッドサイズを算出して再構築
+  // セル編集（イベント委譲でテーブル全体に1度だけ設定）
+  bindEditing() {
+    this.table.addEventListener("dblclick", (e) => {
+      const td = e.target.closest("td.editable");
+      if (!td || this.playing) return;
+      this.beginEdit(td);
+    });
+    // シングルクリックでも選択表示
+    this.table.addEventListener("click", (e) => {
+      const td = e.target.closest("td.editable");
+      if (!td || this.playing || this.editing) return;
+      const addr = td.dataset.addr;
+      this.refEl.textContent = addr;
+      const c = this.initialCells[addr];
+      this.formulaEl.textContent = c && c.value !== undefined ? c.value : "";
+    });
+  }
+
+  beginEdit(td) {
+    const addr = td.dataset.addr;
+    this.editing = true;
+    td.contentEditable = "true";
+    td.classList.add("editing");
+    // 現在の初期値を表示
+    const cur = this.initialCells[addr];
+    td.textContent = cur && cur.value !== undefined ? cur.value : "";
+    td.focus();
+    // テキスト全選択
+    const range = document.createRange();
+    range.selectNodeContents(td);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+
+    const commit = () => {
+      td.contentEditable = "false";
+      td.classList.remove("editing");
+      this.editing = false;
+      const raw = td.textContent.trim();
+      this.setInitialCell(addr, raw);
+      td.removeEventListener("blur", onBlur);
+      td.removeEventListener("keydown", onKey);
+      if (this.onEdit) this.onEdit();
+    };
+    const onBlur = () => commit();
+    const onKey = (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        td.blur();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        td.textContent = cur && cur.value !== undefined ? cur.value : "";
+        td.blur();
+      }
+    };
+    td.addEventListener("blur", onBlur);
+    td.addEventListener("keydown", onKey);
+  }
+
+  // 初期データを設定（数値ならNumber、空なら削除）
+  setInitialCell(addr, raw) {
+    if (raw === "") {
+      delete this.initialCells[addr];
+      return;
+    }
+    const num = Number(raw);
+    const value = raw !== "" && !isNaN(num) ? num : raw;
+    this.initialCells[addr] = { value };
+  }
+
+  setInitialCells(obj) {
+    this.initialCells = obj ? JSON.parse(JSON.stringify(obj)) : {};
+  }
+  getInitialCells() {
+    return this.initialCells;
+  }
+  // 初期データを1つのモデルにして表示用に
+  initialModel() {
+    return { cells: this.initialCells, arr: {}, sheet: "Sheet1", sheets: ["Sheet1"] };
+  }
+
+  // 全ステップ＋初期データから必要なグリッドサイズを算出して再構築
   fitGrid(steps) {
     let maxRow = GRID_ROWS;
     let maxCol = GRID_COLS;
+    const bump = (addr) => {
+      const p = parseAddr(addr);
+      if (!p) return;
+      if (p.row > maxRow) maxRow = p.row;
+      if (p.col > maxCol) maxCol = p.col;
+    };
     for (const step of steps) {
-      for (const addr in step.model.cells) {
-        const p = parseAddr(addr);
-        if (!p) continue;
-        if (p.row > maxRow) maxRow = p.row;
-        if (p.col > maxCol) maxCol = p.col;
-      }
+      for (const addr in step.model.cells) bump(addr);
     }
+    for (const addr in this.initialCells) bump(addr);
     maxRow = Math.min(maxRow, MAX_GRID_ROWS);
     maxCol = Math.min(maxCol, MAX_GRID_COLS);
     if (maxRow !== this.rows || maxCol !== this.cols) {
@@ -323,6 +421,7 @@ class ExcelView {
         const addr = colLetter(c) + r;
         const td = document.getElementById("cell-" + addr);
         if (!td) continue;
+        if (td.classList.contains("editing")) continue; // 編集中はclobberしない
         const cell = cells[addr] || {};
         td.textContent = cell.value !== undefined ? cell.value : "";
         td.style.background = cell.bg || "";
@@ -378,7 +477,8 @@ class ExcelView {
     this.steps = steps;
     this.cursor = 0;
     this.fitGrid(steps);
-    this.renderModel(EMPTY_MODEL, null, null);
+    // アイドル状態では生徒が入力した初期データを表示
+    this.renderModel(this.initialModel(), null, null);
     this.refEl.textContent = "A1";
     this.formulaEl.textContent = "";
     if (limitHit) {
@@ -387,7 +487,7 @@ class ExcelView {
     } else {
       this.statusEl.textContent = steps.length
         ? `準備完了（全 ${steps.length} ステップ）`
-        : "ブロックがありません";
+        : "セルに値を入力したり、ブロックを組み立てよう";
     }
   }
 
@@ -426,6 +526,8 @@ class ExcelView {
   play() {
     this.stop();
     if (this.cursor >= this.steps.length) this.cursor = 0;
+    this.playing = true;
+    this.table.classList.add("playing");
     const tick = () => {
       if (!this.stepForward()) {
         this.stop();
@@ -441,33 +543,38 @@ class ExcelView {
       clearTimeout(this.timer);
       this.timer = null;
     }
+    this.playing = false;
+    this.table.classList.remove("playing");
   }
 
   reset() {
     this.stop();
     this.cursor = 0;
-    this.renderModel(EMPTY_MODEL, null, null);
+    // リセットで初期データに戻す
+    this.renderModel(this.initialModel(), null, null);
     this.refEl.textContent = "A1";
     this.formulaEl.textContent = "";
     this.statusEl.textContent = this.steps.length
       ? `準備完了（全 ${this.steps.length} ステップ）`
-      : "ブロックがありません";
+      : "セルに値を入力したり、ブロックを組み立てよう";
   }
 
   setSpeed(ms) {
     this.speed = ms;
   }
 
-  // 最終結果のモデル（クリア判定用）
+  // 最終結果のモデル（クリア判定用）。ブロックが無くても初期データを返す
   finalModel() {
-    return this.steps.length ? this.steps[this.steps.length - 1].model : EMPTY_MODEL;
+    return this.steps.length
+      ? this.steps[this.steps.length - 1].model
+      : this.initialModel();
   }
 }
 
 // ワークスペースからステップ列を生成
 // 戻り値: { steps, limitHit }
-function buildSteps(workspace) {
-  const interp = new Interpreter();
+function buildSteps(workspace, initialCells) {
+  const interp = new Interpreter(initialCells);
   let limitHit = false;
   try {
     const topBlocks = workspace.getTopBlocks(true);

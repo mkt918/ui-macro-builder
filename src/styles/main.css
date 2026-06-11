@@ -321,6 +321,17 @@ body.light-mode .editor-toolbar { background: #f0f0f0; }
   padding: 6px 10px;
   font-size: 12px;
   font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.excel-hint {
+  font-size: 10px;
+  font-weight: normal;
+  opacity: 0.85;
+  background: rgba(255, 255, 255, 0.18);
+  padding: 1px 8px;
+  border-radius: 10px;
 }
 .excel-formula-bar {
   display: flex;
@@ -367,6 +378,17 @@ body.light-mode .editor-toolbar { background: #f0f0f0; }
   min-width: 30px;
   width: 30px;
 }
+.excel-table td.editable { cursor: cell; }
+.excel-table td.editable:hover { background: #eef6ff; }
+.excel-table td.editing {
+  outline: 2px solid #1e88e5;
+  outline-offset: -2px;
+  background: #fff !important;
+  color: #000 !important;
+  cursor: text;
+}
+.excel-table.playing td.editable { cursor: default; }
+.excel-table.playing td.editable:hover { background: inherit; }
 .excel-table td.changed {
   animation: cellFlash 0.6s ease;
 }

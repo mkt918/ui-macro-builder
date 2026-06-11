@@ -124,4 +124,27 @@ const TASKS = [
       [1, 2, 3, 4, 5].every((n) => String(cellVal(m, "A" + n)) === String(n * 10)),
     goalPreview: [1, 2, 3, 4, 5].map((n) => ({ addr: "A" + n, value: n * 10 })),
   },
+  {
+    id: "t06",
+    title: "入力した数を2倍にしよう",
+    difficulty: 2,
+    goal:
+      "まず仮想Excelの A1 に好きな数字を直接入力しよう（セルをダブルクリック）。\n" +
+      "次にマクロで、A1 の数を2倍にして B1 に出そう。\n\n" +
+      "【ねらい】\n" +
+      "セルの値を読み取って計算する。元データがあるマクロの基本。",
+    hints: [
+      "A1 セルをダブルクリックして、例えば 50 と入力しておきます。",
+      "『セル B1 に値を入力』を使い、値に計算ブロックをつなげます。",
+      "計算は『セル A1 の値 × 2』。A1の値は「セル操作」の取得ブロックを使います。",
+    ],
+    answer:
+      'Sub MyMacro()\n    Range("B1").Value = (Range("A1").Value * 2)\nEnd Sub',
+    // A1に入力があり、B1 = A1*2 になっていればクリア
+    check: (m) => {
+      const a1 = Number(cellVal(m, "A1"));
+      const b1 = Number(cellVal(m, "B1"));
+      return cellVal(m, "A1") !== "" && !isNaN(a1) && b1 === a1 * 2;
+    },
+  },
 ];
