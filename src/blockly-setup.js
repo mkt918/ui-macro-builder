@@ -519,12 +519,34 @@ Blockly.Blocks["range_select"] = {
 
 // ===== 変数（ドロップダウン選択式）=====
 
+// ひらがなを含む変数名を拒否する validator
+const validateVarName = (newName) => {
+  if (/[぀-ゟ]/.test(newName)) {
+    return null;
+  }
+  return newName;
+};
+
+// FieldVariable のサブクラス（ひらがな拒否）
+class FieldVariableNoHiragana extends Blockly.FieldVariable {
+  constructor(varName = "x") {
+    super(varName);
+  }
+
+  doClassValidation_(newValue) {
+    if (!newValue || /[぀-ゟ]/.test(newValue)) {
+      return null;
+    }
+    return newValue;
+  }
+}
+
 // 変数に値を入れる
 Blockly.Blocks["var_set"] = {
   init: function () {
     this.appendValueInput("VALUE")
       .appendField("📦 変数")
-      .appendField(new Blockly.FieldVariable("ごうけい"), "VAR")
+      .appendField(new FieldVariableNoHiragana("x"), "VAR")
       .appendField("に");
     this.appendDummyInput().appendField("を入れる");
     this.setInputsInline(true);
@@ -540,7 +562,7 @@ Blockly.Blocks["var_get"] = {
   init: function () {
     this.appendDummyInput()
       .appendField("📦 変数")
-      .appendField(new Blockly.FieldVariable("ごうけい"), "VAR")
+      .appendField(new FieldVariableNoHiragana("x"), "VAR")
       .appendField("の中身");
     this.setOutput(true, null);
     this.setColour(CAT_COLORS.var);
@@ -553,7 +575,7 @@ Blockly.Blocks["var_change"] = {
   init: function () {
     this.appendValueInput("DELTA")
       .appendField("📦 変数")
-      .appendField(new Blockly.FieldVariable("ごうけい"), "VAR")
+      .appendField(new FieldVariableNoHiragana("x"), "VAR")
       .appendField("を");
     this.appendDummyInput().appendField("ふやす");
     this.setInputsInline(true);
