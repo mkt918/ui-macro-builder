@@ -325,6 +325,14 @@ class ExcelView {
       this.refEl.textContent = addr;
       const c = this.initialCells[addr];
       this.formulaEl.textContent = c && c.value !== undefined ? c.value : "";
+
+      // Blocklyのテキストフィールドが編集中なら、そこにセルアドレスを入力
+      const active = document.activeElement;
+      if (active && active.classList.contains("blocklyHtmlInput")) {
+        active.value = addr;
+        active.dispatchEvent(new Event("input", { bubbles: true }));
+        active.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      }
     });
   }
 
