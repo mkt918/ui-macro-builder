@@ -11,6 +11,7 @@ const CAT_COLORS = {
   array: "#27ae60",
   sheet: "#c0392b",
   value: "#2c3e50",
+  var:   "#d35400",
 };
 
 // ===== セル操作 =====
@@ -286,6 +287,35 @@ Blockly.Blocks["sheet_select"] = {
   },
 };
 
+// ===== 変数 =====
+
+Blockly.Blocks["var_set"] = {
+  init: function () {
+    this.appendValueInput("VALUE")
+      .appendField("📦 変数")
+      .appendField(new Blockly.FieldTextInput("ごうけい"), "NAME")
+      .appendField("に");
+    this.appendDummyInput().appendField("を入れる");
+    this.setInputsInline(true);
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(CAT_COLORS.var);
+    this.setTooltip("変数（名前のついた箱）に値を入れます");
+  },
+};
+
+Blockly.Blocks["var_get"] = {
+  init: function () {
+    this.appendDummyInput()
+      .appendField("📦 変数")
+      .appendField(new Blockly.FieldTextInput("ごうけい"), "NAME")
+      .appendField("の中身");
+    this.setOutput(true, null);
+    this.setColour(CAT_COLORS.var);
+    this.setTooltip("変数に入っている値を取り出します");
+  },
+};
+
 // ===== 値ブロック =====
 
 Blockly.Blocks["value_number"] = {
@@ -394,6 +424,15 @@ const TOOLBOX = {
       contents: [
         { kind: "block", type: "sheet_add" },
         { kind: "block", type: "sheet_select" },
+      ],
+    },
+    {
+      kind: "category",
+      name: "📦 変数",
+      colour: CAT_COLORS.var,
+      contents: [
+        { kind: "block", type: "var_set" },
+        { kind: "block", type: "var_get" },
       ],
     },
     {

@@ -134,6 +134,19 @@ vbaGenerator.forBlock["fmt_fontsize"] = function (block) {
   return `${rangeExpr(cell)}.Font.Size = ${size}`;
 };
 
+// ===== 変数 =====
+
+vbaGenerator.forBlock["var_set"] = function (block) {
+  const name = block.getFieldValue("NAME");
+  const val = vbaGenerator.valueToCode(block, "VALUE", vbaGenerator.ORDER_NONE) || "0";
+  return `${name} = ${val}`;
+};
+
+vbaGenerator.forBlock["var_get"] = function (block) {
+  const name = block.getFieldValue("NAME");
+  return [name, vbaGenerator.ORDER_ATOMIC];
+};
+
 // ===== 配列 =====
 
 vbaGenerator.forBlock["array_set"] = function (block) {
@@ -179,14 +192,25 @@ vbaGenerator.forBlock["value_math"] = function (block) {
 };
 
 // ===== ワークスペース全体 → Sub MyMacro() でラップ =====
+function collectVarNames(workspace) {
+  const names = new Set();
+  workspace.getAllBlocks(false).forEach((b) => {
+    if (b.type === "var_set" || b.type === "var_get") {
+      const n = b.getFieldValue("NAME");
+      if (n) names.add(n);
+    }
+  });
+  return names;
+}
+
 function generateVBA(workspace) {
   let body = vbaGenerator.workspaceToCode(workspace);
   if (!body.trim()) {
     return "Sub MyMacro()\n    ' ブロックを組み立てるとここにコードが表示されます\nEnd Sub";
   }
-  // i / arr を使っているか判定して宣言を入れる
   const usesI = /\bi\b/.test(body);
   const usesArr = /\barr\(/.test(body);
+  const varNames = collectVarNames(workspace);
   const indented = body
     .split("\n")
     .map((line) => (line.trim() ? "    " + line : line))
@@ -194,5 +218,8 @@ function generateVBA(workspace) {
   let header = "Sub MyMacro()\n";
   if (usesI) header += "    Dim i As Integer\n";
   if (usesArr) header += "    Dim arr(1 To 100) As Variant\n";
+  varNames.forEach((n) => {
+    header += `    Dim ${n} As Variant\n`;
+  });
   return header + indented + "\nEnd Sub";
 }

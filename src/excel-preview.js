@@ -98,12 +98,14 @@ class Interpreter {
     }
     this.steps = [];
     this.i = 0; // ループカウンタ
+    this.vars = {}; // 変数ストア: name -> value
   }
 
   snapshot() {
     return {
       cells: JSON.parse(JSON.stringify(this.model.cells)),
       arr: JSON.parse(JSON.stringify(this.model.arr)),
+      vars: JSON.parse(JSON.stringify(this.vars)),
       sheet: this.model.sheet,
       sheets: this.model.sheets.slice(),
     };
@@ -237,6 +239,13 @@ class Interpreter {
         this.record("cell", "A" + row, `${row} 行目をクリア`);
         break;
       }
+      case "var_set": {
+        const name = block.getFieldValue("NAME");
+        const val = this.evalValue(block.getInputTargetBlock("VALUE"));
+        this.vars[name] = val;
+        this.record("var", name, `変数「${name}」に「${val}」を入れる`);
+        break;
+      }
     }
   }
 
@@ -283,6 +292,10 @@ class Interpreter {
       case "cond_is_even": {
         const num = Number(this.evalValue(block.getInputTargetBlock("NUM")));
         return num % 2 === 0;
+      }
+      case "var_get": {
+        const name = block.getFieldValue("NAME");
+        return this.vars[name] !== undefined ? this.vars[name] : 0;
       }
     }
     return "";
