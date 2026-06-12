@@ -22,26 +22,27 @@
   function getThemes() {
     if (_themes) return _themes;
     _themes = {
+      // アプリの Catppuccin パレットに合わせる
       dark: Blockly.Theme.defineTheme("umb_dark", {
         base: Blockly.Themes.Classic,
         componentStyles: {
-          workspaceBackgroundColour: "#0d1117",
-          toolboxBackgroundColour: "#16213e",
-          toolboxForegroundColour: "#e0e0e0",
-          flyoutBackgroundColour: "#12182e",
-          flyoutForegroundColour: "#e0e0e0",
-          scrollbarColour: "#30363d",
+          workspaceBackgroundColour: "#11111b",
+          toolboxBackgroundColour: "#181825",
+          toolboxForegroundColour: "#cdd6f4",
+          flyoutBackgroundColour: "#1e1e2e",
+          flyoutForegroundColour: "#cdd6f4",
+          scrollbarColour: "#313244",
         },
       }),
       light: Blockly.Theme.defineTheme("umb_light", {
         base: Blockly.Themes.Classic,
         componentStyles: {
-          workspaceBackgroundColour: "#fafafa",
+          workspaceBackgroundColour: "#f8f9fa",
           toolboxBackgroundColour: "#ffffff",
-          toolboxForegroundColour: "#333333",
-          flyoutBackgroundColour: "#f5f5f5",
-          flyoutForegroundColour: "#333333",
-          scrollbarColour: "#cccccc",
+          toolboxForegroundColour: "#4c4f69",
+          flyoutBackgroundColour: "#eff1f5",
+          flyoutForegroundColour: "#4c4f69",
+          scrollbarColour: "#dce0e8",
         },
       }),
     };
@@ -158,8 +159,15 @@
       formula: document.getElementById("formula-bar"),
       status: document.getElementById("step-status"),
       array: document.getElementById("array-viz"),
+      vars: document.getElementById("var-viz"),
+      msgbox: document.getElementById("msgbox-overlay"),
       tabs: document.getElementById("excel-tabs"),
       onEdit: onCellEdited, // 仮想Excelのセル編集時
+      onPlayState: (playing) => {
+        // 実行中は ▶ → ⏸ にトグル
+        const btn = document.getElementById("run-btn");
+        btn.textContent = playing ? "⏸ 一時停止" : "▶ 実行";
+      },
     });
 
     // ブロック変更 → コード再生成 + ステップ再構築
@@ -535,10 +543,15 @@
     });
 
     // 実行コントロール
-    // InputBox ブロックがあれば、実行時にだけ質問して答えでステップを作り直す
+    // 実行中クリックで一時停止。InputBox があれば最初からの実行時にだけ質問する
     document.getElementById("run-btn").addEventListener("click", () => {
+      if (view.playing) {
+        view.stop(); // 一時停止（カーソル位置は保持）
+        return;
+      }
+      const fresh = view.cursor === 0 || view.cursor >= view.steps.length;
       const hasInput = workspace.getAllBlocks(false).some((b) => b.type === "io_inputbox");
-      if (hasInput) {
+      if (hasInput && fresh) {
         Object.keys(inputCache).forEach((k) => delete inputCache[k]); // 毎回聞き直す
         try {
           const result = buildSteps(workspace, view.getInitialCells(), {

@@ -1,7 +1,7 @@
 /* ===== UI Macro Builder — メインスタイル ===== */
 
 :root {
-  /* ダークモード */
+  /* ダークモード（Catppuccin Mocha ベース） */
   --bg-dark: #1e1e2e;
   --bg-panel: #181825;
   --bg-editor: #11111b;
@@ -9,14 +9,22 @@
   --accent: #f38ba8;
   --accent-blue: #89b4fa;
   --accent-green: #a6e3a1;
+  --accent-purple: #8e5fc4;
   --text: #cdd6f4;
   --text-muted: #6c7086;
   --excel-green: #217346;
+  --run-green: #2ea043;
+  --run-green-hover: #3fb950;
   --toolbar-bg: #1e1e2e;
   --header-bg: #181825;
+  /* 角丸スケール */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
 }
 
 body.light-mode {
+  /* ライトモード（Catppuccin Latte ベース） */
   --bg-dark: #eff1f5;
   --bg-panel: #ffffff;
   --bg-editor: #f8f9fa;
@@ -24,25 +32,19 @@ body.light-mode {
   --accent: #d20f39;
   --accent-blue: #1e66f5;
   --accent-green: #40a02b;
+  --accent-purple: #8839ef;
   --text: #4c4f69;
   --text-muted: #9ca0b0;
   --excel-green: #2e7d32;
+  --run-green: #238636;
+  --run-green-hover: #2ea043;
   --toolbar-bg: #e6e9ef;
   --header-bg: #eff1f5;
 }
 
-body.light-mode .blockly-area { background: var(--bg-editor); }
-body.light-mode .left-pane { background: var(--bg-panel); }
-body.light-mode .editor-toolbar { background: var(--toolbar-bg); border-color: var(--border); }
-body.light-mode .code-header-bar { background: var(--toolbar-bg); border-color: var(--border); }
-body.light-mode #code-output { color: var(--text); background: var(--bg-editor); }
-body.light-mode .excel-panel { background: #ffffff; color: #000; }
-body.light-mode .modal { background: var(--bg-panel); border-color: var(--border); }
+/* ライトモードは CSS 変数の差し替えで対応する。
+   ここに残すのは変数だけでは表現できない例外のみ */
 body.light-mode .hint-item { background: rgba(255, 193, 7, 0.12); }
-body.light-mode .editor-tab.active { background: var(--bg-editor); }
-body.light-mode .app-header { background: var(--header-bg); border-color: var(--border); }
-body.light-mode .quest-selector { background: var(--header-bg); border-color: var(--border); }
-body.light-mode .right-pane { background: var(--bg-editor); border-color: var(--border); }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -283,9 +285,9 @@ body.light-mode .quest-item:hover { background: #f0f0f0; }
   cursor: pointer;
   font-size: 12px;
 }
-.hint-btn:hover:not(:disabled) { background: #1a5276; }
+.hint-btn:hover:not(:disabled) { background: var(--accent-blue); color: #fff; }
 .hint-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.hint-btn.revealed { background: #1a5276; border-left: 3px solid #f1c40f; }
+.hint-btn.revealed { background: var(--accent-blue); color: #fff; border-left: 3px solid #f1c40f; }
 .hint-display {
   margin-top: 10px;
   display: flex;
@@ -303,15 +305,15 @@ body.light-mode .quest-item:hover { background: #f0f0f0; }
 .answer-btn {
   margin-top: 12px;
   padding: 7px 12px;
-  background: #6c3483;
+  background: var(--accent-purple);
   color: #fff;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: 12px;
   width: 100%;
 }
-.answer-btn:hover:not(:disabled) { background: #7d3c98; }
+.answer-btn:hover:not(:disabled) { opacity: 0.85; }
 .answer-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* ===== 中央エディタ ===== */
@@ -346,7 +348,7 @@ body.light-mode .quest-item:hover { background: #f0f0f0; }
   padding: 8px 16px;
   background: transparent;
   border: none;
-  border-right: 1px solid #30363d;
+  border-right: 1px solid var(--border);
   color: var(--text-muted);
   cursor: pointer;
   font-size: 12px;
@@ -354,9 +356,8 @@ body.light-mode .quest-item:hover { background: #f0f0f0; }
   transition: all 0.15s;
   white-space: nowrap;
 }
-.editor-tab:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+.editor-tab:hover { background: var(--border); color: var(--text); }
 .editor-tab.active { background: var(--bg-editor); color: var(--accent-blue); border-bottom: 2px solid var(--accent-blue); }
-body.light-mode .editor-tab.active { background: #fafafa; }
 
 /* タブパネル */
 .tab-panel { display: none; flex: 1; flex-direction: column; min-height: 0; }
@@ -371,12 +372,11 @@ body.light-mode .editor-tab.active { background: #fafafa; }
   align-items: center;
   justify-content: space-between;
   padding: 6px 14px;
-  background: #161b22;
-  border-bottom: 1px solid #30363d;
+  background: var(--toolbar-bg);
+  border-bottom: 1px solid var(--border);
   font-size: 12px;
   color: var(--text-muted);
 }
-body.light-mode .code-header-bar { background: #f0f0f0; }
 #code-output {
   flex: 1;
   overflow: auto;
@@ -384,11 +384,10 @@ body.light-mode .code-header-bar { background: #f0f0f0; }
   font-family: Consolas, "Courier New", monospace;
   font-size: 13px;
   line-height: 1.7;
-  color: #c9d1d9;
+  color: var(--text);
   white-space: pre;
   margin: 0;
 }
-body.light-mode #code-output { color: #333; }
 
 .toolbar-spacer { flex: 1; }
 .tool-btn {
@@ -425,11 +424,11 @@ body.light-mode #code-output { color: #333; }
 }
 .step-btn:hover { opacity: 0.85; }
 .step-btn.run-btn-main {
-  background: #2ea043;
+  background: var(--run-green);
   font-weight: 600;
   padding: 4px 14px;
 }
-.step-btn.run-btn-main:hover { background: #3fb950; }
+.step-btn.run-btn-main:hover { background: var(--run-green-hover); }
 
 .error-banner {
   display: none;
@@ -456,6 +455,7 @@ body.light-mode #code-output { color: #333; }
   color: #000;
   flex: 1;
   min-height: 0;
+  position: relative; /* MsgBox オーバーレイの基準 */
 }
 .excel-header {
   background: var(--excel-green);
@@ -543,6 +543,100 @@ body.light-mode #code-output { color: #333; }
   0% { background: #fff59d; }
   100% { background: transparent; }
 }
+
+/* ===== 変数ウォッチ ===== */
+.var-viz {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: #fdf1e3;
+  border-top: 2px solid #d35400;
+  overflow-x: auto;
+}
+.var-viz.show { display: flex; }
+.var-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #a04000;
+  white-space: nowrap;
+}
+.var-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.var-chip {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid #d35400;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: #fff;
+}
+.var-chip.active { outline: 2px solid #e67e22; outline-offset: 1px; }
+.var-chip.active .var-val { animation: cellFlash 0.6s ease; }
+.var-name {
+  background: #d35400;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  display: flex;
+  align-items: center;
+}
+.var-val {
+  padding: 2px 9px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #000;
+  min-width: 26px;
+  text-align: center;
+}
+
+/* ===== MsgBox オーバーレイ（Excel風ダイアログ） ===== */
+.msgbox-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+.msgbox-overlay[hidden] { display: none; }
+.msgbox {
+  background: #fff;
+  border: 1px solid #999;
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  min-width: 240px;
+  max-width: 85%;
+  overflow: hidden;
+  animation: clearPop 0.25s ease;
+}
+.msgbox-title {
+  background: var(--excel-green);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+}
+.msgbox-body {
+  padding: 18px 16px;
+  font-size: 14px;
+  color: #000;
+  text-align: center;
+  word-break: break-all;
+  line-height: 1.6;
+}
+.msgbox-ok {
+  display: block;
+  margin: 0 auto 14px;
+  padding: 5px 28px;
+  background: #f0f0f0;
+  border: 1px solid #aaa;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 12px;
+}
+.msgbox-ok:hover { background: #e3e3e3; }
 
 /* ===== 配列ビジュアライザ ===== */
 .array-viz {
@@ -633,14 +727,14 @@ body.light-mode #code-output { color: #333; }
 /* ===== コピーボタン ===== */
 .copy-btn {
   padding: 3px 10px;
-  background: #238636;
+  background: var(--run-green);
   color: #fff;
   border: none;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: 11px;
 }
-.copy-btn:hover { background: #2ea043; }
+.copy-btn:hover { background: var(--run-green-hover); }
 
 /* ===== モーダル ===== */
 .modal-overlay {

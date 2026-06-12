@@ -115,7 +115,16 @@
         <div class="excel-grid-wrap">
           <table class="excel-table" id="excel-table"></table>
         </div>
+        <div class="var-viz" id="var-viz"></div>
         <div class="array-viz" id="array-viz"></div>
+        <!-- MsgBox 風オーバーレイ（📢表示するブロックの実行時） -->
+        <div class="msgbox-overlay" id="msgbox-overlay" hidden>
+          <div class="msgbox">
+            <div class="msgbox-title">Microsoft Excel</div>
+            <div class="msgbox-body" id="msgbox-body"></div>
+            <button class="msgbox-ok" id="msgbox-ok">OK</button>
+          </div>
+        </div>
         <div class="excel-tabs" id="excel-tabs">
           <div class="sheet-tab active">Sheet1</div>
         </div>

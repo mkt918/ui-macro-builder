@@ -34,6 +34,10 @@ function varNameOf(block) {
   const f = block.getField("VAR");
   return f ? f.getText() : "x";
 }
+// HTMLエスケープ（ビジュアライザ描画用）
+function escapeHtmlPv(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
 // "A1" -> {col:1, row:1}
 function parseAddr(addr) {
   const m = String(addr).match(/^([A-Za-z]+)(\d+)$/);
@@ -256,7 +260,7 @@ class Interpreter {
       }
       case "io_msgbox": {
         const msg = String(this.evalValue(block.getInputTargetBlock("MSG")));
-        this.record("var", "msgbox", `💬 ${msg}`);
+        this.record("msg", msg, `📢 「${msg}」を表示`);
         break;
       }
       case "range_border": {
@@ -458,7 +462,7 @@ class Interpreter {
 }
 
 /* ---------- ビュー ---------- */
-const EMPTY_MODEL = { cells: {}, arr: {}, sheet: "Sheet1", sheets: ["Sheet1"] };
+const EMPTY_MODEL = { cells: {}, arr: {}, vars: {}, sheet: "Sheet1", sheets: ["Sheet1"] };
 
 class ExcelView {
   constructor(els) {
@@ -467,8 +471,15 @@ class ExcelView {
     this.formulaEl = els.formula;
     this.statusEl = els.status;
     this.arrayEl = els.array; // 配列ビジュアライザのコンテナ
+    this.varEl = els.vars || null; // 変数ウォッチのコンテナ
+    this.msgOverlay = els.msgbox || null; // MsgBox オーバーレイ
     this.tabsEl = els.tabs; // シートタブのコンテナ
     this.onEdit = els.onEdit || null; // セル編集時のコールバック
+    this.onPlayState = els.onPlayState || null; // 再生状態変更コールバック
+    if (this.msgOverlay) {
+      const ok = this.msgOverlay.querySelector(".msgbox-ok");
+      if (ok) ok.addEventListener("click", () => this.hideMsgBox());
+    }
     this.steps = [];
     this.cursor = 0;
     this.timer = null;
@@ -585,7 +596,7 @@ class ExcelView {
   }
   // 初期データを1つのモデルにして表示用に
   initialModel() {
-    return { cells: this.initialCells, arr: {}, sheet: "Sheet1", sheets: ["Sheet1"] };
+    return { cells: this.initialCells, arr: {}, vars: {}, sheet: "Sheet1", sheets: ["Sheet1"] };
   }
 
   // 全ステップ＋初期データから必要なグリッドサイズを算出して再構築
@@ -633,7 +644,40 @@ class ExcelView {
       }
     }
     this.renderArray(model.arr || {}, active);
+    this.renderVars(model.vars || {}, active);
     this.renderTabs(model.sheets || ["Sheet1"], model.sheet || "Sheet1");
+  }
+
+  // 変数ウォッチ（📦 変数の名前と今の値を表示）
+  renderVars(vars, active) {
+    if (!this.varEl) return;
+    const names = Object.keys(vars);
+    if (names.length === 0) {
+      this.varEl.classList.remove("show");
+      this.varEl.innerHTML = "";
+      return;
+    }
+    this.varEl.classList.add("show");
+    let html = '<span class="var-label">📦 変数</span><div class="var-chips">';
+    names.forEach((n) => {
+      const isActive = active && active.scope === "var" && active.key === n;
+      html += `<div class="var-chip ${isActive ? "active" : ""}">
+        <span class="var-name">${escapeHtmlPv(n)}</span>
+        <span class="var-val">${escapeHtmlPv(vars[n])}</span>
+      </div>`;
+    });
+    html += "</div>";
+    this.varEl.innerHTML = html;
+  }
+
+  // MsgBox オーバーレイ
+  showMsgBox(text) {
+    if (!this.msgOverlay) return;
+    this.msgOverlay.querySelector(".msgbox-body").textContent = text;
+    this.msgOverlay.hidden = false;
+  }
+  hideMsgBox() {
+    if (this.msgOverlay) this.msgOverlay.hidden = true;
   }
 
   // 配列ビジュアライザ
@@ -676,6 +720,7 @@ class ExcelView {
     this.stop();
     this.steps = steps;
     this.cursor = 0;
+    this.hideMsgBox();
     this.fitGrid(steps);
     // アイドル状態では生徒が入力した初期データを表示
     this.renderModel(this.initialModel(), null, null);
@@ -696,6 +741,12 @@ class ExcelView {
     if (!step) return;
     const marker = { scope: step.scope, key: step.key };
     this.renderModel(step.model, marker, marker);
+    // MsgBox ステップのときだけオーバーレイ表示
+    if (step.scope === "msg") {
+      this.showMsgBox(step.key);
+    } else {
+      this.hideMsgBox();
+    }
     // フォーミュラバー表示
     if (step.scope === "cell") {
       this.refEl.textContent = step.key;
@@ -706,6 +757,12 @@ class ExcelView {
     } else if (step.scope === "array") {
       this.refEl.textContent = `arr(${step.key})`;
       this.formulaEl.textContent = step.model.arr[step.key];
+    } else if (step.scope === "var") {
+      this.refEl.textContent = step.key;
+      this.formulaEl.textContent = step.model.vars ? step.model.vars[step.key] : "";
+    } else if (step.scope === "msg") {
+      this.refEl.textContent = "MsgBox";
+      this.formulaEl.textContent = step.key;
     } else {
       this.refEl.textContent = step.model.sheet;
       this.formulaEl.textContent = "";
@@ -728,6 +785,7 @@ class ExcelView {
     if (this.cursor >= this.steps.length) this.cursor = 0;
     this.playing = true;
     this.table.classList.add("playing");
+    if (this.onPlayState) this.onPlayState(true);
     const tick = () => {
       if (!this.stepForward()) {
         this.stop();
@@ -743,13 +801,16 @@ class ExcelView {
       clearTimeout(this.timer);
       this.timer = null;
     }
+    const wasPlaying = this.playing;
     this.playing = false;
     this.table.classList.remove("playing");
+    if (wasPlaying && this.onPlayState) this.onPlayState(false);
   }
 
   reset() {
     this.stop();
     this.cursor = 0;
+    this.hideMsgBox();
     // リセットで初期データに戻す
     this.renderModel(this.initialModel(), null, null);
     this.refEl.textContent = "A1";
