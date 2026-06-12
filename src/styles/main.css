@@ -59,38 +59,40 @@ html, body {
 
 /* ===== ヘッダー ===== */
 .app-header {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
   padding: 8px 18px;
   background: var(--header-bg);
   border-bottom: 1px solid var(--border);
+  height: 54px;
+}
+
+/* 左：クエストセレクタ */
+.app-header .quest-selector {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0;
+  background: transparent;
+  border: none;
+}
+
+/* 中央：タイトル */
+.header-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 200px;
 }
 .app-title { font-size: 16px; font-weight: 700; color: var(--accent); letter-spacing: 1px; }
 .app-subtitle { font-size: 12px; color: var(--text-muted); }
-.header-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
-.task-progress { font-size: 12px; color: var(--text-muted); }
 
-/* ===== レイアウト切り替えボタン ===== */
-.layout-toggle {
-  display: flex;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  overflow: hidden;
-}
-.layout-btn {
-  padding: 3px 10px;
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: 11px;
-  font-weight: 600;
-  transition: all 0.15s;
-}
-.layout-btn:not(:last-child) { border-right: 1px solid var(--border); }
-.layout-btn.active { background: var(--accent-blue); color: #fff; }
-.layout-btn:hover:not(.active) { background: var(--border); color: var(--text); }
+/* 右：アクション */
+.header-actions { display: flex; align-items: center; gap: 8px; }
+.task-progress { font-size: 12px; color: var(--text-muted); }
 
 .header-btn {
   padding: 4px 8px;
@@ -105,14 +107,6 @@ html, body {
 .header-btn:hover { background: var(--accent); border-color: var(--accent); }
 
 /* ===== クエストセレクタ ===== */
-.quest-selector {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 18px;
-  background: var(--bg-panel);
-  border-bottom: 1px solid var(--border);
-}
 .quest-btn {
   padding: 6px 14px;
   background: var(--accent);
@@ -147,10 +141,6 @@ html, body {
 
 /* 折りたたみ時：左ペイン（説明＋ヒント）を隠す */
 .main-layout.quest-collapsed .left-pane { display: none; }
-/* レイアウトA折りたたみ時は左カラム自体を消して2カラムに */
-.main-layout.quest-collapsed:not(.layout-b) {
-  grid-template-columns: minmax(0, 1fr) 600px;
-}
 
 /* ===== クエスト一覧モーダル ===== */
 .quest-list-modal {
@@ -201,20 +191,18 @@ body.light-mode .quest-item:hover { background: #f0f0f0; }
 .quest-item.solved .quest-item-title::before { content: "✓ "; color: #2ecc71; }
 
 /* ===== メインレイアウト ===== */
+/* 常にレイアウトB（上段=説明バー / 下段=ブロック / 右=Excel） */
 .main-layout {
   display: grid;
-  grid-template-columns: 240px minmax(0, 1fr) 600px;
-  height: calc(100vh - 41px - 41px);
+  grid-template-columns: minmax(0, 1fr) 540px;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: calc(100vh - 54px);
   overflow: hidden;
 }
 .main-layout > * { min-width: 0; }
 
-/* レイアウトB: 上段=説明バー（折りたたみ可） / 下段=ブロック / 右=Excel全高 */
-.main-layout.layout-b {
-  grid-template-columns: minmax(0, 1fr) 540px;
-  grid-template-rows: auto minmax(0, 1fr);
-}
-.main-layout.layout-b .left-pane {
+/* 左上：説明・ヒントバー */
+.main-layout .left-pane {
   grid-column: 1;
   grid-row: 1;
   border-right: none;
@@ -227,22 +215,26 @@ body.light-mode .quest-item:hover { background: #f0f0f0; }
   max-height: 230px;
   overflow-y: auto;
 }
-.main-layout.layout-b .left-pane .task-info {
+.main-layout .left-pane .task-info {
   flex: 2;
   min-width: 260px;
 }
-.main-layout.layout-b .left-pane .hint-section {
+.main-layout .left-pane .hint-section {
   flex: 1;
   min-width: 260px;
   border-left: 1px solid var(--border);
   padding-left: 16px;
 }
-.main-layout.layout-b .left-pane .answer-btn { width: auto; }
-.main-layout.layout-b .editor-pane {
+.main-layout .left-pane .answer-btn { width: auto; }
+
+/* 左下：ブロックエディタ */
+.main-layout .editor-pane {
   grid-column: 1;
   grid-row: 2;
 }
-.main-layout.layout-b .right-pane {
+
+/* 右：Excel プレビュー（両行にスパン） */
+.main-layout .right-pane {
   grid-column: 2;
   grid-row: 1 / 3;
   border-left: 1px solid var(--border);
@@ -466,6 +458,17 @@ body.light-mode .quest-item:hover { background: #f0f0f0; }
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+.excel-zoom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+#excel-zoom-slider {
+  width: 80px;
+  height: 5px;
+  cursor: pointer;
 }
 .excel-hint {
   font-size: 10px;

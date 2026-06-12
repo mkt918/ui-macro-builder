@@ -7,10 +7,10 @@
  * ExcelView   : HTML テーブルへの描画とアニメーション
  */
 
-const GRID_ROWS = 30; // 最小表示行数
-const GRID_COLS = 30; // 最小表示列数 A..AD
-const MAX_GRID_ROWS = 100; // 安全上限
-const MAX_GRID_COLS = 30; // A..AD
+const GRID_ROWS = 26; // 最小表示行数（Z行まで）
+const GRID_COLS = 26; // 最小表示列数（Z列まで）
+const MAX_GRID_ROWS = 26; // 安全上限（Z行）
+const MAX_GRID_COLS = 26; // Z列
 const MAX_STEPS = 5000; // ステップ爆発ガード
 const MAX_ARRAY_DISPLAY = 30; // 配列ビジュアライザの表示上限
 
@@ -822,6 +822,16 @@ class ExcelView {
 
   setSpeed(ms) {
     this.speed = ms;
+  }
+
+  setZoom(percent) {
+    const scale = percent / 100;
+    this.table.style.transform = `scale(${scale})`;
+    this.table.style.transformOrigin = "top left";
+    const gridWrap = this.table.closest(".excel-grid-wrap");
+    if (gridWrap) {
+      gridWrap.style.height = `calc(100% * ${scale})`;
+    }
   }
 
   // 最終結果のモデル（クリア判定用）。ブロックが無くても初期データを返す

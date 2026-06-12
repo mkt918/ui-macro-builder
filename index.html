@@ -13,24 +13,20 @@
 
   <!-- ===== ヘッダー ===== -->
   <header class="app-header">
-    <div class="app-title">⚡ UI Macro Builder</div>
-    <div class="app-subtitle">Excel VBA ビジュアルプログラミング</div>
+    <nav class="quest-selector">
+      <button id="quest-list-btn" class="quest-btn">🎮 クエスト選択</button>
+      <span id="current-quest" class="current-quest">—</span>
+      <button id="quest-collapse-btn" class="collapse-btn" title="課題の説明とヒントを開閉">📖 説明とヒント ▾</button>
+    </nav>
+    <div class="header-center">
+      <div class="app-title">⚡ UI Macro Builder</div>
+      <div class="app-subtitle">Excel VBA ビジュアルプログラミング</div>
+    </div>
     <div class="header-actions">
       <span id="task-progress" class="task-progress"></span>
-      <div class="layout-toggle" title="レイアウト切り替え">
-        <button class="layout-btn active" id="layout-a-btn" data-layout="A">A</button>
-        <button class="layout-btn" id="layout-b-btn" data-layout="B">B</button>
-      </div>
       <button id="theme-toggle-btn" class="header-btn" title="ダーク/ライトモード">🌙</button>
     </div>
   </header>
-
-  <!-- ===== クエストセレクタ ===== -->
-  <nav class="quest-selector">
-    <button id="quest-list-btn" class="quest-btn">🎮 クエスト選択</button>
-    <span id="current-quest" class="current-quest">—</span>
-    <button id="quest-collapse-btn" class="collapse-btn" title="課題の説明とヒントを開閉">📖 説明とヒント ▾</button>
-  </nav>
 
   <!-- ===== メインレイアウト ===== -->
   <main class="main-layout" id="main-layout">
@@ -106,6 +102,11 @@
         <div class="excel-header">
           <span>📊 仮想 Excel</span>
           <span class="excel-hint">ダブルクリックで入力 / 編集中にセルクリックでアドレス入力</span>
+          <div class="excel-zoom">
+            <span title="縮小">🔍−</span>
+            <input type="range" id="excel-zoom-slider" min="50" max="150" value="100" step="10" title="拡大縮小" />
+            <span title="拡大">🔍+</span>
+          </div>
         </div>
         <div class="excel-formula-bar">
           <span class="cell-ref" id="cell-ref">A1</span>

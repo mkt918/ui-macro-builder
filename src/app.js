@@ -576,6 +576,15 @@
     });
     view.setSpeed(1600 - 500);
 
+    // Excel拡大縮小
+    const zoomSlider = document.getElementById("excel-zoom-slider");
+    if (zoomSlider) {
+      zoomSlider.addEventListener("input", (e) => {
+        view.setZoom(Number(e.target.value));
+      });
+      view.setZoom(100);
+    }
+
     // コードコピー
     document.getElementById("copy-btn").addEventListener("click", () => {
       const code = document.querySelector("#code-output code").textContent;
