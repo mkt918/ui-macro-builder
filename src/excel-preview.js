@@ -29,6 +29,11 @@ function colLetter(n) {
 function colNum(letter) {
   return letter.toUpperCase().charCodeAt(0) - 64;
 }
+// FieldVariable から変数名（表示名）を取り出す
+function varNameOf(block) {
+  const f = block.getField("VAR");
+  return f ? f.getText() : "x";
+}
 // "A1" -> {col:1, row:1}
 function parseAddr(addr) {
   const m = String(addr).match(/^([A-Za-z]+)(\d+)$/);
@@ -180,30 +185,32 @@ class Interpreter {
         break;
       }
       case "loop_repeat": {
-        const times = Number(block.getFieldValue("TIMES"));
+        const times = Number(this.evalValue(block.getInputTargetBlock("TIMES"))) || 0;
         const saved = this.i;
         for (let k = 1; k <= times; k++) {
           this.i = k;
           this.run(block.getInputTargetBlock("DO"));
+          if (this.steps.length >= MAX_STEPS) break;
         }
         this.i = saved;
         break;
       }
       case "loop_range": {
-        const start = Number(block.getFieldValue("START"));
-        const end = Number(block.getFieldValue("END"));
+        const start = Number(this.evalValue(block.getInputTargetBlock("START")));
+        const end = Number(this.evalValue(block.getInputTargetBlock("END")));
         const saved = this.i;
         for (let k = start; k <= end; k++) {
           this.i = k;
           this.run(block.getInputTargetBlock("DO"));
+          if (this.steps.length >= MAX_STEPS) break;
         }
         this.i = saved;
         break;
       }
       case "loop_for_step": {
-        const start = Number(block.getFieldValue("START"));
-        const end = Number(block.getFieldValue("END"));
-        const step = Number(block.getFieldValue("STEP")) || 1;
+        const start = Number(this.evalValue(block.getInputTargetBlock("START")));
+        const end = Number(this.evalValue(block.getInputTargetBlock("END")));
+        const step = Number(this.evalValue(block.getInputTargetBlock("STEP"))) || 1;
         const saved = this.i;
         if (step > 0) {
           for (let k = start; k <= end; k += step) {
@@ -255,14 +262,14 @@ class Interpreter {
       }
       case "fmt_fontsize": {
         const addr = this.resolveAddr(block.getFieldValue("CELL"));
-        const size = Number(block.getFieldValue("SIZE"));
+        const size = Number(this.evalValue(block.getInputTargetBlock("SIZE"))) || 14;
         const c = (this.model.cells[addr] = this.model.cells[addr] || {});
         c.fontSize = size;
         this.record("cell", addr, `${addr} の文字サイズを ${size} に`);
         break;
       }
       case "cell_clear_row": {
-        const row = Number(block.getFieldValue("ROW"));
+        const row = Number(this.evalValue(block.getInputTargetBlock("ROW"))) || 1;
         for (let col = 1; col <= 30; col++) {
           const addr = String.fromCharCode(64 + col) + row;
           this.model.clearContents(addr);
@@ -271,10 +278,18 @@ class Interpreter {
         break;
       }
       case "var_set": {
-        const name = block.getFieldValue("NAME");
+        const name = varNameOf(block);
         const val = this.evalValue(block.getInputTargetBlock("VALUE"));
         this.vars[name] = val;
         this.record("var", name, `変数「${name}」に「${val}」を入れる`);
+        break;
+      }
+      case "var_change": {
+        const name = varNameOf(block);
+        const delta = Number(this.evalValue(block.getInputTargetBlock("DELTA"))) || 0;
+        const cur = Number(this.vars[name]) || 0;
+        this.vars[name] = cur + delta;
+        this.record("var", name, `変数「${name}」を ${delta} ふやす（→ ${this.vars[name]}）`);
         break;
       }
       case "cells_set_value": {
@@ -359,7 +374,7 @@ class Interpreter {
         return num % 2 === 0;
       }
       case "var_get": {
-        const name = block.getFieldValue("NAME");
+        const name = varNameOf(block);
         return this.vars[name] !== undefined ? this.vars[name] : 0;
       }
       case "cells_get_value": {

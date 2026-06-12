@@ -130,6 +130,26 @@
       renderer: "zelos",
     });
 
+    // 📦 変数カテゴリ：日本語ブロック + 「変数を作る」ボタン + 登録済み変数の取り出し
+    workspace.registerToolboxCategoryCallback("VARIABLE_JP", function (ws) {
+      const items = [
+        { kind: "button", text: "＋ 変数を作る", callbackKey: "CREATE_VARIABLE_JP" },
+        { kind: "block", type: "var_set" },
+        { kind: "block", type: "var_change", inputs: { DELTA: { shadow: { type: "value_number", fields: { NUM: 1 } } } } },
+      ];
+      const vars = ws.getVariableMap ? ws.getVariableMap().getAllVariables() : ws.getAllVariables();
+      vars.forEach((v) => {
+        items.push({ kind: "block", type: "var_get", fields: { VAR: { name: v.getName ? v.getName() : v.name, id: v.getId ? v.getId() : v.id_ } } });
+      });
+      if (!vars.length) {
+        items.push({ kind: "block", type: "var_get" });
+      }
+      return items;
+    });
+    workspace.registerButtonCallback("CREATE_VARIABLE_JP", function (button) {
+      Blockly.Variables.createVariableButtonHandler(button.getTargetWorkspace());
+    });
+
     view = new ExcelView({
       table: document.getElementById("excel-table"),
       ref: document.getElementById("cell-ref"),

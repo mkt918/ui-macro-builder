@@ -66,29 +66,29 @@ vbaGenerator.forBlock["cell_clear"] = function (block) {
 };
 
 vbaGenerator.forBlock["cell_clear_row"] = function (block) {
-  const row = block.getFieldValue("ROW");
+  const row = vbaGenerator.valueToCode(block, "ROW", vbaGenerator.ORDER_NONE) || "1";
   return `Rows(${row}).ClearContents`;
 };
 
 // ===== 繰り返し =====
 
 vbaGenerator.forBlock["loop_repeat"] = function (block) {
-  const times = block.getFieldValue("TIMES");
+  const times = vbaGenerator.valueToCode(block, "TIMES", vbaGenerator.ORDER_NONE) || "1";
   const body = vbaGenerator.statementToCode(block, "DO");
   return `For i = 1 To ${times}\n${body}\nNext i`;
 };
 
 vbaGenerator.forBlock["loop_range"] = function (block) {
-  const start = block.getFieldValue("START");
-  const end = block.getFieldValue("END");
+  const start = vbaGenerator.valueToCode(block, "START", vbaGenerator.ORDER_NONE) || "1";
+  const end = vbaGenerator.valueToCode(block, "END", vbaGenerator.ORDER_NONE) || "1";
   const body = vbaGenerator.statementToCode(block, "DO");
   return `For i = ${start} To ${end}\n${body}\nNext i`;
 };
 
 vbaGenerator.forBlock["loop_for_step"] = function (block) {
-  const start = block.getFieldValue("START");
-  const end = block.getFieldValue("END");
-  const step = block.getFieldValue("STEP");
+  const start = vbaGenerator.valueToCode(block, "START", vbaGenerator.ORDER_NONE) || "1";
+  const end = vbaGenerator.valueToCode(block, "END", vbaGenerator.ORDER_NONE) || "1";
+  const step = vbaGenerator.valueToCode(block, "STEP", vbaGenerator.ORDER_NONE) || "1";
   const body = vbaGenerator.statementToCode(block, "DO");
   return `For i = ${start} To ${end} Step ${step}\n${body}\nNext i`;
 };
@@ -144,7 +144,7 @@ vbaGenerator.forBlock["fmt_bold"] = function (block) {
 
 vbaGenerator.forBlock["fmt_fontsize"] = function (block) {
   const cell = block.getFieldValue("CELL");
-  const size = block.getFieldValue("SIZE");
+  const size = vbaGenerator.valueToCode(block, "SIZE", vbaGenerator.ORDER_NONE) || "14";
   return `${rangeExpr(cell)}.Font.Size = ${size}`;
 };
 
@@ -184,15 +184,26 @@ vbaGenerator.forBlock["cells_bold"] = function (block) {
 
 // ===== 変数 =====
 
+// FieldVariable から変数名（表示名）を取り出す
+function varName(block) {
+  const f = block.getField("VAR");
+  return f ? f.getText() : "x";
+}
+
 vbaGenerator.forBlock["var_set"] = function (block) {
-  const name = block.getFieldValue("NAME");
+  const name = varName(block);
   const val = vbaGenerator.valueToCode(block, "VALUE", vbaGenerator.ORDER_NONE) || "0";
   return `${name} = ${val}`;
 };
 
 vbaGenerator.forBlock["var_get"] = function (block) {
-  const name = block.getFieldValue("NAME");
-  return [name, vbaGenerator.ORDER_ATOMIC];
+  return [varName(block), vbaGenerator.ORDER_ATOMIC];
+};
+
+vbaGenerator.forBlock["var_change"] = function (block) {
+  const name = varName(block);
+  const delta = vbaGenerator.valueToCode(block, "DELTA", vbaGenerator.ORDER_NONE) || "1";
+  return `${name} = ${name} + ${delta}`;
 };
 
 // ===== 配列 =====
@@ -240,12 +251,13 @@ vbaGenerator.forBlock["value_math"] = function (block) {
 };
 
 // ===== ワークスペース全体 → Sub MyMacro() でラップ =====
+// 実際にブロックで使われている変数だけ収集（未使用変数はDimしない）
 function collectVarNames(workspace) {
   const names = new Set();
   workspace.getAllBlocks(false).forEach((b) => {
-    if (b.type === "var_set" || b.type === "var_get") {
-      const n = b.getFieldValue("NAME");
-      if (n) names.add(n);
+    if (b.type === "var_set" || b.type === "var_get" || b.type === "var_change") {
+      const f = b.getField("VAR");
+      if (f) names.add(f.getText());
     }
   });
   return names;

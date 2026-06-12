@@ -78,10 +78,11 @@ Blockly.Blocks["cell_clear"] = {
 // 行全体を消す（新規）
 Blockly.Blocks["cell_clear_row"] = {
   init: function () {
-    this.appendDummyInput()
-      .appendField("🗑")
-      .appendField(new Blockly.FieldNumber(1, 1, 1000, 1), "ROW")
-      .appendField("行目をすべて消す");
+    this.appendValueInput("ROW")
+      .setCheck("Number")
+      .appendField("🗑");
+    this.appendDummyInput().appendField("行目をすべて消す");
+    this.setInputsInline(true);
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
     this.setColour(CAT_COLORS.cell);
@@ -93,11 +94,12 @@ Blockly.Blocks["cell_clear_row"] = {
 
 Blockly.Blocks["loop_repeat"] = {
   init: function () {
-    this.appendDummyInput()
-      .appendField("🔁")
-      .appendField(new Blockly.FieldNumber(3, 1, 1000, 1), "TIMES")
-      .appendField("回くりかえす");
+    this.appendValueInput("TIMES")
+      .setCheck("Number")
+      .appendField("🔁");
+    this.appendDummyInput().appendField("回くりかえす");
     this.appendStatementInput("DO").appendField("↓ やること");
+    this.setInputsInline(true);
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
     this.setColour(CAT_COLORS.loop);
@@ -107,13 +109,15 @@ Blockly.Blocks["loop_repeat"] = {
 
 Blockly.Blocks["loop_range"] = {
   init: function () {
-    this.appendDummyInput()
-      .appendField("🔁")
-      .appendField(new Blockly.FieldNumber(1, 1, 1000, 1), "START")
-      .appendField("から")
-      .appendField(new Blockly.FieldNumber(5, 1, 1000, 1), "END")
-      .appendField("まで1ずつくりかえす");
+    this.appendValueInput("START")
+      .setCheck("Number")
+      .appendField("🔁");
+    this.appendValueInput("END")
+      .setCheck("Number")
+      .appendField("から");
+    this.appendDummyInput().appendField("まで1ずつくりかえす");
     this.appendStatementInput("DO").appendField("↓ やること");
+    this.setInputsInline(true);
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
     this.setColour(CAT_COLORS.loop);
@@ -123,15 +127,18 @@ Blockly.Blocks["loop_range"] = {
 
 Blockly.Blocks["loop_for_step"] = {
   init: function () {
-    this.appendDummyInput()
-      .appendField("🔁 For")
-      .appendField(new Blockly.FieldNumber(1, -1000, 1000, 1), "START")
-      .appendField("から")
-      .appendField(new Blockly.FieldNumber(10, -1000, 1000, 1), "END")
-      .appendField("まで")
-      .appendField(new Blockly.FieldNumber(2, -1000, 1000, 1), "STEP")
-      .appendField("ずつくりかえす");
+    this.appendValueInput("START")
+      .setCheck("Number")
+      .appendField("🔁 For");
+    this.appendValueInput("END")
+      .setCheck("Number")
+      .appendField("から");
+    this.appendValueInput("STEP")
+      .setCheck("Number")
+      .appendField("まで");
+    this.appendDummyInput().appendField("ずつくりかえす");
     this.appendStatementInput("DO").appendField("↓ やること");
+    this.setInputsInline(true);
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
     this.setColour(CAT_COLORS.loop);
@@ -254,9 +261,10 @@ Blockly.Blocks["fmt_fontsize"] = {
     this.appendDummyInput()
       .appendField("🔡 セル")
       .appendField(new Blockly.FieldTextInput("A1"), "CELL")
-      .appendField("の文字サイズを")
-      .appendField(new Blockly.FieldNumber(14, 6, 72, 1), "SIZE")
-      .appendField("にする");
+      .appendField("の文字サイズを");
+    this.appendValueInput("SIZE").setCheck("Number");
+    this.appendDummyInput().appendField("にする");
+    this.setInputsInline(true);
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
     this.setColour(CAT_COLORS.fmt);
@@ -408,13 +416,14 @@ Blockly.Blocks["cells_bold"] = {
   },
 };
 
-// ===== 変数 =====
+// ===== 変数（ドロップダウン選択式）=====
 
+// 変数に値を入れる
 Blockly.Blocks["var_set"] = {
   init: function () {
     this.appendValueInput("VALUE")
       .appendField("📦 変数")
-      .appendField(new Blockly.FieldTextInput("ごうけい"), "NAME")
+      .appendField(new Blockly.FieldVariable("ごうけい"), "VAR")
       .appendField("に");
     this.appendDummyInput().appendField("を入れる");
     this.setInputsInline(true);
@@ -425,15 +434,32 @@ Blockly.Blocks["var_set"] = {
   },
 };
 
+// 変数の中身を取り出す
 Blockly.Blocks["var_get"] = {
   init: function () {
     this.appendDummyInput()
       .appendField("📦 変数")
-      .appendField(new Blockly.FieldTextInput("ごうけい"), "NAME")
+      .appendField(new Blockly.FieldVariable("ごうけい"), "VAR")
       .appendField("の中身");
     this.setOutput(true, null);
     this.setColour(CAT_COLORS.var);
     this.setTooltip("変数に入っている値を取り出します");
+  },
+};
+
+// 変数を◯ふやす（手軽な変更ブロック）
+Blockly.Blocks["var_change"] = {
+  init: function () {
+    this.appendValueInput("DELTA")
+      .appendField("📦 変数")
+      .appendField(new Blockly.FieldVariable("ごうけい"), "VAR")
+      .appendField("を");
+    this.appendDummyInput().appendField("ふやす");
+    this.setInputsInline(true);
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(CAT_COLORS.var);
+    this.setTooltip("変数の中身を指定した数だけ増やします（マイナスで減らす）");
   },
 };
 
@@ -484,6 +510,11 @@ Blockly.Blocks["value_math"] = {
 };
 
 // ===== ツールボックス定義 =====
+// 数値シャドウ（普段は数字を直接入力、変数や計算ブロックで差し替え可能）
+function numShadow(n) {
+  return { shadow: { type: "value_number", fields: { NUM: n } } };
+}
+
 const TOOLBOX = {
   kind: "categoryToolbox",
   contents: [
@@ -496,10 +527,22 @@ const TOOLBOX = {
         { kind: "block", type: "cell_get_value" },
         { kind: "block", type: "cell_copy" },
         { kind: "block", type: "cell_clear" },
-        { kind: "block", type: "cell_clear_row" },
-        { kind: "block", type: "cells_set_value" },
-        { kind: "block", type: "cells_get_value" },
-        { kind: "block", type: "cells_clear" },
+        { kind: "block", type: "cell_clear_row", inputs: { ROW: numShadow(1) } },
+        {
+          kind: "block",
+          type: "cells_set_value",
+          inputs: { ROW: numShadow(1), COL: numShadow(1) },
+        },
+        {
+          kind: "block",
+          type: "cells_get_value",
+          inputs: { ROW: numShadow(1), COL: numShadow(1) },
+        },
+        {
+          kind: "block",
+          type: "cells_clear",
+          inputs: { ROW: numShadow(1), COL: numShadow(1) },
+        },
       ],
     },
     {
@@ -507,9 +550,17 @@ const TOOLBOX = {
       name: "🔁 くりかえし",
       colour: CAT_COLORS.loop,
       contents: [
-        { kind: "block", type: "loop_repeat" },
-        { kind: "block", type: "loop_range" },
-        { kind: "block", type: "loop_for_step" },
+        { kind: "block", type: "loop_repeat", inputs: { TIMES: numShadow(3) } },
+        {
+          kind: "block",
+          type: "loop_range",
+          inputs: { START: numShadow(1), END: numShadow(5) },
+        },
+        {
+          kind: "block",
+          type: "loop_for_step",
+          inputs: { START: numShadow(1), END: numShadow(10), STEP: numShadow(2) },
+        },
         { kind: "block", type: "loop_while" },
         { kind: "block", type: "loop_index" },
       ],
@@ -531,9 +582,17 @@ const TOOLBOX = {
       contents: [
         { kind: "block", type: "fmt_bgcolor" },
         { kind: "block", type: "fmt_bold" },
-        { kind: "block", type: "fmt_fontsize" },
-        { kind: "block", type: "cells_bgcolor" },
-        { kind: "block", type: "cells_bold" },
+        { kind: "block", type: "fmt_fontsize", inputs: { SIZE: numShadow(14) } },
+        {
+          kind: "block",
+          type: "cells_bgcolor",
+          inputs: { ROW: numShadow(1), COL: numShadow(1) },
+        },
+        {
+          kind: "block",
+          type: "cells_bold",
+          inputs: { ROW: numShadow(1), COL: numShadow(1) },
+        },
       ],
     },
     {
@@ -558,10 +617,7 @@ const TOOLBOX = {
       kind: "category",
       name: "📦 変数",
       colour: CAT_COLORS.var,
-      contents: [
-        { kind: "block", type: "var_set" },
-        { kind: "block", type: "var_get" },
-      ],
+      custom: "VARIABLE_JP",
     },
     {
       kind: "category",
