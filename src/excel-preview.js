@@ -489,8 +489,24 @@ class ExcelView {
     this.initialCells = {}; // 生徒が直接入力した初期データ
     this.editing = false; // 編集中フラグ（描画でclobberしない用）
     this.playing = false; // アニメーション中は編集不可
+    this._workspace = null; // Blockly workspace への参照（常時変数表示用）
     this.buildGrid(GRID_ROWS, GRID_COLS);
     this.bindEditing();
+  }
+
+  // workspace をバインドして変数パネルを常時更新
+  bindWorkspace(workspace) {
+    this._workspace = workspace;
+    workspace.addChangeListener((e) => {
+      if (
+        e.type === Blockly.Events.VAR_CREATE ||
+        e.type === Blockly.Events.VAR_DELETE ||
+        e.type === Blockly.Events.VAR_RENAME
+      ) {
+        this.renderVars({}, null);
+      }
+    });
+    this.renderVars({}, null);
   }
 
   buildGrid(rows, cols) {
@@ -648,22 +664,27 @@ class ExcelView {
     this.renderTabs(model.sheets || ["Sheet1"], model.sheet || "Sheet1");
   }
 
-  // 変数ウォッチ（📦 変数の名前と今の値を表示）
+  // 変数ウォッチ（📦 変数の名前と今の値を常時表示）
   renderVars(vars, active) {
     if (!this.varEl) return;
-    const names = Object.keys(vars);
-    if (names.length === 0) {
+    const ws = this._workspace;
+    // ワークスペースに定義された変数名を取得
+    const declaredNames = ws
+      ? ws.getAllVariables().map((v) => v.name)
+      : Object.keys(vars);
+    if (declaredNames.length === 0) {
       this.varEl.classList.remove("show");
       this.varEl.innerHTML = "";
       return;
     }
     this.varEl.classList.add("show");
     let html = '<span class="var-label">📦 変数</span><div class="var-chips">';
-    names.forEach((n) => {
+    declaredNames.forEach((n) => {
       const isActive = active && active.scope === "var" && active.key === n;
+      const val = vars[n] !== undefined ? vars[n] : "—";
       html += `<div class="var-chip ${isActive ? "active" : ""}">
         <span class="var-name">${escapeHtmlPv(n)}</span>
-        <span class="var-val">${escapeHtmlPv(vars[n])}</span>
+        <span class="var-val">${escapeHtmlPv(val)}</span>
       </div>`;
     });
     html += "</div>";
@@ -680,7 +701,7 @@ class ExcelView {
     if (this.msgOverlay) this.msgOverlay.hidden = true;
   }
 
-  // 配列ビジュアライザ
+  // 配列ビジュアライザ（実行中のみ表示）
   renderArray(arr, active) {
     if (!this.arrayEl) return;
     const keys = Object.keys(arr).map(Number).sort((a, b) => a - b);

@@ -170,6 +170,9 @@
       },
     });
 
+    // 変数パネルを常時更新（VAR_CREATE/DELETE/RENAME 時）
+    view.bindWorkspace(workspace);
+
     // ブロック変更 → コード再生成 + ステップ再構築
     workspace.addChangeListener(onWorkspaceChange);
 
@@ -324,6 +327,11 @@
     }
 
     if (currentTaskId) saveCurrentBlocks();
+
+    // 変数パネルを現在のステップカーソル値で更新（常時表示）
+    const curStep = view.steps[view.cursor - 1];
+    const curVars = curStep ? (curStep.vars || {}) : {};
+    view.renderVars(curVars, curStep ? (curStep.changed || null) : null);
   }
 
   // ----- VBA シンタックスハイライト（F6）-----
