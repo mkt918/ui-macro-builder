@@ -134,6 +134,40 @@ vbaGenerator.forBlock["fmt_fontsize"] = function (block) {
   return `${rangeExpr(cell)}.Font.Size = ${size}`;
 };
 
+// ===== Cells（行・列を変数で指定）=====
+
+vbaGenerator.forBlock["cells_set_value"] = function (block) {
+  const row = vbaGenerator.valueToCode(block, "ROW", vbaGenerator.ORDER_NONE) || "1";
+  const col = vbaGenerator.valueToCode(block, "COL", vbaGenerator.ORDER_NONE) || "1";
+  const val = vbaGenerator.valueToCode(block, "VALUE", vbaGenerator.ORDER_NONE) || '""';
+  return `Cells(${row}, ${col}).Value = ${val}`;
+};
+
+vbaGenerator.forBlock["cells_get_value"] = function (block) {
+  const row = vbaGenerator.valueToCode(block, "ROW", vbaGenerator.ORDER_NONE) || "1";
+  const col = vbaGenerator.valueToCode(block, "COL", vbaGenerator.ORDER_NONE) || "1";
+  return [`Cells(${row}, ${col}).Value`, vbaGenerator.ORDER_ATOMIC];
+};
+
+vbaGenerator.forBlock["cells_clear"] = function (block) {
+  const row = vbaGenerator.valueToCode(block, "ROW", vbaGenerator.ORDER_NONE) || "1";
+  const col = vbaGenerator.valueToCode(block, "COL", vbaGenerator.ORDER_NONE) || "1";
+  return `Cells(${row}, ${col}).ClearContents`;
+};
+
+vbaGenerator.forBlock["cells_bgcolor"] = function (block) {
+  const row = vbaGenerator.valueToCode(block, "ROW", vbaGenerator.ORDER_NONE) || "1";
+  const col = vbaGenerator.valueToCode(block, "COL", vbaGenerator.ORDER_NONE) || "1";
+  const color = block.getFieldValue("COLOR");
+  return `Cells(${row}, ${col}).Interior.Color = ${COLOR_RGB[color]}`;
+};
+
+vbaGenerator.forBlock["cells_bold"] = function (block) {
+  const row = vbaGenerator.valueToCode(block, "ROW", vbaGenerator.ORDER_NONE) || "1";
+  const col = vbaGenerator.valueToCode(block, "COL", vbaGenerator.ORDER_NONE) || "1";
+  return `Cells(${row}, ${col}).Font.Bold = True`;
+};
+
 // ===== 変数 =====
 
 vbaGenerator.forBlock["var_set"] = function (block) {

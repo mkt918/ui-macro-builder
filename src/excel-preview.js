@@ -246,6 +246,40 @@ class Interpreter {
         this.record("var", name, `変数「${name}」に「${val}」を入れる`);
         break;
       }
+      case "cells_set_value": {
+        const row = Number(this.evalValue(block.getInputTargetBlock("ROW"))) || 1;
+        const col = Number(this.evalValue(block.getInputTargetBlock("COL"))) || 1;
+        const addr = colLetter(col) + row;
+        const val = this.evalValue(block.getInputTargetBlock("VALUE"));
+        this.model.set(addr, val);
+        this.record("cell", addr, `Cells(${row},${col}) に「${val}」を入力`);
+        break;
+      }
+      case "cells_clear": {
+        const row = Number(this.evalValue(block.getInputTargetBlock("ROW"))) || 1;
+        const col = Number(this.evalValue(block.getInputTargetBlock("COL"))) || 1;
+        const addr = colLetter(col) + row;
+        this.model.clearContents(addr);
+        this.record("cell", addr, `Cells(${row},${col}) をクリア`);
+        break;
+      }
+      case "cells_bgcolor": {
+        const row = Number(this.evalValue(block.getInputTargetBlock("ROW"))) || 1;
+        const col = Number(this.evalValue(block.getInputTargetBlock("COL"))) || 1;
+        const addr = colLetter(col) + row;
+        const color = block.getFieldValue("COLOR");
+        this.model.setBg(addr, COLOR_HEX[color]);
+        this.record("cell", addr, `Cells(${row},${col}) 背景色変更`);
+        break;
+      }
+      case "cells_bold": {
+        const row = Number(this.evalValue(block.getInputTargetBlock("ROW"))) || 1;
+        const col = Number(this.evalValue(block.getInputTargetBlock("COL"))) || 1;
+        const addr = colLetter(col) + row;
+        this.model.setBold(addr);
+        this.record("cell", addr, `Cells(${row},${col}) を太字に`);
+        break;
+      }
     }
   }
 
@@ -296,6 +330,11 @@ class Interpreter {
       case "var_get": {
         const name = block.getFieldValue("NAME");
         return this.vars[name] !== undefined ? this.vars[name] : 0;
+      }
+      case "cells_get_value": {
+        const row = Number(this.evalValue(block.getInputTargetBlock("ROW"))) || 1;
+        const col = Number(this.evalValue(block.getInputTargetBlock("COL"))) || 1;
+        return this.model.get(colLetter(col) + row);
       }
     }
     return "";

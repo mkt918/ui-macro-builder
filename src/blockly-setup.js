@@ -287,6 +287,96 @@ Blockly.Blocks["sheet_select"] = {
   },
 };
 
+// ===== Cells（行・列を変数で指定）=====
+
+Blockly.Blocks["cells_set_value"] = {
+  init: function () {
+    this.appendValueInput("ROW")
+      .appendField("📝 Cells（行");
+    this.appendValueInput("COL")
+      .appendField("列");
+    this.appendValueInput("VALUE")
+      .appendField("）の値を");
+    this.appendDummyInput().appendField("に変える");
+    this.setInputsInline(true);
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(CAT_COLORS.cell);
+    this.setTooltip("行番号と列番号で場所を指定してセルに値を入れます（変数も使えます）");
+  },
+};
+
+Blockly.Blocks["cells_get_value"] = {
+  init: function () {
+    this.appendValueInput("ROW")
+      .appendField("🔍 Cells（行");
+    this.appendValueInput("COL")
+      .appendField("列");
+    this.appendDummyInput().appendField("）の中身");
+    this.setInputsInline(true);
+    this.setOutput(true, null);
+    this.setColour(CAT_COLORS.cell);
+    this.setTooltip("行番号と列番号でセルを指定して値を取り出します");
+  },
+};
+
+Blockly.Blocks["cells_clear"] = {
+  init: function () {
+    this.appendValueInput("ROW")
+      .appendField("🗑 Cells（行");
+    this.appendValueInput("COL")
+      .appendField("列");
+    this.appendDummyInput().appendField("）の中身を消す");
+    this.setInputsInline(true);
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(CAT_COLORS.cell);
+    this.setTooltip("行番号と列番号でセルを指定して中身を消します");
+  },
+};
+
+Blockly.Blocks["cells_bgcolor"] = {
+  init: function () {
+    this.appendValueInput("ROW")
+      .appendField("🎨 Cells（行");
+    this.appendValueInput("COL")
+      .appendField("列");
+    this.appendDummyInput()
+      .appendField("）の背景色を")
+      .appendField(
+        new Blockly.FieldDropdown([
+          ["🟥 赤", "RED"],
+          ["🟩 緑", "GREEN"],
+          ["🟦 青", "BLUE"],
+          ["🟨 黄", "YELLOW"],
+          ["⬜ 白（消す）", "WHITE"],
+        ]),
+        "COLOR"
+      )
+      .appendField("にする");
+    this.setInputsInline(true);
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(CAT_COLORS.fmt);
+    this.setTooltip("行番号と列番号でセルを指定して背景色を変えます");
+  },
+};
+
+Blockly.Blocks["cells_bold"] = {
+  init: function () {
+    this.appendValueInput("ROW")
+      .appendField("𝗕 Cells（行");
+    this.appendValueInput("COL")
+      .appendField("列");
+    this.appendDummyInput().appendField("）を太字にする");
+    this.setInputsInline(true);
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(CAT_COLORS.fmt);
+    this.setTooltip("行番号と列番号でセルを指定して太字にします");
+  },
+};
+
 // ===== 変数 =====
 
 Blockly.Blocks["var_set"] = {
@@ -376,6 +466,9 @@ const TOOLBOX = {
         { kind: "block", type: "cell_copy" },
         { kind: "block", type: "cell_clear" },
         { kind: "block", type: "cell_clear_row" },
+        { kind: "block", type: "cells_set_value" },
+        { kind: "block", type: "cells_get_value" },
+        { kind: "block", type: "cells_clear" },
       ],
     },
     {
@@ -406,6 +499,8 @@ const TOOLBOX = {
         { kind: "block", type: "fmt_bgcolor" },
         { kind: "block", type: "fmt_bold" },
         { kind: "block", type: "fmt_fontsize" },
+        { kind: "block", type: "cells_bgcolor" },
+        { kind: "block", type: "cells_bold" },
       ],
     },
     {
