@@ -238,6 +238,44 @@ class Interpreter {
         this.i = saved;
         break;
       }
+      case "loop_do_until": {
+        const saved = this.i;
+        let guard = 0;
+        while (!this.evalValue(block.getInputTargetBlock("CONDITION"))) {
+          if (++guard > MAX_STEPS || this.steps.length >= MAX_STEPS) break;
+          this.run(block.getInputTargetBlock("DO"));
+        }
+        this.i = saved;
+        break;
+      }
+      case "io_msgbox": {
+        const msg = String(this.evalValue(block.getInputTargetBlock("MSG")));
+        this.record("var", "msgbox", `💬 ${msg}`);
+        break;
+      }
+      case "range_border": {
+        const r1 = Number(this.evalValue(block.getInputTargetBlock("R1"))) || 1;
+        const c1 = Number(this.evalValue(block.getInputTargetBlock("C1"))) || 1;
+        const r2 = Number(this.evalValue(block.getInputTargetBlock("R2"))) || 1;
+        const c2 = Number(this.evalValue(block.getInputTargetBlock("C2"))) || 1;
+        for (let r = r1; r <= r2; r++) {
+          for (let c = c1; c <= c2; c++) {
+            const addr = colLetter(c) + r;
+            const cell = (this.model.cells[addr] = this.model.cells[addr] || {});
+            cell.border = true;
+          }
+        }
+        this.record("cell", colLetter(c1) + r1, `行${r1}列${c1}〜行${r2}列${c2} 罫線`);
+        break;
+      }
+      case "range_select": {
+        const r1 = Number(this.evalValue(block.getInputTargetBlock("R1"))) || 1;
+        const c1 = Number(this.evalValue(block.getInputTargetBlock("C1"))) || 1;
+        const r2 = Number(this.evalValue(block.getInputTargetBlock("R2"))) || 1;
+        const c2 = Number(this.evalValue(block.getInputTargetBlock("C2"))) || 1;
+        this.record("cell", colLetter(c1) + r1, `行${r1}列${c1}〜行${r2}列${c2} を選択`);
+        break;
+      }
       case "cond_if": {
         const cond = this.evalValue(block.getInputTargetBlock("CONDITION"));
         if (cond) {
@@ -381,6 +419,26 @@ class Interpreter {
         const row = Number(this.evalValue(block.getInputTargetBlock("ROW"))) || 1;
         const col = Number(this.evalValue(block.getInputTargetBlock("COL"))) || 1;
         return this.model.get(colLetter(col) + row);
+      }
+      case "io_inputbox": {
+        const prompt = block.getFieldValue("PROMPT");
+        const result = window.prompt(prompt) || "";
+        const num = Number(result);
+        return isNaN(num) || result.trim() === "" ? result : num;
+      }
+      case "text_concat": {
+        const a = this.evalValue(block.getInputTargetBlock("A"));
+        const b = this.evalValue(block.getInputTargetBlock("B"));
+        return String(a) + String(b);
+      }
+      case "value_date": {
+        return new Date().toLocaleDateString("ja-JP");
+      }
+      case "math_round": {
+        const val = Number(this.evalValue(block.getInputTargetBlock("VALUE"))) || 0;
+        const digits = Number(this.evalValue(block.getInputTargetBlock("DIGITS"))) || 0;
+        const factor = Math.pow(10, digits);
+        return Math.round(val * factor) / factor;
       }
     }
     return "";
@@ -553,7 +611,9 @@ class ExcelView {
         td.textContent = cell.value !== undefined ? cell.value : "";
         td.style.background = cell.bg || "";
         td.style.fontWeight = cell.bold ? "bold" : "";
-        td.style.color = cell.bg && cell.bg !== "#ffffff" ? "#fff" : "#000";
+        td.style.fontSize = cell.fontSize ? cell.fontSize + "px" : "";
+        td.style.outline = cell.border ? "2px solid #333" : "";
+        td.style.color = cell.bg && cell.bg !== "#ffffff" ? "#fff" : "";
         td.classList.remove("active-cell", "changed");
         if (active && active.scope === "cell" && addr === active.key) td.classList.add("active-cell");
         if (changed && changed.scope === "cell" && addr === changed.key) td.classList.add("changed");

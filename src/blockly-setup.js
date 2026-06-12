@@ -416,6 +416,107 @@ Blockly.Blocks["cells_bold"] = {
   },
 };
 
+// ===== 入出力 =====
+
+Blockly.Blocks["io_inputbox"] = {
+  init: function () {
+    this.appendDummyInput()
+      .appendField("💬「")
+      .appendField(new Blockly.FieldTextInput("行数を入れてね"), "PROMPT")
+      .appendField("」と聞いて答えをもらう");
+    this.setOutput(true, null);
+    this.setColour("#e91e63");
+    this.setTooltip("ユーザーに文字や数字を入力してもらいます。変数に入れて使います");
+  },
+};
+
+Blockly.Blocks["io_msgbox"] = {
+  init: function () {
+    this.appendValueInput("MSG").appendField("📢 表示する");
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour("#e91e63");
+    this.setTooltip("ポップアップでメッセージを表示します");
+  },
+};
+
+Blockly.Blocks["text_concat"] = {
+  init: function () {
+    this.appendValueInput("A").appendField("🔗");
+    this.appendValueInput("B").appendField("と");
+    this.appendDummyInput().appendField("をつなげる");
+    this.setInputsInline(true);
+    this.setOutput(true, null);
+    this.setColour("#e91e63");
+    this.setTooltip("2つの値を文字としてつなげます。入れ子にして3つ以上もつなげられます");
+  },
+};
+
+Blockly.Blocks["value_date"] = {
+  init: function () {
+    this.appendDummyInput().appendField("📅 今日の日付");
+    this.setOutput(true, null);
+    this.setColour("#e91e63");
+    this.setTooltip("今日の日付を返します");
+  },
+};
+
+Blockly.Blocks["math_round"] = {
+  init: function () {
+    this.appendValueInput("VALUE").appendField("🔢 四捨五入（");
+    this.appendValueInput("DIGITS").setCheck("Number").appendField("小数点");
+    this.appendDummyInput().appendField("桁）");
+    this.setInputsInline(true);
+    this.setOutput(true, "Number");
+    this.setColour("#e91e63");
+    this.setTooltip("数を指定した小数点の桁で四捨五入します");
+  },
+};
+
+// ===== 範囲・罫線 =====
+
+Blockly.Blocks["loop_do_until"] = {
+  init: function () {
+    this.appendValueInput("CONDITION").appendField("🔁 くりかえす ⛔止まる条件：");
+    this.appendStatementInput("DO").appendField("↓ やること");
+    this.setInputsInline(false);
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(CAT_COLORS.loop);
+    this.setTooltip("条件が正しくなったら止まります。条件が False の間くり返し続けます");
+  },
+};
+
+Blockly.Blocks["range_border"] = {
+  init: function () {
+    this.appendValueInput("R1").setCheck("Number").appendField("📏 行");
+    this.appendValueInput("C1").setCheck("Number").appendField("列");
+    this.appendValueInput("R2").setCheck("Number").appendField("〜 行");
+    this.appendValueInput("C2").setCheck("Number").appendField("列");
+    this.appendDummyInput().appendField("に罫線を引く");
+    this.setInputsInline(true);
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(CAT_COLORS.cell);
+    this.setTooltip("指定した範囲すべてに枠線（罫線）を引きます");
+  },
+};
+
+Blockly.Blocks["range_select"] = {
+  init: function () {
+    this.appendValueInput("R1").setCheck("Number").appendField("🖱 行");
+    this.appendValueInput("C1").setCheck("Number").appendField("列");
+    this.appendValueInput("R2").setCheck("Number").appendField("〜 行");
+    this.appendValueInput("C2").setCheck("Number").appendField("列");
+    this.appendDummyInput().appendField("を選ぶ");
+    this.setInputsInline(true);
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(CAT_COLORS.cell);
+    this.setTooltip("指定した範囲を選択状態にします");
+  },
+};
+
 // ===== 変数（ドロップダウン選択式）=====
 
 // 変数に値を入れる
@@ -543,6 +644,16 @@ const TOOLBOX = {
           type: "cells_clear",
           inputs: { ROW: numShadow(1), COL: numShadow(1) },
         },
+        {
+          kind: "block",
+          type: "range_border",
+          inputs: { R1: numShadow(1), C1: numShadow(1), R2: numShadow(5), C2: numShadow(3) },
+        },
+        {
+          kind: "block",
+          type: "range_select",
+          inputs: { R1: numShadow(1), C1: numShadow(1), R2: numShadow(5), C2: numShadow(3) },
+        },
       ],
     },
     {
@@ -562,6 +673,7 @@ const TOOLBOX = {
           inputs: { START: numShadow(1), END: numShadow(10), STEP: numShadow(2) },
         },
         { kind: "block", type: "loop_while" },
+        { kind: "block", type: "loop_do_until" },
         { kind: "block", type: "loop_index" },
       ],
     },
@@ -618,6 +730,18 @@ const TOOLBOX = {
       name: "📦 変数",
       colour: CAT_COLORS.var,
       custom: "VARIABLE_JP",
+    },
+    {
+      kind: "category",
+      name: "💬 入出力",
+      colour: "#e91e63",
+      contents: [
+        { kind: "block", type: "io_inputbox" },
+        { kind: "block", type: "io_msgbox" },
+        { kind: "block", type: "text_concat" },
+        { kind: "block", type: "value_date" },
+        { kind: "block", type: "math_round", inputs: { DIGITS: numShadow(1) } },
+      ],
     },
     {
       kind: "category",

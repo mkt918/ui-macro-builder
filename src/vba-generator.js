@@ -182,6 +182,56 @@ vbaGenerator.forBlock["cells_bold"] = function (block) {
   return `Cells(${row}, ${col}).Font.Bold = True`;
 };
 
+vbaGenerator.forBlock["range_border"] = function (block) {
+  const r1 = vbaGenerator.valueToCode(block, "R1", vbaGenerator.ORDER_NONE) || "1";
+  const c1 = vbaGenerator.valueToCode(block, "C1", vbaGenerator.ORDER_NONE) || "1";
+  const r2 = vbaGenerator.valueToCode(block, "R2", vbaGenerator.ORDER_NONE) || "1";
+  const c2 = vbaGenerator.valueToCode(block, "C2", vbaGenerator.ORDER_NONE) || "1";
+  return `Range(Cells(${r1}, ${c1}), Cells(${r2}, ${c2})).Borders.LineStyle = 1`;
+};
+
+vbaGenerator.forBlock["range_select"] = function (block) {
+  const r1 = vbaGenerator.valueToCode(block, "R1", vbaGenerator.ORDER_NONE) || "1";
+  const c1 = vbaGenerator.valueToCode(block, "C1", vbaGenerator.ORDER_NONE) || "1";
+  const r2 = vbaGenerator.valueToCode(block, "R2", vbaGenerator.ORDER_NONE) || "1";
+  const c2 = vbaGenerator.valueToCode(block, "C2", vbaGenerator.ORDER_NONE) || "1";
+  return `Range(Cells(${r1}, ${c1}), Cells(${r2}, ${c2})).Select`;
+};
+
+// ===== 入出力 =====
+
+vbaGenerator.forBlock["io_inputbox"] = function (block) {
+  const prompt = block.getFieldValue("PROMPT");
+  return [`InputBox("${prompt}")`, vbaGenerator.ORDER_ATOMIC];
+};
+
+vbaGenerator.forBlock["io_msgbox"] = function (block) {
+  const msg = vbaGenerator.valueToCode(block, "MSG", vbaGenerator.ORDER_NONE) || '""';
+  return `MsgBox ${msg}`;
+};
+
+vbaGenerator.forBlock["text_concat"] = function (block) {
+  const a = vbaGenerator.valueToCode(block, "A", vbaGenerator.ORDER_NONE) || '""';
+  const b = vbaGenerator.valueToCode(block, "B", vbaGenerator.ORDER_NONE) || '""';
+  return [`${a} & ${b}`, vbaGenerator.ORDER_ATOMIC];
+};
+
+vbaGenerator.forBlock["value_date"] = function () {
+  return ["Date", vbaGenerator.ORDER_ATOMIC];
+};
+
+vbaGenerator.forBlock["math_round"] = function (block) {
+  const val = vbaGenerator.valueToCode(block, "VALUE", vbaGenerator.ORDER_NONE) || "0";
+  const digits = vbaGenerator.valueToCode(block, "DIGITS", vbaGenerator.ORDER_NONE) || "0";
+  return [`WorksheetFunction.Round(${val}, ${digits})`, vbaGenerator.ORDER_ATOMIC];
+};
+
+vbaGenerator.forBlock["loop_do_until"] = function (block) {
+  const cond = vbaGenerator.valueToCode(block, "CONDITION", vbaGenerator.ORDER_NONE) || "False";
+  const body = vbaGenerator.statementToCode(block, "DO");
+  return `Do Until ${cond}\n${body}\nLoop`;
+};
+
 // ===== 変数 =====
 
 // FieldVariable から変数名（表示名）を取り出す
