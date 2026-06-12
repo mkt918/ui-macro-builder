@@ -17,6 +17,10 @@
     <div class="app-subtitle">Excel VBA ビジュアルプログラミング</div>
     <div class="header-actions">
       <span id="task-progress" class="task-progress"></span>
+      <div class="layout-toggle" title="レイアウト切り替え">
+        <button class="layout-btn active" id="layout-a-btn" data-layout="A">A</button>
+        <button class="layout-btn" id="layout-b-btn" data-layout="B">B</button>
+      </div>
       <button id="theme-toggle-btn" class="header-btn" title="ダーク/ライトモード">🌙</button>
     </div>
   </header>
@@ -27,10 +31,10 @@
     <span id="current-quest" class="current-quest">—</span>
   </nav>
 
-  <!-- ===== メインレイアウト (3ペイン) ===== -->
-  <main class="main-layout">
+  <!-- ===== メインレイアウト ===== -->
+  <main class="main-layout" id="main-layout">
 
-    <!-- 左: ブロックパレット + 課題説明 + ヒント -->
+    <!-- 左: 課題説明 + ヒント -->
     <aside class="left-pane">
       <section class="task-info" id="task-info">
         <div class="task-info-header">
@@ -56,24 +60,51 @@
       </section>
     </aside>
 
-    <!-- 中央: ブロックエディタ -->
+    <!-- 中央: ブロックエディタ（タブ付き） -->
     <section class="editor-pane">
       <div class="editor-toolbar">
-        <span class="toolbar-label">📌 ブロックをつなげてマクロを組み立てよう</span>
+        <div class="editor-tabs">
+          <button class="editor-tab active" id="tab-blocks" data-tab="blocks">🧩 ブロック</button>
+          <button class="editor-tab" id="tab-code" data-tab="code">🤖 VBAコード</button>
+        </div>
         <span class="toolbar-spacer"></span>
-        <button class="tool-btn" id="share-btn" title="今のブロックを共有リンクにする">🔗 共有</button>
-        <button class="tool-btn danger" id="clear-all-btn" title="ブロックを全部消す">🗑 全部消す</button>
+        <div class="step-controls-inline">
+          <label class="speed-label" title="実行速度">
+            🐢<input type="range" id="speed-slider" min="100" max="1500" value="500" step="100" />🐇
+          </label>
+          <button class="step-btn run-btn-main" id="run-btn">▶ 実行</button>
+          <button class="step-btn" id="step-btn" title="1ステップ進む">⏭</button>
+          <button class="step-btn" id="reset-btn" title="リセット">↺</button>
+        </div>
+        <button class="tool-btn" id="share-btn" title="今のブロックを共有リンクにする">🔗</button>
+        <button class="tool-btn danger" id="clear-all-btn" title="ブロックを全部消す">🗑</button>
       </div>
-      <div id="blockly-area" class="blockly-area"></div>
+
+      <!-- ブロックキャンバス -->
+      <div id="tab-blocks-panel" class="tab-panel active">
+        <div id="blockly-area" class="blockly-area"></div>
+      </div>
+
+      <!-- VBAコードパネル -->
+      <div id="tab-code-panel" class="tab-panel code-tab-panel">
+        <div class="code-panel-inner">
+          <div class="code-header-bar">
+            <span>生成された VBA コード</span>
+            <button class="copy-btn" id="copy-btn">📋 コピー</button>
+          </div>
+          <pre id="code-output"><code></code></pre>
+        </div>
+      </div>
+
       <div class="error-banner" id="error-banner"></div>
     </section>
 
-    <!-- 右: 仮想Excelプレビュー + コード -->
+    <!-- 右: 仮想Excelプレビュー -->
     <aside class="right-pane">
       <div class="excel-panel">
         <div class="excel-header">
-          <span>📊 仮想 Excel プレビュー</span>
-          <span class="excel-hint">セルをダブルクリックで入力</span>
+          <span>📊 仮想 Excel</span>
+          <span class="excel-hint">ダブルクリックで入力 / 編集中にセルクリックでアドレス入力</span>
         </div>
         <div class="excel-formula-bar">
           <span class="cell-ref" id="cell-ref">A1</span>
@@ -87,28 +118,11 @@
         <div class="excel-tabs" id="excel-tabs">
           <div class="sheet-tab active">Sheet1</div>
         </div>
-        <div class="step-controls">
-          <label class="speed-label">
-            速度
-            <input type="range" id="speed-slider" min="100" max="1500" value="500" step="100" />
-          </label>
-          <button class="step-btn" id="run-btn">▶ 実行</button>
-          <button class="step-btn" id="step-btn">⏭ ステップ</button>
-          <button class="step-btn" id="reset-btn">↺ リセット</button>
-        </div>
         <div class="step-status" id="step-status">準備完了</div>
         <div class="clear-banner" id="clear-banner">
           🎉 クエストクリア！おめでとう！
           <button class="next-quest-btn" id="next-quest-btn" hidden>次のクエストへ ▶</button>
         </div>
-      </div>
-
-      <div class="code-panel">
-        <div class="code-header">
-          <span>🤖 生成された VBA コード</span>
-          <button class="copy-btn" id="copy-btn">📋 コピー</button>
-        </div>
-        <pre id="code-output"><code></code></pre>
       </div>
     </aside>
 

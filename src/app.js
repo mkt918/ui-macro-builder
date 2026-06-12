@@ -46,6 +46,19 @@
     return _themes;
   }
 
+  // ----- レイアウト管理 -----
+  function applyLayout(layout) {
+    const main = document.getElementById("main-layout");
+    if (layout === "B") {
+      main.classList.add("layout-b");
+    } else {
+      main.classList.remove("layout-b");
+    }
+    document.querySelectorAll(".layout-btn").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.layout === layout);
+    });
+  }
+
   // ----- テーマ管理 -----
   function initTheme() {
     const saved = localStorage.getItem("theme") || "dark";
@@ -508,6 +521,32 @@
         const btn = document.getElementById("copy-btn");
         btn.textContent = "✅ コピー済み";
         setTimeout(() => (btn.textContent = "📋 コピー"), 1500);
+      });
+    });
+
+    // エディタタブ切り替え
+    document.querySelectorAll(".editor-tab").forEach((tab) => {
+      tab.addEventListener("click", () => {
+        const target = tab.dataset.tab;
+        document.querySelectorAll(".editor-tab").forEach((t) => t.classList.remove("active"));
+        document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
+        tab.classList.add("active");
+        document.getElementById(`tab-${target}-panel`).classList.add("active");
+        // ブロックタブに戻ったときBlocklyをリサイズ
+        if (target === "blocks") {
+          setTimeout(() => Blockly.svgResize(workspace), 50);
+        }
+      });
+    });
+
+    // レイアウト切り替え（A / B）
+    const savedLayout = localStorage.getItem("layout") || "A";
+    applyLayout(savedLayout);
+    document.querySelectorAll(".layout-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        applyLayout(btn.dataset.layout);
+        localStorage.setItem("layout", btn.dataset.layout);
+        setTimeout(() => Blockly.svgResize(workspace), 100);
       });
     });
 
