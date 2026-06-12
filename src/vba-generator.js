@@ -85,6 +85,20 @@ vbaGenerator.forBlock["loop_range"] = function (block) {
   return `For i = ${start} To ${end}\n${body}\nNext i`;
 };
 
+vbaGenerator.forBlock["loop_for_step"] = function (block) {
+  const start = block.getFieldValue("START");
+  const end = block.getFieldValue("END");
+  const step = block.getFieldValue("STEP");
+  const body = vbaGenerator.statementToCode(block, "DO");
+  return `For i = ${start} To ${end} Step ${step}\n${body}\nNext i`;
+};
+
+vbaGenerator.forBlock["loop_while"] = function (block) {
+  const cond = vbaGenerator.valueToCode(block, "CONDITION", vbaGenerator.ORDER_NONE) || "False";
+  const body = vbaGenerator.statementToCode(block, "DO");
+  return `Do While ${cond}\n${body}\nLoop`;
+};
+
 vbaGenerator.forBlock["loop_index"] = function () {
   return ["i", vbaGenerator.ORDER_ATOMIC];
 };

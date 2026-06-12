@@ -180,7 +180,7 @@ body.light-mode .quest-item:hover { background: #f0f0f0; }
 /* ===== メインレイアウト ===== */
 .main-layout {
   display: grid;
-  grid-template-columns: 240px minmax(0, 1fr) 400px;
+  grid-template-columns: 240px minmax(0, 1fr) 600px;
   height: calc(100vh - 41px - 41px);
   overflow: hidden;
 }

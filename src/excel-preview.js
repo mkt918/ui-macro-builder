@@ -200,6 +200,37 @@ class Interpreter {
         this.i = saved;
         break;
       }
+      case "loop_for_step": {
+        const start = Number(block.getFieldValue("START"));
+        const end = Number(block.getFieldValue("END"));
+        const step = Number(block.getFieldValue("STEP")) || 1;
+        const saved = this.i;
+        if (step > 0) {
+          for (let k = start; k <= end; k += step) {
+            this.i = k;
+            this.run(block.getInputTargetBlock("DO"));
+            if (this.steps.length >= MAX_STEPS) break;
+          }
+        } else if (step < 0) {
+          for (let k = start; k >= end; k += step) {
+            this.i = k;
+            this.run(block.getInputTargetBlock("DO"));
+            if (this.steps.length >= MAX_STEPS) break;
+          }
+        }
+        this.i = saved;
+        break;
+      }
+      case "loop_while": {
+        const saved = this.i;
+        let guard = 0;
+        while (this.evalValue(block.getInputTargetBlock("CONDITION"))) {
+          if (++guard > MAX_STEPS || this.steps.length >= MAX_STEPS) break;
+          this.run(block.getInputTargetBlock("DO"));
+        }
+        this.i = saved;
+        break;
+      }
       case "cond_if": {
         const cond = this.evalValue(block.getInputTargetBlock("CONDITION"));
         if (cond) {

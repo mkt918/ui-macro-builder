@@ -121,6 +121,37 @@ Blockly.Blocks["loop_range"] = {
   },
 };
 
+Blockly.Blocks["loop_for_step"] = {
+  init: function () {
+    this.appendDummyInput()
+      .appendField("🔁 For")
+      .appendField(new Blockly.FieldNumber(1, -1000, 1000, 1), "START")
+      .appendField("から")
+      .appendField(new Blockly.FieldNumber(10, -1000, 1000, 1), "END")
+      .appendField("まで")
+      .appendField(new Blockly.FieldNumber(2, -1000, 1000, 1), "STEP")
+      .appendField("ずつくりかえす");
+    this.appendStatementInput("DO").appendField("↓ やること");
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(CAT_COLORS.loop);
+    this.setTooltip("開始から終了まで指定した数ずつ増やしながらくり返します（負の数で減らすことも可）");
+  },
+};
+
+Blockly.Blocks["loop_while"] = {
+  init: function () {
+    this.appendValueInput("CONDITION").appendField("🔁 While（");
+    this.appendDummyInput().appendField("の間くりかえす）");
+    this.appendStatementInput("DO").appendField("↓ やること");
+    this.setInputsInline(false);
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(CAT_COLORS.loop);
+    this.setTooltip("条件が正しい間ずっとくり返します。条件が False になると止まります");
+  },
+};
+
 Blockly.Blocks["loop_index"] = {
   init: function () {
     this.appendDummyInput().appendField("🔢 かうんた（今何回目？）");
@@ -478,6 +509,8 @@ const TOOLBOX = {
       contents: [
         { kind: "block", type: "loop_repeat" },
         { kind: "block", type: "loop_range" },
+        { kind: "block", type: "loop_for_step" },
+        { kind: "block", type: "loop_while" },
         { kind: "block", type: "loop_index" },
       ],
     },
