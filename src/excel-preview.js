@@ -90,7 +90,13 @@ class ExcelModel {
  * 各 step = { addr, type:'value'|'bg'|'bold'|'clear', model:<snapshot>, desc }
  */
 class Interpreter {
-  constructor(initialCells) {
+  constructor(initialCells, opts) {
+    opts = opts || {};
+    // InputBox の答えキャッシュ（block.id -> 値）。
+    // interactive=true（▶実行時）のときだけ prompt() で質問し、
+    // 編集中の再構築では仮値 "?" を使ってダイアログを出さない。
+    this.inputCache = opts.inputCache || {};
+    this.interactive = !!opts.interactive;
     this.model = new ExcelModel();
     // 生徒が仮想Excelに直接入力した初期データを種付け
     if (initialCells) {
@@ -421,10 +427,16 @@ class Interpreter {
         return this.model.get(colLetter(col) + row);
       }
       case "io_inputbox": {
-        const prompt = block.getFieldValue("PROMPT");
-        const result = window.prompt(prompt) || "";
-        const num = Number(result);
-        return isNaN(num) || result.trim() === "" ? result : num;
+        const key = block.id;
+        if (this.inputCache[key] !== undefined) return this.inputCache[key];
+        if (!this.interactive) return "?"; // 編集中はダイアログを出さない
+        const promptText = block.getFieldValue("PROMPT");
+        const raw = window.prompt(promptText);
+        const str = raw === null ? "" : raw;
+        const num = Number(str);
+        const val = str.trim() !== "" && !isNaN(num) ? num : str;
+        this.inputCache[key] = val; // 同じ実行中は1回の答えを使い回す
+        return val;
       }
       case "text_concat": {
         const a = this.evalValue(block.getInputTargetBlock("A"));
@@ -612,7 +624,8 @@ class ExcelView {
         td.style.background = cell.bg || "";
         td.style.fontWeight = cell.bold ? "bold" : "";
         td.style.fontSize = cell.fontSize ? cell.fontSize + "px" : "";
-        td.style.outline = cell.border ? "2px solid #333" : "";
+        // 罫線は inset box-shadow で描く（active-cell の outline と共存させるため）
+        td.style.boxShadow = cell.border ? "inset 0 0 0 1.5px #555" : "";
         td.style.color = cell.bg && cell.bg !== "#ffffff" ? "#fff" : "";
         td.classList.remove("active-cell", "changed");
         if (active && active.scope === "cell" && addr === active.key) td.classList.add("active-cell");
@@ -760,8 +773,9 @@ class ExcelView {
 
 // ワークスペースからステップ列を生成
 // 戻り値: { steps, limitHit }
-function buildSteps(workspace, initialCells) {
-  const interp = new Interpreter(initialCells);
+// opts: { inputCache, interactive } — InputBox の質問制御（▶実行時のみ interactive）
+function buildSteps(workspace, initialCells, opts) {
+  const interp = new Interpreter(initialCells, opts);
   let limitHit = false;
   try {
     const topBlocks = workspace.getTopBlocks(true);

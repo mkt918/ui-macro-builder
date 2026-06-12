@@ -7,6 +7,8 @@
   let view = null;
   let currentTaskId = null;
   let suppressSave = false; // 復元中の保存抑制フラグ（B7）
+  let sharedViewMode = false; // 共有リンク閲覧中は保存スロットに書き込まない
+  const inputCache = {}; // InputBox の答え（block.id -> 値）。▶実行ごとにクリア
   const savedBlocks = {}; // taskId -> XML文字列（課題ごとのセーブスロット）
   const savedInitial = {}; // taskId -> 仮想Excelの初期データ
   const solved = new Set();
@@ -202,10 +204,11 @@
 
   // ----- 課題読み込み -----
   function loadTask(taskId) {
-    // 現在のブロックを保存
+    // 現在のブロックを保存（共有閲覧中は保存されない）
     if (currentTaskId && workspace) {
       saveCurrentBlocks();
     }
+    sharedViewMode = false; // 課題を選んだら通常モードに復帰
     currentTaskId = taskId;
     const task = TASKS.find((t) => t.id === taskId);
     if (!task) return;
@@ -281,7 +284,7 @@
   }
 
   function saveCurrentBlocks() {
-    if (suppressSave) return;
+    if (suppressSave || sharedViewMode) return;
     try {
       const dom = Blockly.Xml.workspaceToDom(workspace);
       savedBlocks[currentTaskId] = Blockly.Xml.domToText(dom);
@@ -303,8 +306,9 @@
     checkErrors();
 
     // ステップ再構築（仮想Excelの初期データを土台にする）
+    // 編集中は interactive を付けない＝InputBox はダイアログを出さず仮値で動く
     try {
-      const result = buildSteps(workspace, view.getInitialCells());
+      const result = buildSteps(workspace, view.getInitialCells(), { inputCache });
       view.load(result.steps, result.limitHit);
       checkQuestClear();
     } catch (e) {
@@ -318,7 +322,7 @@
   // 単一パスのトークナイザ。挿入したタグを再処理しないので安全。
   function highlightVBA(code) {
     const tokenRe =
-      /('[^\n]*)|("[^"]*")|\b(\d+)\b|\b(Sub|End|Dim|As|Integer|Variant|For|To|Next|If|Then|Else|And|Or|Not|Mod|True|False)\b/g;
+      /('[^\n]*)|("[^"]*")|\b(\d+)\b|\b(Sub|End|Dim|As|Integer|Long|Single|String|Variant|For|To|Step|Next|If|Then|Else|And|Or|Not|Mod|True|False|Do|While|Until|Loop)\b|\b(Cells|Range|Rows|Worksheets|WorksheetFunction|Round|MsgBox|InputBox|Date)\b/g;
     let out = "";
     let last = 0;
     let m;
@@ -328,6 +332,7 @@
       else if (m[2]) out += `<span class="vba-st">${escapeHtml(m[2])}</span>`;
       else if (m[3]) out += `<span class="vba-nm">${escapeHtml(m[3])}</span>`;
       else if (m[4]) out += `<span class="vba-kw">${escapeHtml(m[4])}</span>`;
+      else if (m[5]) out += `<span class="vba-fn">${escapeHtml(m[5])}</span>`;
       last = m.index + m[0].length;
     }
     out += escapeHtml(code.slice(last));
@@ -435,11 +440,18 @@
     }
   }
 
-  // ブロックがループ（loop_repeat/loop_range）の中にあるか
+  // ブロックが繰り返し系ブロックの中にあるか
+  const LOOP_TYPES = new Set([
+    "loop_repeat",
+    "loop_range",
+    "loop_for_step",
+    "loop_while",
+    "loop_do_until",
+  ]);
   function isInsideLoop(block) {
     let p = block.getSurroundParent();
     while (p) {
-      if (p.type === "loop_repeat" || p.type === "loop_range") return true;
+      if (LOOP_TYPES.has(p.type)) return true;
       p = p.getSurroundParent();
     }
     return false;
@@ -523,7 +535,23 @@
     });
 
     // 実行コントロール
-    document.getElementById("run-btn").addEventListener("click", () => view.play());
+    // InputBox ブロックがあれば、実行時にだけ質問して答えでステップを作り直す
+    document.getElementById("run-btn").addEventListener("click", () => {
+      const hasInput = workspace.getAllBlocks(false).some((b) => b.type === "io_inputbox");
+      if (hasInput) {
+        Object.keys(inputCache).forEach((k) => delete inputCache[k]); // 毎回聞き直す
+        try {
+          const result = buildSteps(workspace, view.getInitialCells(), {
+            inputCache,
+            interactive: true,
+          });
+          view.load(result.steps, result.limitHit);
+        } catch (e) {
+          console.warn("ステップ生成エラー:", e);
+        }
+      }
+      view.play();
+    });
     document.getElementById("step-btn").addEventListener("click", () => {
       view.stop();
       view.stepForward();
@@ -571,6 +599,22 @@
       });
     });
 
+    // 説明とヒントの開閉（既定: 折りたたみ）
+    const collapseBtn = document.getElementById("quest-collapse-btn");
+    function applyQuestCollapsed(collapsed) {
+      document.getElementById("main-layout").classList.toggle("quest-collapsed", collapsed);
+      collapseBtn.textContent = collapsed ? "📖 説明とヒント ▸" : "📖 説明とヒント ▾";
+      localStorage.setItem("questCollapsed", collapsed ? "1" : "0");
+      setTimeout(() => Blockly.svgResize(workspace), 50);
+    }
+    collapseBtn.addEventListener("click", () => {
+      const collapsed = document
+        .getElementById("main-layout")
+        .classList.contains("quest-collapsed");
+      applyQuestCollapsed(!collapsed);
+    });
+    applyQuestCollapsed((localStorage.getItem("questCollapsed") || "1") === "1");
+
     // 全部消す（F2）
     document.getElementById("clear-all-btn").addEventListener("click", () => {
       if (workspace.getTopBlocks(false).length === 0) return;
@@ -615,6 +659,7 @@
       const dom = Blockly.utils.xml.textToDom(xml);
       Blockly.Xml.domToWorkspace(dom, workspace);
       suppressSave = false;
+      sharedViewMode = true; // 閲覧モード：課題スロットを上書きしない
       history.replaceState(null, "", location.pathname); // ハッシュ消去
       onWorkspaceChange();
       return true;

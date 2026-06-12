@@ -129,6 +129,27 @@ html, body {
   flex: 1;
 }
 
+/* 説明とヒントの開閉ボタン */
+.collapse-btn {
+  padding: 5px 12px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 12px;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.collapse-btn:hover { background: var(--border); }
+
+/* 折りたたみ時：左ペイン（説明＋ヒント）を隠す */
+.main-layout.quest-collapsed .left-pane { display: none; }
+/* レイアウトA折りたたみ時は左カラム自体を消して2カラムに */
+.main-layout.quest-collapsed:not(.layout-b) {
+  grid-template-columns: minmax(0, 1fr) 600px;
+}
+
 /* ===== クエスト一覧モーダル ===== */
 .quest-list-modal {
   max-width: 480px;
@@ -186,10 +207,10 @@ body.light-mode .quest-item:hover { background: #f0f0f0; }
 }
 .main-layout > * { min-width: 0; }
 
-/* レイアウトB: 左=課題+ヒント縦 / 中=ブロック / 右=Excel（上段に課題を大きく） */
+/* レイアウトB: 上段=説明バー（折りたたみ可） / 下段=ブロック / 右=Excel全高 */
 .main-layout.layout-b {
-  grid-template-columns: minmax(0, 1fr) 460px;
-  grid-template-rows: auto 1fr;
+  grid-template-columns: minmax(0, 1fr) 540px;
+  grid-template-rows: auto minmax(0, 1fr);
 }
 .main-layout.layout-b .left-pane {
   grid-column: 1;
@@ -197,22 +218,24 @@ body.light-mode .quest-item:hover { background: #f0f0f0; }
   border-right: none;
   border-bottom: 1px solid var(--border);
   flex-direction: row;
+  align-items: flex-start;
   flex-wrap: wrap;
-  gap: 0;
+  gap: 16px;
   padding: 10px 16px;
-  max-height: 200px;
+  max-height: 230px;
   overflow-y: auto;
 }
 .main-layout.layout-b .left-pane .task-info {
-  flex: 1;
-  min-width: 200px;
-  padding-right: 16px;
+  flex: 2;
+  min-width: 260px;
 }
 .main-layout.layout-b .left-pane .hint-section {
-  min-width: 240px;
+  flex: 1;
+  min-width: 260px;
   border-left: 1px solid var(--border);
   padding-left: 16px;
 }
+.main-layout.layout-b .left-pane .answer-btn { width: auto; }
 .main-layout.layout-b .editor-pane {
   grid-column: 1;
   grid-row: 2;
@@ -300,15 +323,18 @@ body.light-mode .quest-item:hover { background: #f0f0f0; }
 }
 .editor-toolbar {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 6px;
+  row-gap: 0;
   padding: 0 10px 0 0;
   background: var(--toolbar-bg);
   border-bottom: 1px solid var(--border);
   font-size: 12px;
   color: var(--text-muted);
-  flex-wrap: nowrap;
+  flex-wrap: wrap; /* 狭い幅でもボタンが隠れないように折り返す */
 }
+.editor-toolbar .step-controls-inline,
+.editor-toolbar .tool-btn { align-self: center; }
 
 /* エディタタブ */
 .editor-tabs {
@@ -317,8 +343,7 @@ body.light-mode .quest-item:hover { background: #f0f0f0; }
   margin-right: 8px;
 }
 .editor-tab {
-  padding: 0 16px;
-  height: 100%;
+  padding: 8px 16px;
   background: transparent;
   border: none;
   border-right: 1px solid #30363d;
@@ -582,25 +607,6 @@ body.light-mode #code-output { color: #333; }
 }
 .sheet-tab.active { background: #fff; }
 
-.step-controls {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  background: var(--excel-green);
-}
-.speed-label { color: #fff; font-size: 11px; display: flex; align-items: center; gap: 4px; }
-.speed-label input { width: 70px; }
-.step-btn {
-  padding: 4px 10px;
-  background: rgba(255,255,255,0.12);
-  color: #fff;
-  border: 1px solid rgba(255,255,255,0.3);
-  border-radius: 3px;
-  cursor: pointer;
-  font-size: 11px;
-}
-.step-btn:hover { background: rgba(255,255,255,0.25); }
 .step-status {
   padding: 4px 10px;
   background: #1b5e3a;
@@ -674,10 +680,12 @@ body.light-mode #code-output { color: #333; }
 .vba-kw { color: #ff7b72; }
 .vba-st { color: #a5d6ff; }
 .vba-nm { color: #79c0ff; }
+.vba-fn { color: #d2a8ff; }
 .vba-cm { color: #8b949e; font-style: italic; }
 body.light-mode .vba-kw { color: #cf222e; }
 body.light-mode .vba-st { color: #0a3069; }
 body.light-mode .vba-nm { color: #0550ae; }
+body.light-mode .vba-fn { color: #8250df; }
 body.light-mode .vba-cm { color: #6e7781; }
 
 /* 配列の省略表示 */
