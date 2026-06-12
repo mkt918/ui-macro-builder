@@ -2,73 +2,47 @@
 
 :root {
   /* ダークモード */
-  --bg-dark: #1a1a2e;
-  --bg-panel: #16213e;
-  --bg-editor: #0d1117;
-  --border: #0f3460;
-  --accent: #e94560;
-  --accent-blue: #58a6ff;
-  --text: #e0e0e0;
-  --text-muted: #8b949e;
+  --bg-dark: #1e1e2e;
+  --bg-panel: #181825;
+  --bg-editor: #11111b;
+  --border: #313244;
+  --accent: #f38ba8;
+  --accent-blue: #89b4fa;
+  --accent-green: #a6e3a1;
+  --text: #cdd6f4;
+  --text-muted: #6c7086;
   --excel-green: #217346;
-
-  /* ブロックカテゴリ色 */
-  --cat-cell: #3498db;
-  --cat-loop: #e67e22;
-  --cat-cond: #9b59b6;
-  --cat-fmt: #1abc9c;
-  --cat-sheet: #e74c3c;
+  --toolbar-bg: #1e1e2e;
+  --header-bg: #181825;
 }
 
 body.light-mode {
-  --bg-dark: #f5f5f5;
+  --bg-dark: #eff1f5;
   --bg-panel: #ffffff;
-  --bg-editor: #fafafa;
-  --border: #e0e0e0;
-  --accent: #d32f2f;
-  --accent-blue: #1976d2;
-  --text: #333333;
-  --text-muted: #666666;
+  --bg-editor: #f8f9fa;
+  --border: #dce0e8;
+  --accent: #d20f39;
+  --accent-blue: #1e66f5;
+  --accent-green: #40a02b;
+  --text: #4c4f69;
+  --text-muted: #9ca0b0;
   --excel-green: #2e7d32;
+  --toolbar-bg: #e6e9ef;
+  --header-bg: #eff1f5;
 }
 
-body.light-mode .blockly-area {
-  background: #fafafa;
-}
-
-body.light-mode .task-selector {
-  background: #f9f9f9;
-}
-
-body.light-mode .left-pane {
-  background: #ffffff;
-}
-
-body.light-mode .editor-toolbar {
-  background: #f9f9f9;
-}
-
-body.light-mode .code-panel {
-  background: #fafafa;
-}
-
-body.light-mode .code-panel pre {
-  color: #333333;
-  background: #f5f5f5;
-}
-
-body.light-mode .excel-panel {
-  background: #ffffff;
-  color: #000;
-}
-
-body.light-mode .modal {
-  background: #ffffff;
-}
-
-body.light-mode .hint-item {
-  background: rgba(255, 193, 7, 0.1);
-}
+body.light-mode .blockly-area { background: var(--bg-editor); }
+body.light-mode .left-pane { background: var(--bg-panel); }
+body.light-mode .editor-toolbar { background: var(--toolbar-bg); border-color: var(--border); }
+body.light-mode .code-header-bar { background: var(--toolbar-bg); border-color: var(--border); }
+body.light-mode #code-output { color: var(--text); background: var(--bg-editor); }
+body.light-mode .excel-panel { background: #ffffff; color: #000; }
+body.light-mode .modal { background: var(--bg-panel); border-color: var(--border); }
+body.light-mode .hint-item { background: rgba(255, 193, 7, 0.12); }
+body.light-mode .editor-tab.active { background: var(--bg-editor); }
+body.light-mode .app-header { background: var(--header-bg); border-color: var(--border); }
+body.light-mode .quest-selector { background: var(--header-bg); border-color: var(--border); }
+body.light-mode .right-pane { background: var(--bg-editor); border-color: var(--border); }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -87,7 +61,7 @@ html, body {
   align-items: center;
   gap: 14px;
   padding: 8px 18px;
-  background: var(--bg-panel);
+  background: var(--header-bg);
   border-bottom: 1px solid var(--border);
 }
 .app-title { font-size: 16px; font-weight: 700; color: var(--accent); letter-spacing: 1px; }
@@ -329,13 +303,12 @@ body.light-mode .quest-item:hover { background: #f0f0f0; }
   align-items: center;
   gap: 6px;
   padding: 0 10px 0 0;
-  background: #161b22;
-  border-bottom: 1px solid #30363d;
+  background: var(--toolbar-bg);
+  border-bottom: 1px solid var(--border);
   font-size: 12px;
   color: var(--text-muted);
   flex-wrap: nowrap;
 }
-body.light-mode .editor-toolbar { background: #f0f0f0; }
 
 /* エディタタブ */
 .editor-tabs {

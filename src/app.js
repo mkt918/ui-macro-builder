@@ -122,11 +122,12 @@
 
     workspace = Blockly.inject("blockly-area", {
       toolbox: TOOLBOX,
-      grid: { spacing: 24, length: 3, colour: isDark ? "#222" : "#ddd", snap: true },
-      zoom: { controls: true, wheel: true, startScale: 0.95, maxScale: 2, minScale: 0.4 },
+      grid: { spacing: 24, length: 3, colour: isDark ? "#333" : "#ddd", snap: true },
+      zoom: { controls: true, wheel: true, startScale: 1.0, maxScale: 2.5, minScale: 0.4 },
       trashcan: true,
       move: { scrollbars: true, drag: true, wheel: true },
       theme: isDark ? themes.dark : themes.light,
+      renderer: "zelos",
     });
 
     view = new ExcelView({

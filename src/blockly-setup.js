@@ -1,54 +1,58 @@
 /* ===== Blockly カスタムブロック定義 =====
- * 学習コア: セル操作・繰り返し・条件分岐・書式設定
+ * 小学生でもわかるブロック名・説明
  * 各ブロックは vba-generator.js で VBA に変換される
  */
 
-// ----- カテゴリ色 -----
 const CAT_COLORS = {
-  cell: "#3498db",
-  loop: "#e67e22",
-  cond: "#9b59b6",
-  fmt: "#1abc9c",
-  array: "#16a085",
-  sheet: "#e74c3c",
-  value: "#5c6bc0",
+  cell:  "#2980b9",
+  loop:  "#e67e22",
+  cond:  "#8e44ad",
+  fmt:   "#16a085",
+  array: "#27ae60",
+  sheet: "#c0392b",
+  value: "#2c3e50",
 };
 
 // ===== セル操作 =====
 
+// セルに値を入れる
 Blockly.Blocks["cell_set_value"] = {
   init: function () {
     this.appendValueInput("VALUE")
       .appendField("📝 セル")
       .appendField(new Blockly.FieldTextInput("A1"), "CELL")
-      .appendField("に値を入力");
+      .appendField("の値を");
+    this.appendDummyInput().appendField("に変える");
+    this.setInputsInline(true);
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
     this.setColour(CAT_COLORS.cell);
-    this.setTooltip("指定したセルに値を入力します");
+    this.setTooltip("セルの中に文字や数字を入れます");
   },
 };
 
+// セルの値を読む
 Blockly.Blocks["cell_get_value"] = {
   init: function () {
     this.appendDummyInput()
       .appendField("🔍 セル")
       .appendField(new Blockly.FieldTextInput("A1"), "CELL")
-      .appendField("の値");
+      .appendField("の中身");
     this.setOutput(true, null);
     this.setColour(CAT_COLORS.cell);
-    this.setTooltip("指定したセルの値を取得します");
+    this.setTooltip("セルに入っている値を取り出します");
   },
 };
 
+// セルをコピー
 Blockly.Blocks["cell_copy"] = {
   init: function () {
     this.appendDummyInput()
       .appendField("📋 セル")
       .appendField(new Blockly.FieldTextInput("A1"), "FROM")
-      .appendField("を")
+      .appendField("の内容を")
       .appendField(new Blockly.FieldTextInput("B1"), "TO")
-      .appendField("にコピー");
+      .appendField("にコピーする");
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
     this.setColour(CAT_COLORS.cell);
@@ -56,16 +60,31 @@ Blockly.Blocks["cell_copy"] = {
   },
 };
 
+// セルを消す
 Blockly.Blocks["cell_clear"] = {
   init: function () {
     this.appendDummyInput()
       .appendField("🗑 セル")
       .appendField(new Blockly.FieldTextInput("A1"), "CELL")
-      .appendField("をクリア");
+      .appendField("の中身を消す");
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
     this.setColour(CAT_COLORS.cell);
-    this.setTooltip("セルの内容を消去します");
+    this.setTooltip("セルの中身を空にします");
+  },
+};
+
+// 行全体を消す（新規）
+Blockly.Blocks["cell_clear_row"] = {
+  init: function () {
+    this.appendDummyInput()
+      .appendField("🗑")
+      .appendField(new Blockly.FieldNumber(1, 1, 1000, 1), "ROW")
+      .appendField("行目をすべて消す");
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(CAT_COLORS.cell);
+    this.setTooltip("指定した行のセルをすべて空にします");
   },
 };
 
@@ -76,37 +95,37 @@ Blockly.Blocks["loop_repeat"] = {
     this.appendDummyInput()
       .appendField("🔁")
       .appendField(new Blockly.FieldNumber(3, 1, 1000, 1), "TIMES")
-      .appendField("回繰り返す");
-    this.appendStatementInput("DO").appendField("実行");
+      .appendField("回くりかえす");
+    this.appendStatementInput("DO").appendField("↓ やること");
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
     this.setColour(CAT_COLORS.loop);
-    this.setTooltip("中のブロックを指定回数くり返します。変数 i が 1 から増えます");
+    this.setTooltip("中のブロックを指定回数くり返します。何回目かは「かうんた」で使えます");
   },
 };
 
 Blockly.Blocks["loop_range"] = {
   init: function () {
     this.appendDummyInput()
-      .appendField("📊 行")
+      .appendField("🔁")
       .appendField(new Blockly.FieldNumber(1, 1, 1000, 1), "START")
       .appendField("から")
       .appendField(new Blockly.FieldNumber(5, 1, 1000, 1), "END")
-      .appendField("までループ");
-    this.appendStatementInput("DO").appendField("実行");
+      .appendField("まで1ずつくりかえす");
+    this.appendStatementInput("DO").appendField("↓ やること");
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
     this.setColour(CAT_COLORS.loop);
-    this.setTooltip("変数 i が開始行から終了行まで動きながらくり返します");
+    this.setTooltip("開始から終了まで1ずつ増えながらくり返します");
   },
 };
 
 Blockly.Blocks["loop_index"] = {
   init: function () {
-    this.appendDummyInput().appendField("カウンタ i");
+    this.appendDummyInput().appendField("🔢 かうんた（今何回目？）");
     this.setOutput(true, "Number");
     this.setColour(CAT_COLORS.loop);
-    this.setTooltip("現在の繰り返し回数 (i) を表します");
+    this.setTooltip("今何回目か（いまの番号）を表します");
   },
 };
 
@@ -115,12 +134,12 @@ Blockly.Blocks["loop_index"] = {
 Blockly.Blocks["cond_if"] = {
   init: function () {
     this.appendValueInput("CONDITION").appendField("❓ もし");
-    this.appendStatementInput("THEN").appendField("なら");
-    this.appendStatementInput("ELSE").appendField("そうでなければ");
+    this.appendStatementInput("THEN").appendField("なら → やること");
+    this.appendStatementInput("ELSE").appendField("ちがうなら → やること");
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
     this.setColour(CAT_COLORS.cond);
-    this.setTooltip("条件によって処理を分けます（そうでなければは空でもOK）");
+    this.setTooltip("条件が合うかどうかで処理を分けます。「ちがうなら」は空でもOK");
   },
 };
 
@@ -129,12 +148,12 @@ Blockly.Blocks["cond_compare"] = {
     this.appendValueInput("A");
     this.appendDummyInput().appendField(
       new Blockly.FieldDropdown([
-        ["=", "="],
-        ["≠", "<>"],
-        ["<", "<"],
-        ["≤", "<="],
-        [">", ">"],
-        ["≥", ">="],
+        ["＝ ひとしい", "="],
+        ["≠ ちがう", "<>"],
+        ["＜ より小さい", "<"],
+        ["≤ 以下", "<="],
+        ["＞ より大きい", ">"],
+        ["≥ 以上", ">="],
       ]),
       "OP"
     );
@@ -142,7 +161,19 @@ Blockly.Blocks["cond_compare"] = {
     this.setInputsInline(true);
     this.setOutput(true, "Boolean");
     this.setColour(CAT_COLORS.cond);
-    this.setTooltip("2つの値を比べます");
+    this.setTooltip("2つの数字や文字を比べます");
+  },
+};
+
+// 偶数判定（新規）
+Blockly.Blocks["cond_is_even"] = {
+  init: function () {
+    this.appendValueInput("NUM").appendField("🔢");
+    this.appendDummyInput().appendField("は偶数？");
+    this.setInputsInline(true);
+    this.setOutput(true, "Boolean");
+    this.setColour(CAT_COLORS.cond);
+    this.setTooltip("数が偶数（2で割り切れる）かどうかを調べます");
   },
 };
 
@@ -153,21 +184,22 @@ Blockly.Blocks["fmt_bgcolor"] = {
     this.appendDummyInput()
       .appendField("🎨 セル")
       .appendField(new Blockly.FieldTextInput("A1"), "CELL")
-      .appendField("の背景色")
+      .appendField("の背景色を")
       .appendField(
         new Blockly.FieldDropdown([
           ["🟥 赤", "RED"],
           ["🟩 緑", "GREEN"],
           ["🟦 青", "BLUE"],
           ["🟨 黄", "YELLOW"],
-          ["⬜ 白", "WHITE"],
+          ["⬜ 白（消す）", "WHITE"],
         ]),
         "COLOR"
-      );
+      )
+      .appendField("にする");
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
     this.setColour(CAT_COLORS.fmt);
-    this.setTooltip("セルの背景色を変えます");
+    this.setTooltip("セルの背景の色を変えます");
   },
 };
 
@@ -176,37 +208,53 @@ Blockly.Blocks["fmt_bold"] = {
     this.appendDummyInput()
       .appendField("𝗕 セル")
       .appendField(new Blockly.FieldTextInput("A1"), "CELL")
-      .appendField("を太字に");
+      .appendField("の文字を太字にする");
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
     this.setColour(CAT_COLORS.fmt);
-    this.setTooltip("文字を太字にします");
+    this.setTooltip("セルの文字を太字（ふとじ）にします");
   },
 };
 
-// ===== 配列 =====
+// 文字サイズ変更（新規）
+Blockly.Blocks["fmt_fontsize"] = {
+  init: function () {
+    this.appendDummyInput()
+      .appendField("🔡 セル")
+      .appendField(new Blockly.FieldTextInput("A1"), "CELL")
+      .appendField("の文字サイズを")
+      .appendField(new Blockly.FieldNumber(14, 6, 72, 1), "SIZE")
+      .appendField("にする");
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(CAT_COLORS.fmt);
+    this.setTooltip("セルの文字の大きさを変えます");
+  },
+};
+
+// ===== 配列（リスト）=====
 
 Blockly.Blocks["array_set"] = {
   init: function () {
-    this.appendValueInput("INDEX").appendField("📦 配列の");
+    this.appendValueInput("INDEX").appendField("📦 リストの");
     this.appendValueInput("VALUE").appendField("番目に");
     this.appendDummyInput().appendField("を入れる");
     this.setInputsInline(true);
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
     this.setColour(CAT_COLORS.array);
-    this.setTooltip("配列の指定した番目に値を入れます（arr(番目) = 値）");
+    this.setTooltip("リスト（箱の列）の指定した番目に値を入れます");
   },
 };
 
 Blockly.Blocks["array_get"] = {
   init: function () {
-    this.appendValueInput("INDEX").appendField("📦 配列の");
-    this.appendDummyInput().appendField("番目の値");
+    this.appendValueInput("INDEX").appendField("📦 リストの");
+    this.appendDummyInput().appendField("番目の中身");
     this.setInputsInline(true);
     this.setOutput(true, null);
     this.setColour(CAT_COLORS.array);
-    this.setTooltip("配列の指定した番目の値を取り出します（arr(番目)）");
+    this.setTooltip("リストの指定した番目の値を取り出します");
   },
 };
 
@@ -217,11 +265,11 @@ Blockly.Blocks["sheet_add"] = {
     this.appendDummyInput()
       .appendField("➕ シート")
       .appendField(new Blockly.FieldTextInput("Sheet2"), "NAME")
-      .appendField("を追加");
+      .appendField("を追加する");
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
     this.setColour(CAT_COLORS.sheet);
-    this.setTooltip("新しいシートを追加します");
+    this.setTooltip("新しいシート（ページ）を追加します");
   },
 };
 
@@ -230,7 +278,7 @@ Blockly.Blocks["sheet_select"] = {
     this.appendDummyInput()
       .appendField("↩ シート")
       .appendField(new Blockly.FieldTextInput("Sheet1"), "NAME")
-      .appendField("に切り替え");
+      .appendField("に切り替える");
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
     this.setColour(CAT_COLORS.sheet);
@@ -242,20 +290,24 @@ Blockly.Blocks["sheet_select"] = {
 
 Blockly.Blocks["value_number"] = {
   init: function () {
-    this.appendDummyInput().appendField(new Blockly.FieldNumber(0), "NUM");
+    this.appendDummyInput()
+      .appendField("🔢")
+      .appendField(new Blockly.FieldNumber(0), "NUM");
     this.setOutput(true, "Number");
     this.setColour(CAT_COLORS.value);
+    this.setTooltip("数字を表すブロックです");
   },
 };
 
 Blockly.Blocks["value_text"] = {
   init: function () {
     this.appendDummyInput()
-      .appendField('"')
+      .appendField("🔤「")
       .appendField(new Blockly.FieldTextInput("テキスト"), "TEXT")
-      .appendField('"');
+      .appendField("」");
     this.setOutput(true, "String");
     this.setColour(CAT_COLORS.value);
+    this.setTooltip("文字（テキスト）を表すブロックです");
   },
 };
 
@@ -264,11 +316,11 @@ Blockly.Blocks["value_math"] = {
     this.appendValueInput("A");
     this.appendDummyInput().appendField(
       new Blockly.FieldDropdown([
-        ["+", "+"],
-        ["−", "-"],
-        ["×", "*"],
-        ["÷", "/"],
-        ["のあまり", "mod"],
+        ["＋ たす", "+"],
+        ["－ ひく", "-"],
+        ["× かける", "*"],
+        ["÷ わる", "/"],
+        ["÷のあまり", "mod"],
       ]),
       "OP"
     );
@@ -276,7 +328,7 @@ Blockly.Blocks["value_math"] = {
     this.setInputsInline(true);
     this.setOutput(true, "Number");
     this.setColour(CAT_COLORS.value);
-    this.setTooltip("計算をします（「のあまり」は割り算の余り。偶数判定に使えます）");
+    this.setTooltip("計算をします。「÷のあまり」は偶数・奇数の判定に使えます");
   },
 };
 
@@ -286,18 +338,19 @@ const TOOLBOX = {
   contents: [
     {
       kind: "category",
-      name: "セル操作",
+      name: "📝 セル操作",
       colour: CAT_COLORS.cell,
       contents: [
         { kind: "block", type: "cell_set_value" },
         { kind: "block", type: "cell_get_value" },
         { kind: "block", type: "cell_copy" },
         { kind: "block", type: "cell_clear" },
+        { kind: "block", type: "cell_clear_row" },
       ],
     },
     {
       kind: "category",
-      name: "繰り返し",
+      name: "🔁 くりかえし",
       colour: CAT_COLORS.loop,
       contents: [
         { kind: "block", type: "loop_repeat" },
@@ -307,25 +360,27 @@ const TOOLBOX = {
     },
     {
       kind: "category",
-      name: "条件分岐",
+      name: "❓ もし〜なら",
       colour: CAT_COLORS.cond,
       contents: [
         { kind: "block", type: "cond_if" },
         { kind: "block", type: "cond_compare" },
+        { kind: "block", type: "cond_is_even" },
       ],
     },
     {
       kind: "category",
-      name: "書式設定",
+      name: "🎨 色・文字デザイン",
       colour: CAT_COLORS.fmt,
       contents: [
         { kind: "block", type: "fmt_bgcolor" },
         { kind: "block", type: "fmt_bold" },
+        { kind: "block", type: "fmt_fontsize" },
       ],
     },
     {
       kind: "category",
-      name: "配列",
+      name: "📦 リスト（配列）",
       colour: CAT_COLORS.array,
       contents: [
         { kind: "block", type: "array_set" },
@@ -334,7 +389,7 @@ const TOOLBOX = {
     },
     {
       kind: "category",
-      name: "シート操作",
+      name: "📑 シート操作",
       colour: CAT_COLORS.sheet,
       contents: [
         { kind: "block", type: "sheet_add" },
@@ -343,7 +398,7 @@ const TOOLBOX = {
     },
     {
       kind: "category",
-      name: "値",
+      name: "🔢 数・文字",
       colour: CAT_COLORS.value,
       contents: [
         { kind: "block", type: "value_number" },

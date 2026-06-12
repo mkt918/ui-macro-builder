@@ -7,10 +7,10 @@
  * ExcelView   : HTML テーブルへの描画とアニメーション
  */
 
-const GRID_ROWS = 12; // 最小表示行数
-const GRID_COLS = 8; // 最小表示列数 A..H
-const MAX_GRID_ROWS = 50; // 安全上限
-const MAX_GRID_COLS = 26; // A..Z
+const GRID_ROWS = 30; // 最小表示行数
+const GRID_COLS = 30; // 最小表示列数 A..AD
+const MAX_GRID_ROWS = 100; // 安全上限
+const MAX_GRID_COLS = 30; // A..AD
 const MAX_STEPS = 5000; // ステップ爆発ガード
 const MAX_ARRAY_DISPLAY = 30; // 配列ビジュアライザの表示上限
 
@@ -220,6 +220,23 @@ class Interpreter {
         this.record("cell", addr, `${addr} を太字に`);
         break;
       }
+      case "fmt_fontsize": {
+        const addr = this.resolveAddr(block.getFieldValue("CELL"));
+        const size = Number(block.getFieldValue("SIZE"));
+        const c = (this.model.cells[addr] = this.model.cells[addr] || {});
+        c.fontSize = size;
+        this.record("cell", addr, `${addr} の文字サイズを ${size} に`);
+        break;
+      }
+      case "cell_clear_row": {
+        const row = Number(block.getFieldValue("ROW"));
+        for (let col = 1; col <= 30; col++) {
+          const addr = String.fromCharCode(64 + col) + row;
+          this.model.clearContents(addr);
+        }
+        this.record("cell", "A" + row, `${row} 行目をクリア`);
+        break;
+      }
     }
   }
 
@@ -262,6 +279,10 @@ class Interpreter {
           case ">=": return a >= b;
         }
         return false;
+      }
+      case "cond_is_even": {
+        const num = Number(this.evalValue(block.getInputTargetBlock("NUM")));
+        return num % 2 === 0;
       }
     }
     return "";

@@ -65,6 +65,11 @@ vbaGenerator.forBlock["cell_clear"] = function (block) {
   return `${rangeExpr(cell)}.ClearContents`;
 };
 
+vbaGenerator.forBlock["cell_clear_row"] = function (block) {
+  const row = block.getFieldValue("ROW");
+  return `Rows(${row}).ClearContents`;
+};
+
 // ===== 繰り返し =====
 
 vbaGenerator.forBlock["loop_repeat"] = function (block) {
@@ -105,6 +110,11 @@ vbaGenerator.forBlock["cond_compare"] = function (block) {
   return [`${a} ${op} ${b}`, vbaGenerator.ORDER_ATOMIC];
 };
 
+vbaGenerator.forBlock["cond_is_even"] = function (block) {
+  const num = vbaGenerator.valueToCode(block, "NUM", vbaGenerator.ORDER_NONE) || "0";
+  return [`(${num} Mod 2 = 0)`, vbaGenerator.ORDER_ATOMIC];
+};
+
 // ===== 書式設定 =====
 
 vbaGenerator.forBlock["fmt_bgcolor"] = function (block) {
@@ -116,6 +126,12 @@ vbaGenerator.forBlock["fmt_bgcolor"] = function (block) {
 vbaGenerator.forBlock["fmt_bold"] = function (block) {
   const cell = block.getFieldValue("CELL");
   return `${rangeExpr(cell)}.Font.Bold = True`;
+};
+
+vbaGenerator.forBlock["fmt_fontsize"] = function (block) {
+  const cell = block.getFieldValue("CELL");
+  const size = block.getFieldValue("SIZE");
+  return `${rangeExpr(cell)}.Font.Size = ${size}`;
 };
 
 // ===== 配列 =====
