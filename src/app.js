@@ -6,6 +6,7 @@
   let workspace = null;
   let view = null;
   let currentTaskId = null;
+  let hasLoadedOnce = false; // 初回ロード時は保存前のブロックが存在しないため保存をスキップ
   let suppressSave = false; // 復元中の保存抑制フラグ（B7）
   let sharedViewMode = false; // 共有リンク閲覧中は保存スロットに書き込まない
   const inputCache = {}; // InputBox の答え（block.id -> 値）。▶実行ごとにクリア
@@ -16,6 +17,7 @@
   const LS_BLOCKS = "umb_blocks";
   const LS_SOLVED = "umb_solved";
   const LS_INITIAL = "umb_initial";
+  const FREE_MODE_ID = "__free__"; // クエスト未選択時（フリーモード）の保存キー
 
   // ----- テーマ（一度だけ定義: B5）-----
   let _themes = null;
@@ -106,10 +108,9 @@
 
   // ----- 仮想Excelのセル編集時（F: 直接入力）-----
   function onCellEdited() {
-    if (currentTaskId) {
-      savedInitial[currentTaskId] = view.getInitialCells();
-      persist();
-    }
+    const key = currentTaskId === null ? FREE_MODE_ID : currentTaskId;
+    savedInitial[key] = view.getInitialCells();
+    persist();
     // 初期データが変わったのでステップを作り直す
     onWorkspaceChange();
   }
@@ -177,7 +178,7 @@
     workspace.addChangeListener(onWorkspaceChange);
 
     bindControls();
-    loadTask(TASKS[0].id);
+    loadFreeMode(); // 起動時はクエスト未選択＝フリーモード
     loadFromShareUrl(); // 共有リンクがあればブロック復元（F8）
   });
 
@@ -206,19 +207,25 @@
 
   function updateCurrentQuestDisplay() {
     const task = TASKS.find((t) => t.id === currentTaskId);
+    const freeModeBtn = document.getElementById("free-mode-btn");
     if (task) {
       const check = solved.has(task.id) ? "✓ " : "";
       document.getElementById("current-quest").textContent =
         `${check}📍 ${task.title} ${"★".repeat(task.difficulty)}`;
+      if (freeModeBtn) freeModeBtn.hidden = false;
+    } else {
+      document.getElementById("current-quest").textContent = "🎨 フリーモード";
+      if (freeModeBtn) freeModeBtn.hidden = true;
     }
   }
 
   // ----- 課題読み込み -----
   function loadTask(taskId) {
     // 現在のブロックを保存（共有閲覧中は保存されない）
-    if (currentTaskId && workspace) {
+    if (hasLoadedOnce && workspace) {
       saveCurrentBlocks();
     }
+    hasLoadedOnce = true;
     sharedViewMode = false; // 課題を選んだら通常モードに復帰
     currentTaskId = taskId;
     const task = TASKS.find((t) => t.id === taskId);
@@ -241,6 +248,42 @@
     suppressSave = true;
     workspace.clear();
     const xml = savedBlocks[taskId];
+    if (xml) {
+      try {
+        const dom = Blockly.utils.xml.textToDom(xml);
+        Blockly.Xml.domToWorkspace(dom, workspace);
+      } catch (e) {
+        console.warn("ブロック復元失敗:", e);
+      }
+    }
+    suppressSave = false;
+
+    updateCurrentQuestDisplay();
+    onWorkspaceChange();
+  }
+
+  // ----- フリーモード読み込み（クエスト未選択時の初期状態）-----
+  function loadFreeMode() {
+    if (hasLoadedOnce && workspace) {
+      saveCurrentBlocks();
+    }
+    hasLoadedOnce = true;
+    sharedViewMode = false;
+    currentTaskId = null;
+
+    document.getElementById("task-title").textContent = "🎨 フリーモード";
+    document.getElementById("task-difficulty").textContent = "";
+    document.getElementById("task-goal").textContent =
+      "クエストを選ばなくても、自由にブロックを組み立てて試せます。\n上の「🎮 クエスト選択」から課題に挑戦することもできます。";
+    renderGoalPreview({ goalPreview: null });
+
+    resetHints(null);
+
+    view.setInitialCells(savedInitial[FREE_MODE_ID] || {});
+
+    suppressSave = true;
+    workspace.clear();
+    const xml = savedBlocks[FREE_MODE_ID];
     if (xml) {
       try {
         const dom = Blockly.utils.xml.textToDom(xml);
@@ -297,8 +340,9 @@
   function saveCurrentBlocks() {
     if (suppressSave || sharedViewMode) return;
     try {
+      const key = currentTaskId === null ? FREE_MODE_ID : currentTaskId;
       const dom = Blockly.Xml.workspaceToDom(workspace);
-      savedBlocks[currentTaskId] = Blockly.Xml.domToText(dom);
+      savedBlocks[key] = Blockly.Xml.domToText(dom);
       persist();
     } catch (e) {
       console.warn("ブロック保存失敗:", e);
@@ -326,7 +370,7 @@
       console.warn("ステップ生成エラー:", e);
     }
 
-    if (currentTaskId) saveCurrentBlocks();
+    saveCurrentBlocks();
 
     // 変数パネルを現在のステップカーソル値で更新（常時表示）
     const curStep = view.steps[view.cursor - 1];
@@ -486,9 +530,9 @@
     display.innerHTML = "";
     document.querySelectorAll(".hint-btn").forEach((btn, i) => {
       btn.classList.remove("revealed");
-      btn.disabled = i >= (task.hints ? task.hints.length : 0);
+      btn.disabled = i >= (task && task.hints ? task.hints.length : 0);
     });
-    document.getElementById("answer-btn").disabled = !task.answer;
+    document.getElementById("answer-btn").disabled = !(task && task.answer);
   }
 
   function bindControls() {
@@ -508,6 +552,14 @@
     document.getElementById("quest-modal-close").addEventListener("click", () => {
       document.getElementById("quest-modal").hidden = true;
     });
+    // フリーモードに戻る
+    const freeModeBtn = document.getElementById("free-mode-btn");
+    if (freeModeBtn) {
+      freeModeBtn.addEventListener("click", () => {
+        loadFreeMode();
+      });
+    }
+
     document.getElementById("quest-modal").addEventListener("click", (e) => {
       if (e.target === document.getElementById("quest-modal")) {
         document.getElementById("quest-modal").hidden = true;

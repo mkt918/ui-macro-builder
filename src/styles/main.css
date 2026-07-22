@@ -125,6 +125,21 @@ html, body {
   flex: 1;
 }
 
+/* フリーモードに戻るボタン */
+.free-mode-btn {
+  padding: 5px 12px;
+  background: transparent;
+  border: 1px dashed var(--accent-purple);
+  color: var(--accent-purple);
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.free-mode-btn:hover { background: var(--accent-purple); color: #fff; }
+
 /* 説明とヒントの開閉ボタン */
 .collapse-btn {
   padding: 5px 12px;
