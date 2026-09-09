@@ -562,6 +562,29 @@ body.light-mode .quest-item:hover { background: #f0f0f0; }
   100% { background: transparent; }
 }
 
+/* 実行の出発点（初期データ）を持つセル：左上に小さな印を出す */
+.excel-table td.has-initial { position: relative; }
+.excel-table td.has-initial::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-width: 5px 5px 0 0;
+  border-style: solid;
+  border-color: #e0a800 transparent transparent transparent;
+  pointer-events: none;
+}
+/* 実行結果：初期状態から変化したセルをまとめて示す */
+.excel-table td.result-diff {
+  box-shadow: inset 0 0 0 2px #f39c12 !important;
+}
+/* キーボード操作の選択セル（実行中のカレントセル表示より優先度は下） */
+.excel-table td.selected:not(.active-cell):not(.editing) {
+  outline: 2px solid var(--excel-green);
+  outline-offset: -2px;
+}
+.excel-table:focus { outline: none; }
+
 /* ===== 変数ウォッチ ===== */
 .var-viz {
   display: none;
@@ -700,6 +723,85 @@ body.light-mode .quest-item:hover { background: #f0f0f0; }
   min-height: 18px;
   font-weight: 600;
 }
+
+/* ===== 実行タイムライン（どの時点でも行き来できる） ===== */
+.excel-timeline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  background: #eef3f8;
+  border-top: 1px solid #c5d3e0;
+}
+.tl-btn {
+  padding: 3px 8px;
+  background: #fff;
+  border: 1px solid #a8bccf;
+  border-radius: var(--radius-sm);
+  color: #24405c;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.tl-btn:hover:not(:disabled) { background: #d6e4f0; border-color: #6d8fb0; }
+.tl-btn:disabled { opacity: 0.4; cursor: default; }
+.tl-btn.tl-result {
+  background: var(--excel-green);
+  border-color: var(--excel-green);
+  color: #fff;
+  font-weight: 700;
+}
+.tl-btn.tl-result:hover:not(:disabled) { background: #2a8c56; border-color: #2a8c56; }
+#tl-slider {
+  flex: 1;
+  min-width: 60px;
+  height: 4px;
+  cursor: pointer;
+  accent-color: var(--excel-green);
+}
+#tl-slider:disabled { cursor: default; opacity: 0.4; }
+.tl-count {
+  font-size: 11px;
+  color: #24405c;
+  font-variant-numeric: tabular-nums;
+  min-width: 46px;
+  text-align: right;
+}
+
+/* ===== 実行の出発点（初期データ）バー ===== */
+.excel-baseline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: #fff8e6;
+  border-top: 1px solid #e0c98a;
+}
+.baseline-label {
+  font-size: 11px;
+  color: #7a5c10;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.baseline-btn {
+  padding: 3px 8px;
+  background: #fff;
+  border: 1px solid #d9b866;
+  border-radius: var(--radius-sm);
+  color: #7a5c10;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.baseline-btn:hover { background: #f6e5b8; }
+.baseline-btn.danger {
+  border-color: #d9a1a1;
+  color: #a13d3d;
+  margin-left: auto;
+}
+.baseline-btn.danger:hover { background: #f8e0e0; }
 
 .excel-tabs {
   display: flex;

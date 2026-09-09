@@ -71,8 +71,8 @@
             🐢<input type="range" id="speed-slider" min="100" max="1500" value="500" step="100" />🐇
           </label>
           <button class="step-btn run-btn-main" id="run-btn">▶ 実行</button>
-          <button class="step-btn" id="step-btn" title="1ステップ進む">⏭</button>
-          <button class="step-btn" id="reset-btn" title="リセット">↺</button>
+          <button class="step-btn" id="step-btn" title="1ステップだけ進む">⏭ 1コマ</button>
+          <button class="step-btn" id="reset-btn" title="実行前の状態に戻す">↺ 最初へ</button>
         </div>
         <button class="tool-btn" id="share-btn" title="今のブロックを共有リンクにする">🔗</button>
         <button class="tool-btn danger" id="clear-all-btn" title="ブロックを全部消す">🗑</button>
@@ -102,7 +102,7 @@
       <div class="excel-panel">
         <div class="excel-header">
           <span>📊 仮想 Excel</span>
-          <span class="excel-hint">ダブルクリックで入力 / 編集中にセルクリックでアドレス入力</span>
+          <span class="excel-hint">クリックして選択 → そのまま入力 / 矢印キーで移動</span>
           <div class="excel-zoom">
             <span title="縮小">🔍−</span>
             <input type="range" id="excel-zoom-slider" min="50" max="150" value="100" step="10" title="拡大縮小" />
@@ -119,6 +119,24 @@
         </div>
         <div class="var-viz" id="var-viz"></div>
         <div class="array-viz" id="array-viz"></div>
+
+        <!-- 実行タイムライン：どの時点でも自由に行き来できる -->
+        <div class="excel-timeline" id="excel-timeline">
+          <button class="tl-btn" id="tl-first" title="実行前の状態に戻る">⏮</button>
+          <button class="tl-btn" id="tl-prev" title="1ステップ戻る">◀</button>
+          <input type="range" id="tl-slider" min="0" max="0" value="0" step="1"
+                 title="ドラッグで好きな時点へ移動" />
+          <button class="tl-btn" id="tl-next" title="1ステップ進む">▶</button>
+          <button class="tl-btn tl-result" id="tl-last" title="最後まで進めて実行結果を見る">⏭ 結果</button>
+          <span class="tl-count" id="tl-count">0 / 0</span>
+        </div>
+
+        <!-- 実行の出発点（初期データ）の管理 -->
+        <div class="excel-baseline" id="excel-baseline">
+          <span class="baseline-label" id="baseline-label">📌 出発点: なし</span>
+          <button class="baseline-btn" id="bake-btn" title="いま表示している内容を、次から実行を始める状態として保存します">今の表示を出発点にする</button>
+          <button class="baseline-btn danger" id="clear-initial-btn" title="出発点のデータを全部消します">クリア</button>
+        </div>
         <!-- MsgBox 風オーバーレイ（📢表示するブロックの実行時） -->
         <div class="msgbox-overlay" id="msgbox-overlay" hidden>
           <div class="msgbox">

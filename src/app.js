@@ -115,6 +115,27 @@
     onWorkspaceChange();
   }
 
+  // ----- 実行タイムライン（スライダー・カウンタ）の同期 -----
+  function updateTimeline(cursor, total) {
+    const slider = document.getElementById("tl-slider");
+    const count = document.getElementById("tl-count");
+    if (slider) {
+      slider.max = String(total);
+      slider.value = String(cursor);
+      slider.disabled = total === 0;
+    }
+    if (count) count.textContent = `${cursor} / ${total}`;
+    document.querySelectorAll(".tl-btn").forEach((b) => (b.disabled = total === 0));
+  }
+
+  // ----- 「実行の出発点」表示の更新 -----
+  function updateBaselineLabel() {
+    const el = document.getElementById("baseline-label");
+    if (!el || !view) return;
+    const n = Object.keys(view.getInitialCells() || {}).length;
+    el.textContent = n ? `📌 出発点: ${n} セル` : "📌 出発点: なし";
+  }
+
   // ----- 初期化 -----
   window.addEventListener("load", () => {
     initTheme();
@@ -169,6 +190,7 @@
         const btn = document.getElementById("run-btn");
         btn.textContent = playing ? "⏸ 一時停止" : "▶ 実行";
       },
+      onStepChange: updateTimeline, // タイムラインのスライダー・カウンタを同期
     });
 
     // 変数パネルを常時更新（VAR_CREATE/DELETE/RENAME 時）
@@ -372,10 +394,14 @@
 
     saveCurrentBlocks();
 
-    // 変数パネルを現在のステップカーソル値で更新（常時表示）
+    // 変数パネルを現在のステップの値で更新（常時表示）
+    // step は { scope, key, model, desc } なので値は model.vars にある
     const curStep = view.steps[view.cursor - 1];
-    const curVars = curStep ? (curStep.vars || {}) : {};
-    view.renderVars(curVars, curStep ? (curStep.changed || null) : null);
+    const curVars = curStep && curStep.model ? curStep.model.vars || {} : {};
+    const marker = curStep ? { scope: curStep.scope, key: curStep.key } : null;
+    view.renderVars(curVars, marker);
+
+    updateBaselineLabel();
   }
 
   // ----- VBA シンタックスハイライト（F6）-----
@@ -630,6 +656,44 @@
       view.stepForward();
     });
     document.getElementById("reset-btn").addEventListener("click", () => view.reset());
+
+    // ----- 実行タイムライン：好きな時点へ自由に移動 -----
+    const tlSlider = document.getElementById("tl-slider");
+    if (tlSlider) {
+      tlSlider.addEventListener("input", (e) => view.goToStep(Number(e.target.value)));
+    }
+    const tlBind = (id, fn) => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener("click", fn);
+    };
+    tlBind("tl-first", () => view.goToStep(0));
+    tlBind("tl-prev", () => view.stepBackward());
+    tlBind("tl-next", () => {
+      view.stop();
+      view.stepForward();
+    });
+    tlBind("tl-last", () => view.goToEnd());
+
+    // ----- 実行の出発点（初期データ）の管理 -----
+    const bakeBtn = document.getElementById("bake-btn");
+    if (bakeBtn) {
+      bakeBtn.addEventListener("click", () => {
+        const n = view.bakeCurrentAsInitial();
+        onCellEdited(); // 保存 + ステップ再構築（新しい出発点から作り直される）
+        document.getElementById("step-status").textContent =
+          `📌 今の表示（${n} セル）を実行の出発点として保存しました`;
+      });
+    }
+    const clearInitialBtn = document.getElementById("clear-initial-btn");
+    if (clearInitialBtn) {
+      clearInitialBtn.addEventListener("click", () => {
+        if (Object.keys(view.getInitialCells() || {}).length === 0) return;
+        if (!confirm("実行の出発点のデータを全部消しますか？")) return;
+        view.clearInitial();
+        onCellEdited();
+      });
+    }
+
     document.getElementById("speed-slider").addEventListener("input", (e) => {
       // スライダー右 = 速い になるよう反転
       view.setSpeed(1600 - Number(e.target.value));

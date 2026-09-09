@@ -102,12 +102,19 @@ class Interpreter {
     this.inputCache = opts.inputCache || {};
     this.interactive = !!opts.interactive;
     this.model = new ExcelModel();
-    // 生徒が仮想Excelに直接入力した初期データを種付け
+    // 実行開始時の状態（値＋書式）を種付け。
+    // ここが「毎回同じ出発点」になるので、実行の再現性はこの初期データで決まる。
     if (initialCells) {
       for (const addr in initialCells) {
         const c = initialCells[addr];
-        if (c && c.value !== undefined && c.value !== "") {
-          this.model.set(addr, c.value);
+        if (!c) continue;
+        if (c.value !== undefined && c.value !== "") this.model.set(addr, c.value);
+        if (c.bg) this.model.setBg(addr, c.bg);
+        if (c.bold) this.model.setBold(addr);
+        if (c.fontSize || c.border) {
+          const cell = (this.model.cells[addr] = this.model.cells[addr] || {});
+          if (c.fontSize) cell.fontSize = c.fontSize;
+          if (c.border) cell.border = true;
         }
       }
     }
@@ -476,6 +483,8 @@ class ExcelView {
     this.tabsEl = els.tabs; // シートタブのコンテナ
     this.onEdit = els.onEdit || null; // セル編集時のコールバック
     this.onPlayState = els.onPlayState || null; // 再生状態変更コールバック
+    this.onStepChange = els.onStepChange || null; // カーソル移動時（タイムライン同期用）
+    this.selected = "A1"; // キーボード操作の選択セル
     if (this.msgOverlay) {
       const ok = this.msgOverlay.querySelector(".msgbox-ok");
       if (ok) ok.addEventListener("click", () => this.hideMsgBox());
@@ -528,19 +537,20 @@ class ExcelView {
 
   // セル編集（イベント委譲でテーブル全体に1度だけ設定）
   bindEditing() {
+    this.table.setAttribute("tabindex", "0"); // キーボード操作を受け取るため
+
     this.table.addEventListener("dblclick", (e) => {
       const td = e.target.closest("td.editable");
       if (!td || this.playing) return;
       this.beginEdit(td);
     });
-    // シングルクリックでも選択表示
+
+    // シングルクリックで選択
     this.table.addEventListener("click", (e) => {
       const td = e.target.closest("td.editable");
       if (!td || this.playing || this.editing) return;
       const addr = td.dataset.addr;
-      this.refEl.textContent = addr;
-      const c = this.initialCells[addr];
-      this.formulaEl.textContent = c && c.value !== undefined ? c.value : "";
+      this.selectCell(addr);
 
       // Blocklyのテキストフィールドが編集中なら、そこにセルアドレスを入力
       const active = document.activeElement;
@@ -548,26 +558,107 @@ class ExcelView {
         active.value = addr;
         active.dispatchEvent(new Event("input", { bubbles: true }));
         active.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      } else {
+        this.table.focus({ preventScroll: true });
+      }
+    });
+
+    // Excel ライクなキーボード操作
+    this.table.addEventListener("keydown", (e) => {
+      if (this.editing || this.playing) return; // 編集中・再生中は無視
+      const addr = this.selected;
+      if (!addr) return;
+      const td = document.getElementById("cell-" + addr);
+
+      switch (e.key) {
+        case "ArrowUp":
+          e.preventDefault();
+          this.moveSelection(-1, 0);
+          return;
+        case "ArrowDown":
+          e.preventDefault();
+          this.moveSelection(1, 0);
+          return;
+        case "ArrowLeft":
+          e.preventDefault();
+          this.moveSelection(0, -1);
+          return;
+        case "ArrowRight":
+          e.preventDefault();
+          this.moveSelection(0, 1);
+          return;
+        case "Tab":
+          e.preventDefault();
+          this.moveSelection(0, e.shiftKey ? -1 : 1);
+          return;
+        case "Enter":
+        case "F2":
+          e.preventDefault();
+          if (td) this.beginEdit(td);
+          return;
+        case "Delete":
+        case "Backspace":
+          e.preventDefault();
+          this.setInitialCell(addr, "");
+          if (this.onEdit) this.onEdit();
+          return;
+        default:
+          break;
+      }
+      // 文字キーを押したらそのまま入力開始（Excel と同じ挙動）
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        if (td) this.beginEdit(td, e.key);
       }
     });
   }
 
-  beginEdit(td) {
+  // セルを選択（キーボード操作・クリック共通）
+  selectCell(addr) {
+    const td = document.getElementById("cell-" + addr);
+    if (!td) return;
+    const prev = this.selected && document.getElementById("cell-" + this.selected);
+    if (prev) prev.classList.remove("selected");
+    this.selected = addr;
+    td.classList.add("selected");
+    td.scrollIntoView({ block: "nearest", inline: "nearest" });
+    this.refEl.textContent = addr;
+    // いま表示しているモデルの値を数式バーに出す
+    const model = this.currentModel();
+    const c = (model.cells || {})[addr];
+    this.formulaEl.textContent = c && c.value !== undefined ? c.value : "";
+  }
+
+  // 選択セルを相対移動（グリッド外には出ない）
+  moveSelection(dr, dc) {
+    const p = parseAddr(this.selected || "A1");
+    if (!p) return;
+    const row = Math.max(1, Math.min(this.rows, p.row + dr));
+    const col = Math.max(1, Math.min(this.cols, p.col + dc));
+    this.selectCell(colLetter(col) + row);
+  }
+
+  // initialChar: 文字キーで編集開始したときの1文字目（Excel と同じ挙動）
+  beginEdit(td, initialChar) {
     const addr = td.dataset.addr;
     this.editing = true;
+    this.selectCell(addr);
     td.contentEditable = "true";
     td.classList.add("editing");
     // 現在の初期値を表示
     const cur = this.initialCells[addr];
-    td.textContent = cur && cur.value !== undefined ? cur.value : "";
+    const prevText = cur && cur.value !== undefined ? String(cur.value) : "";
+    td.textContent = initialChar !== undefined ? initialChar : prevText;
     td.focus();
-    // テキスト全選択
+    // 文字入力で始めたときは末尾にキャレット、それ以外は全選択
     const range = document.createRange();
     range.selectNodeContents(td);
+    if (initialChar !== undefined) range.collapse(false);
     const sel = window.getSelection();
     sel.removeAllRanges();
     sel.addRange(range);
 
+    let moveAfter = null; // 確定後の移動方向 [dr, dc]
     const commit = () => {
       td.contentEditable = "false";
       td.classList.remove("editing");
@@ -577,15 +668,23 @@ class ExcelView {
       td.removeEventListener("blur", onBlur);
       td.removeEventListener("keydown", onKey);
       if (this.onEdit) this.onEdit();
+      // 確定後もキーボードで続けて操作できるようにする
+      this.table.focus({ preventScroll: true });
+      if (moveAfter) this.moveSelection(moveAfter[0], moveAfter[1]);
     };
     const onBlur = () => commit();
     const onKey = (e) => {
       if (e.key === "Enter") {
         e.preventDefault();
+        moveAfter = [1, 0]; // 確定して下へ
+        td.blur();
+      } else if (e.key === "Tab") {
+        e.preventDefault();
+        moveAfter = [0, e.shiftKey ? -1 : 1]; // 確定して横へ
         td.blur();
       } else if (e.key === "Escape") {
         e.preventDefault();
-        td.textContent = cur && cur.value !== undefined ? cur.value : "";
+        td.textContent = prevText;
         td.blur();
       }
     };
@@ -593,15 +692,19 @@ class ExcelView {
     td.addEventListener("keydown", onKey);
   }
 
-  // 初期データを設定（数値ならNumber、空なら削除）
+  // 初期データを設定（数値ならNumber、空なら値だけ削除して書式は残す）
   setInitialCell(addr, raw) {
+    const cur = this.initialCells[addr] || {};
     if (raw === "") {
-      delete this.initialCells[addr];
+      delete cur.value;
+      // 書式も何も無くなったらセルごと削除
+      if (Object.keys(cur).length === 0) delete this.initialCells[addr];
+      else this.initialCells[addr] = cur;
       return;
     }
     const num = Number(raw);
-    const value = raw !== "" && !isNaN(num) ? num : raw;
-    this.initialCells[addr] = { value };
+    cur.value = raw !== "" && !isNaN(num) ? num : raw;
+    this.initialCells[addr] = cur;
   }
 
   setInitialCells(obj) {
@@ -613,6 +716,61 @@ class ExcelView {
   // 初期データを1つのモデルにして表示用に
   initialModel() {
     return { cells: this.initialCells, arr: {}, vars: {}, sheet: "Sheet1", sheets: ["Sheet1"] };
+  }
+
+  // いま画面に映しているモデル（cursor は「次に実行するステップ」を指す）
+  currentModel() {
+    if (this.cursor > 0 && this.steps[this.cursor - 1]) {
+      return this.steps[this.cursor - 1].model;
+    }
+    return this.initialModel();
+  }
+
+  // いまの表示内容を「実行開始時の状態」として焼き付ける。
+  // 途中結果を土台に次のアルゴリズムを組み立てられるようにするための機能。
+  bakeCurrentAsInitial() {
+    const model = this.currentModel();
+    const next = {};
+    for (const addr in model.cells) {
+      const c = model.cells[addr];
+      if (!c) continue;
+      const keep = {};
+      if (c.value !== undefined && c.value !== "") keep.value = c.value;
+      if (c.bg) keep.bg = c.bg;
+      if (c.bold) keep.bold = true;
+      if (c.fontSize) keep.fontSize = c.fontSize;
+      if (c.border) keep.border = true;
+      if (Object.keys(keep).length) next[addr] = keep;
+    }
+    this.initialCells = next;
+    return Object.keys(next).length;
+  }
+
+  // 初期データを全消去
+  clearInitial() {
+    this.initialCells = {};
+  }
+
+  // 初期状態と比べて変化したセルのアドレス集合（結果ハイライト用）
+  diffFromInitial(model) {
+    const diff = new Set();
+    const base = this.initialCells || {};
+    const cells = (model && model.cells) || {};
+    const sig = (c) =>
+      !c
+        ? ""
+        : [
+            c.value !== undefined ? c.value : "",
+            c.bg || "",
+            c.bold ? "b" : "",
+            c.fontSize || "",
+            c.border ? "r" : "",
+          ].join("");
+    const addrs = new Set([...Object.keys(base), ...Object.keys(cells)]);
+    addrs.forEach((addr) => {
+      if (sig(base[addr]) !== sig(cells[addr])) diff.add(addr);
+    });
+    return diff;
   }
 
   // 全ステップ＋初期データから必要なグリッドサイズを算出して再構築
@@ -637,8 +795,10 @@ class ExcelView {
   }
 
   // モデルを丸ごと描画
-  renderModel(model, active, changed) {
+  // diffSet: 初期状態から変化したセル（結果表示時にハイライトする）
+  renderModel(model, active, changed, diffSet) {
     const cells = model.cells || {};
+    const base = this.initialCells || {};
     // セル
     for (let r = 1; r <= this.rows; r++) {
       for (let c = 1; c <= this.cols; c++) {
@@ -654,9 +814,14 @@ class ExcelView {
         // 罫線は inset box-shadow で描く（active-cell の outline と共存させるため）
         td.style.boxShadow = cell.border ? "inset 0 0 0 1.5px #555" : "";
         td.style.color = cell.bg && cell.bg !== "#ffffff" ? "#fff" : "";
-        td.classList.remove("active-cell", "changed");
+        td.classList.remove("active-cell", "changed", "result-diff");
         if (active && active.scope === "cell" && addr === active.key) td.classList.add("active-cell");
         if (changed && changed.scope === "cell" && addr === changed.key) td.classList.add("changed");
+        if (diffSet && diffSet.has(addr)) td.classList.add("result-diff");
+        // 実行の出発点（初期データ）を持つセルに印を付ける
+        td.classList.toggle("has-initial", !!base[addr]);
+        // 選択中セル
+        td.classList.toggle("selected", addr === this.selected);
       }
     }
     this.renderArray(model.arr || {}, active);
@@ -755,13 +920,17 @@ class ExcelView {
         ? `準備完了（全 ${steps.length} ステップ）`
         : "セルに値を入力したり、ブロックを組み立てよう";
     }
+    this.notifyStepChange();
   }
 
   applyStep(idx) {
     const step = this.steps[idx];
     if (!step) return;
     const marker = { scope: step.scope, key: step.key };
-    this.renderModel(step.model, marker, marker);
+    // 最後のステップ＝実行結果。初期状態から変わったセルをまとめて光らせる
+    const isLast = idx === this.steps.length - 1;
+    const diffSet = isLast ? this.diffFromInitial(step.model) : null;
+    this.renderModel(step.model, marker, marker, diffSet);
     // MsgBox ステップのときだけオーバーレイ表示
     if (step.scope === "msg") {
       this.showMsgBox(step.key);
@@ -788,17 +957,59 @@ class ExcelView {
       this.refEl.textContent = step.model.sheet;
       this.formulaEl.textContent = "";
     }
-    this.statusEl.textContent = `ステップ ${idx + 1} / ${this.steps.length}: ${step.desc}`;
+    if (isLast) {
+      this.statusEl.textContent =
+        `✅ 実行おわり（全 ${this.steps.length} ステップ）｜ ${diffSet.size} 個のセルが変化 — ${step.desc}`;
+    } else {
+      this.statusEl.textContent = `ステップ ${idx + 1} / ${this.steps.length}: ${step.desc}`;
+    }
+  }
+
+  // タイムライン（スライダー・カウンタ）へ現在位置を通知
+  notifyStepChange() {
+    if (this.onStepChange) this.onStepChange(this.cursor, this.steps.length);
   }
 
   stepForward() {
     if (this.cursor >= this.steps.length) {
-      this.statusEl.textContent = "✅ 完了！ ↺ リセットで最初から";
+      // 最終ステップの結果メッセージ（変化したセル数）を消さずに残す
       return false;
     }
     this.applyStep(this.cursor);
     this.cursor++;
+    this.notifyStepChange();
     return true;
+  }
+
+  stepBackward() {
+    if (this.cursor <= 0) return false;
+    this.goToStep(this.cursor - 1);
+    return true;
+  }
+
+  // cursor: 0 = 実行前の状態, n = n ステップ実行後の状態
+  goToStep(cursor) {
+    this.stop();
+    const n = Math.max(0, Math.min(cursor, this.steps.length));
+    this.cursor = n;
+    if (n === 0) {
+      this.hideMsgBox();
+      this.renderModel(this.initialModel(), null, null);
+      this.refEl.textContent = "A1";
+      this.formulaEl.textContent = "";
+      this.statusEl.textContent = this.steps.length
+        ? `⏱ 実行前の状態（全 ${this.steps.length} ステップ）`
+        : "セルに値を入力したり、ブロックを組み立てよう";
+    } else {
+      this.applyStep(n - 1);
+    }
+    this.notifyStepChange();
+  }
+
+  // 最後まで一気に進めて結果を見る
+  goToEnd() {
+    if (!this.steps.length) return;
+    this.goToStep(this.steps.length);
   }
 
   play() {
@@ -829,13 +1040,8 @@ class ExcelView {
   }
 
   reset() {
-    this.stop();
-    this.cursor = 0;
-    this.hideMsgBox();
-    // リセットで初期データに戻す
-    this.renderModel(this.initialModel(), null, null);
-    this.refEl.textContent = "A1";
-    this.formulaEl.textContent = "";
+    // 実行開始時の状態（初期データ）にきっちり戻す
+    this.goToStep(0);
     this.statusEl.textContent = this.steps.length
       ? `準備完了（全 ${this.steps.length} ステップ）`
       : "セルに値を入力したり、ブロックを組み立てよう";
