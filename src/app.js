@@ -51,19 +51,6 @@
     return _themes;
   }
 
-  // ----- レイアウト管理 -----
-  function applyLayout(layout) {
-    const main = document.getElementById("main-layout");
-    if (layout === "B") {
-      main.classList.add("layout-b");
-    } else {
-      main.classList.remove("layout-b");
-    }
-    document.querySelectorAll(".layout-btn").forEach((btn) => {
-      btn.classList.toggle("active", btn.dataset.layout === layout);
-    });
-  }
-
   // ----- テーマ管理 -----
   function initTheme() {
     const saved = localStorage.getItem("theme") || "dark";
@@ -126,6 +113,24 @@
     }
     if (count) count.textContent = `${cursor} / ${total}`;
     document.querySelectorAll(".tl-btn").forEach((b) => (b.disabled = total === 0));
+  }
+
+  // ----- 説明とヒントパネルの開閉 -----
+  function applyQuestCollapsed(collapsed) {
+    const collapseBtn = document.getElementById("quest-collapse-btn");
+    document.getElementById("main-layout").classList.toggle("quest-collapsed", collapsed);
+    if (collapseBtn) {
+      collapseBtn.textContent = collapsed ? "📖 説明とヒント ▸" : "📖 説明とヒント ▾";
+    }
+    localStorage.setItem("questCollapsed", collapsed ? "1" : "0");
+    if (workspace) setTimeout(() => Blockly.svgResize(workspace), 50);
+  }
+
+  // ----- ブロックが1つも無いときだけキャンバスに案内を出す -----
+  function updateCanvasGuide() {
+    const guide = document.getElementById("canvas-guide");
+    if (!guide || !workspace) return;
+    guide.hidden = workspace.getTopBlocks(false).length > 0;
   }
 
   // ----- 「実行の出発点」表示の更新 -----
@@ -282,6 +287,7 @@
 
     updateCurrentQuestDisplay();
     onWorkspaceChange();
+    applyQuestCollapsed(false); // 課題の内容が見えた状態で始める
   }
 
   // ----- フリーモード読み込み（クエスト未選択時の初期状態）-----
@@ -402,6 +408,7 @@
     view.renderVars(curVars, marker);
 
     updateBaselineLabel();
+    updateCanvasGuide();
   }
 
   // ----- VBA シンタックスハイライト（F6）-----
@@ -569,6 +576,27 @@
       applyTheme(next);
     });
 
+    // 使い方ガイド
+    const helpModal = document.getElementById("help-modal");
+    const helpBtn = document.getElementById("help-btn");
+    if (helpBtn && helpModal) {
+      helpBtn.addEventListener("click", () => (helpModal.hidden = false));
+      const helpClose = document.getElementById("help-modal-close");
+      if (helpClose) helpClose.addEventListener("click", () => (helpModal.hidden = true));
+      helpModal.addEventListener("click", (e) => {
+        if (e.target === helpModal) helpModal.hidden = true;
+      });
+    }
+
+    // Esc でモーダルを閉じる
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      ["help-modal", "quest-modal", "answer-modal"].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el && !el.hidden) el.hidden = true;
+      });
+    });
+
     // クエスト選択ボタン
     buildQuestModal();
     document.getElementById("quest-list-btn").addEventListener("click", () => {
@@ -734,25 +762,8 @@
       });
     });
 
-    // レイアウト切り替え（A / B）
-    const savedLayout = localStorage.getItem("layout") || "A";
-    applyLayout(savedLayout);
-    document.querySelectorAll(".layout-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        applyLayout(btn.dataset.layout);
-        localStorage.setItem("layout", btn.dataset.layout);
-        setTimeout(() => Blockly.svgResize(workspace), 100);
-      });
-    });
-
-    // 説明とヒントの開閉（既定: 折りたたみ）
+    // 説明とヒントの開閉（フリーモード起動時は前回の状態を引き継ぐ）
     const collapseBtn = document.getElementById("quest-collapse-btn");
-    function applyQuestCollapsed(collapsed) {
-      document.getElementById("main-layout").classList.toggle("quest-collapsed", collapsed);
-      collapseBtn.textContent = collapsed ? "📖 説明とヒント ▸" : "📖 説明とヒント ▾";
-      localStorage.setItem("questCollapsed", collapsed ? "1" : "0");
-      setTimeout(() => Blockly.svgResize(workspace), 50);
-    }
     collapseBtn.addEventListener("click", () => {
       const collapsed = document
         .getElementById("main-layout")

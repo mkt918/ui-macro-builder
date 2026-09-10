@@ -25,6 +25,7 @@
     </div>
     <div class="header-actions">
       <span id="task-progress" class="task-progress"></span>
+      <button id="help-btn" class="header-btn help-btn" title="このアプリの使い方を見る">❓ 使い方</button>
       <button id="theme-toggle-btn" class="header-btn" title="ダーク/ライトモード">🌙</button>
     </div>
   </header>
@@ -74,13 +75,21 @@
           <button class="step-btn" id="step-btn" title="1ステップだけ進む">⏭ 1コマ</button>
           <button class="step-btn" id="reset-btn" title="実行前の状態に戻す">↺ 最初へ</button>
         </div>
-        <button class="tool-btn" id="share-btn" title="今のブロックを共有リンクにする">🔗</button>
-        <button class="tool-btn danger" id="clear-all-btn" title="ブロックを全部消す">🗑</button>
+        <button class="tool-btn" id="share-btn" title="今のブロックを共有リンクにする">🔗 共有</button>
+        <button class="tool-btn danger" id="clear-all-btn" title="ブロックを全部消す">🗑 全消去</button>
       </div>
 
       <!-- ブロックキャンバス -->
       <div id="tab-blocks-panel" class="tab-panel active">
         <div id="blockly-area" class="blockly-area"></div>
+        <!-- ブロックが1つも無いときだけ出る案内 -->
+        <div class="canvas-guide" id="canvas-guide" hidden>
+          <div class="canvas-guide-arrow">←</div>
+          <div class="canvas-guide-body">
+            <div class="canvas-guide-title">左のカテゴリからブロックをドラッグ</div>
+            <div class="canvas-guide-sub">まずは <b>📝 セル操作</b> の「セルに値を入れる」から試してみよう</div>
+          </div>
+        </div>
       </div>
 
       <!-- VBAコードパネル -->
@@ -122,6 +131,7 @@
 
         <!-- 実行タイムライン：どの時点でも自由に行き来できる -->
         <div class="excel-timeline" id="excel-timeline">
+          <span class="tl-label" title="プログラムのどの時点でも見返せます">⏱</span>
           <button class="tl-btn" id="tl-first" title="実行前の状態に戻る">⏮</button>
           <button class="tl-btn" id="tl-prev" title="1ステップ戻る">◀</button>
           <input type="range" id="tl-slider" min="0" max="0" value="0" step="1"
@@ -177,6 +187,70 @@
       <div class="modal-actions">
         <button class="modal-btn cancel" id="answer-cancel">もう少し頑張る</button>
         <button class="modal-btn confirm" id="answer-confirm">答えを見る</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 使い方ガイド -->
+  <div class="modal-overlay" id="help-modal" hidden>
+    <div class="modal help-modal">
+      <div class="modal-header">
+        <h3>❓ 使い方ガイド</h3>
+        <button class="close-btn" id="help-modal-close">&times;</button>
+      </div>
+      <div class="help-body">
+
+        <section class="help-section">
+          <h4>🗺 画面の見かた</h4>
+          <div class="help-map">
+            <div class="help-map-item"><b>🧩 ブロック</b>ブロックをつないでプログラムを作る場所</div>
+            <div class="help-map-item"><b>🤖 VBAコード</b>作ったブロックが本物の VBA コードに変わる</div>
+            <div class="help-map-item"><b>📊 仮想 Excel</b>プログラムを動かすとセルが変わっていく</div>
+          </div>
+        </section>
+
+        <section class="help-section">
+          <h4>▶ 動かしてみる</h4>
+          <table class="help-table">
+            <tr><td><span class="help-key">▶ 実行</span></td><td>最初から最後まで自動で動かす（もう一度押すと一時停止）</td></tr>
+            <tr><td><span class="help-key">⏭ 1コマ</span></td><td>1ステップだけ進む。ゆっくり確かめたいときに</td></tr>
+            <tr><td><span class="help-key">↺ 最初へ</span></td><td>実行前の状態に戻す</td></tr>
+            <tr><td><span class="help-key">🐢 🐇</span></td><td>実行の速さを変える</td></tr>
+          </table>
+        </section>
+
+        <section class="help-section">
+          <h4>⏱ 実行の流れをたどる</h4>
+          <p class="help-note">仮想 Excel の下にあるスライダーを動かすと、プログラムの<b>どの時点でも見返せます</b>。
+          <span class="help-key">⏭ 結果</span> を押せば一気に最後まで進んで、実行結果を確認できます。</p>
+        </section>
+
+        <section class="help-section">
+          <h4>📌 「出発点」ってなに？</h4>
+          <p class="help-note">プログラムを動かす前のセルの状態のことです。<b>何回実行しても必ずここから始まる</b>ので、結果がいつも同じになります。<br>
+          <span class="help-key">今の表示を出発点にする</span> を押すと、いま見えている内容を次からのスタート地点として覚えます。途中まで作った表を土台にして、続きのプログラムを組み立てられます。</p>
+        </section>
+
+        <section class="help-section">
+          <h4>🎨 セルの色・印の意味</h4>
+          <div class="help-legend">
+            <div class="legend-item"><span class="legend-swatch legend-initial"></span><span>左上の黄色い印 ＝ 出発点のデータ（実行前からあるもの）</span></div>
+            <div class="legend-item"><span class="legend-swatch legend-active"></span><span>青いわく ＝ いま処理しているセル</span></div>
+            <div class="legend-item"><span class="legend-swatch legend-diff"></span><span>オレンジのわく ＝ 実行して変わったセル</span></div>
+          </div>
+        </section>
+
+        <section class="help-section">
+          <h4>⌨️ 仮想 Excel のそうさ</h4>
+          <table class="help-table">
+            <tr><td><span class="help-key">クリック</span></td><td>セルをえらぶ</td></tr>
+            <tr><td><span class="help-key">そのまま入力</span></td><td>文字を打つとその場で入力がはじまる</td></tr>
+            <tr><td><span class="help-key">↑ ↓ ← →</span></td><td>セルを移動する</td></tr>
+            <tr><td><span class="help-key">Enter</span></td><td>決定して下のセルへ</td></tr>
+            <tr><td><span class="help-key">Delete</span></td><td>セルの中身を消す</td></tr>
+          </table>
+        </section>
+
       </div>
     </div>
   </div>
