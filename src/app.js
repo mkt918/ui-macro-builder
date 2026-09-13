@@ -654,6 +654,24 @@
         task.answer
       )}</pre>`;
       document.getElementById("hint-display").appendChild(item);
+
+      // 模範解答のブロック配置をワークスペースに読み込む（コードだけでなく組み方も見せる）
+      if (task.answerBlocks) {
+        suppressSave = true;
+        try {
+          workspace.clear();
+          Blockly.serialization.workspaces.load(task.answerBlocks, workspace);
+          workspace.cleanUp(); // 整列して見やすく
+          workspace.scrollCenter();
+          document.getElementById("tab-blocks").click(); // ブロックタブで見せる
+        } catch (e) {
+          console.warn("模範解答ブロックの読み込み失敗:", e);
+        }
+        suppressSave = false;
+        onWorkspaceChange();
+        document.getElementById("step-status").textContent =
+          "📖 模範解答のブロックを表示しました。▶ 実行で動きを確かめよう";
+      }
     });
 
     // 実行コントロール

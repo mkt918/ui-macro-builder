@@ -9,6 +9,7 @@
  *   goal      : 目標（複数行OK、\n で改行）
  *   hints     : ヒント3段階の配列（段階的に詳しく）
  *   answer    : 模範解答の VBA コード（答えを見るで表示）
+ *   answerBlocks : 模範解答のブロック配置（Blockly JSON）。「答えを見る」で読み込む。
  *   check     : (model) => boolean  クリア自動判定。
  *               model = { cells:{"A1":{value,bg,bold}}, arr:{1:v}, sheet, sheets }
  *               省略すると自動判定なし。
@@ -23,6 +24,12 @@ function cellBg(model, addr) {
   const c = model.cells[addr];
   return c ? c.bg : undefined;
 }
+
+// answerBlocks を短く書くためのヘルパー
+const num = (n) => ({ type: "value_number", fields: { NUM: n } });
+const txt = (t) => ({ type: "value_text", fields: { TEXT: t } });
+const idx = () => ({ type: "loop_index" });
+const wrap = (block) => ({ blocks: { languageVersion: 0, blocks: [block] } });
 
 const TASKS = [
   {
@@ -40,6 +47,11 @@ const TASKS = [
       "「値」カテゴリの \"テキスト\" ブロックをつなげて、名前を打ち込みましょう。",
     ],
     answer: 'Sub MyMacro()\n    Range("A1").Value = "山田太郎"\nEnd Sub',
+    answerBlocks: wrap({
+      type: "cell_set_value",
+      fields: { CELL: "A1" },
+      inputs: { VALUE: { block: txt("山田太郎") } },
+    }),
     check: (m) => String(cellVal(m, "A1")).length > 0,
     goalPreview: [{ addr: "A1", value: "なまえ" }],
   },
@@ -59,6 +71,13 @@ const TASKS = [
     ],
     answer:
       "Sub MyMacro()\n    Dim i As Integer\n    For i = 1 To 5\n        Range(\"A\" & i).Value = i\n    Next i\nEnd Sub",
+    answerBlocks: wrap({
+      type: "loop_repeat",
+      inputs: {
+        TIMES: { block: num(5) },
+        DO: { block: { type: "cell_set_value", fields: { CELL: "A{i}" }, inputs: { VALUE: { block: idx() } } } },
+      },
+    }),
     check: (m) =>
       [1, 2, 3, 4, 5].every((n) => String(cellVal(m, "A" + n)) === String(n)),
     goalPreview: [1, 2, 3, 4, 5].map((n) => ({ addr: "A" + n, value: n })),
@@ -80,6 +99,22 @@ const TASKS = [
     ],
     answer:
       'Sub MyMacro()\n    Dim i As Integer\n    For i = 1 To 6\n        If i Mod 2 = 0 Then\n            Range("B" & i).Interior.Color = RGB(33, 115, 70)\n        End If\n    Next i\nEnd Sub',
+    answerBlocks: wrap({
+      type: "loop_range",
+      inputs: {
+        START: { block: num(1) },
+        END: { block: num(6) },
+        DO: {
+          block: {
+            type: "cond_if",
+            inputs: {
+              CONDITION: { block: { type: "cond_is_even", inputs: { NUM: { block: idx() } } } },
+              THEN: { block: { type: "fmt_bgcolor", fields: { CELL: "B{i}", COLOR: "GREEN" } } },
+            },
+          },
+        },
+      },
+    }),
     check: (m) =>
       [2, 4, 6].every((n) => cellBg(m, "B" + n)) &&
       [1, 3, 5].every((n) => !cellBg(m, "B" + n)),
@@ -101,6 +136,21 @@ const TASKS = [
     ],
     answer:
       "Sub MyMacro()\n    Dim i As Integer\n    Dim arr(1 To 100) As Variant\n    For i = 1 To 5\n        arr(i) = i * 5\n    Next i\nEnd Sub",
+    answerBlocks: wrap({
+      type: "loop_repeat",
+      inputs: {
+        TIMES: { block: num(5) },
+        DO: {
+          block: {
+            type: "array_set",
+            inputs: {
+              INDEX: { block: idx() },
+              VALUE: { block: { type: "value_math", fields: { OP: "*" }, inputs: { A: { block: idx() }, B: { block: num(5) } } } },
+            },
+          },
+        },
+      },
+    }),
     check: (m) =>
       [1, 2, 3, 4, 5].every((n) => Number(m.arr[n]) === n * 5),
   },
@@ -120,6 +170,36 @@ const TASKS = [
     ],
     answer:
       "Sub MyMacro()\n    Dim i As Integer\n    Dim arr(1 To 100) As Variant\n    For i = 1 To 5\n        arr(i) = i * 10\n    Next i\n    For i = 1 To 5\n        Range(\"A\" & i).Value = arr(i)\n    Next i\nEnd Sub",
+    answerBlocks: wrap({
+      type: "loop_repeat",
+      inputs: {
+        TIMES: { block: num(5) },
+        DO: {
+          block: {
+            type: "array_set",
+            inputs: {
+              INDEX: { block: idx() },
+              VALUE: { block: { type: "value_math", fields: { OP: "*" }, inputs: { A: { block: idx() }, B: { block: num(10) } } } },
+            },
+          },
+        },
+      },
+      next: {
+        block: {
+          type: "loop_repeat",
+          inputs: {
+            TIMES: { block: num(5) },
+            DO: {
+              block: {
+                type: "cell_set_value",
+                fields: { CELL: "A{i}" },
+                inputs: { VALUE: { block: { type: "array_get", inputs: { INDEX: { block: idx() } } } } },
+              },
+            },
+          },
+        },
+      },
+    }),
     check: (m) =>
       [1, 2, 3, 4, 5].every((n) => String(cellVal(m, "A" + n)) === String(n * 10)),
     goalPreview: [1, 2, 3, 4, 5].map((n) => ({ addr: "A" + n, value: n * 10 })),
@@ -140,6 +220,19 @@ const TASKS = [
     ],
     answer:
       'Sub MyMacro()\n    Range("B1").Value = (Range("A1").Value * 2)\nEnd Sub',
+    answerBlocks: wrap({
+      type: "cell_set_value",
+      fields: { CELL: "B1" },
+      inputs: {
+        VALUE: {
+          block: {
+            type: "value_math",
+            fields: { OP: "*" },
+            inputs: { A: { block: { type: "cell_get_value", fields: { CELL: "A1" } } }, B: { block: num(2) } },
+          },
+        },
+      },
+    }),
     // A1に入力があり、B1 = A1*2 になっていればクリア
     check: (m) => {
       const a1 = Number(cellVal(m, "A1"));
