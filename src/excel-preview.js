@@ -121,6 +121,7 @@ class Interpreter {
     this.steps = [];
     this.i = 0; // ループカウンタ
     this.vars = {}; // 変数ストア: name -> value
+    this.inputCallCounts = {}; // block.id -> このビルド内での呼び出し回数（ループ内で複数回聞かれるケースを区別する）
   }
 
   snapshot() {
@@ -438,7 +439,11 @@ class Interpreter {
         return this.model.get(colLetter(col) + row);
       }
       case "io_inputbox": {
-        const key = block.id;
+        // ループの中で同じ InputBox ブロックが複数回評価されても、
+        // 実際のExcelと同じように毎回たずねる（反復回数ごとに別キーにする）
+        const n = this.inputCallCounts[block.id] || 0;
+        this.inputCallCounts[block.id] = n + 1;
+        const key = block.id + "#" + n;
         if (this.inputCache[key] !== undefined) return this.inputCache[key];
         if (!this.interactive) return "?"; // 編集中はダイアログを出さない
         const promptText = block.getFieldValue("PROMPT");
@@ -446,7 +451,7 @@ class Interpreter {
         const str = raw === null ? "" : raw;
         const num = Number(str);
         const val = str.trim() !== "" && !isNaN(num) ? num : str;
-        this.inputCache[key] = val; // 同じ実行中は1回の答えを使い回す
+        this.inputCache[key] = val; // 同じ反復回では答えを使い回す（編集中プレビューの再現用）
         return val;
       }
       case "text_concat": {

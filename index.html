@@ -5,13 +5,34 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>⚡ UI Macro Builder — Excel VBA ビジュアルプログラミング</title>
   <link rel="stylesheet" href="src/styles/main.css" />
+  <!-- CDN読み込み失敗時のフォールバック表示。
+       学校のネットワークでCDNがブロック/一時障害になった場合に、
+       白紙・無反応のまま固まるのを防ぎ、状況が分かるメッセージを出す -->
+  <script>
+    function cdnLoadFailed(name) {
+      if (window.__cdnLoadFailedShown) return;
+      window.__cdnLoadFailedShown = true;
+      document.body.innerHTML =
+        '<div style="padding:48px 24px;max-width:520px;margin:0 auto;' +
+        'font-family:\'Segoe UI\',sans-serif;text-align:center;color:#c0392b;">' +
+        '<h2 style="margin-bottom:12px;">⚠️ 読み込みに失敗しました</h2>' +
+        '<p style="color:#444;line-height:1.7;">「' + name + '」の読み込みができませんでした。' +
+        'インターネット接続を確認して、ページを再読み込みしてください。</p>' +
+        '<p style="color:#888;font-size:13px;">学校のネットワークでブロックされている場合は、先生にご確認ください。</p>' +
+        '<button onclick="location.reload()" ' +
+        'style="margin-top:16px;padding:10px 24px;font-size:14px;cursor:pointer;' +
+        'border-radius:6px;border:1px solid #c0392b;background:#fff;color:#c0392b;">再読み込み</button>' +
+        '</div>';
+    }
+  </script>
   <!-- Blockly (CDN) -->
-  <script src="https://unpkg.com/blockly@11.2.1/blockly.min.js"></script>
-  <script src="https://unpkg.com/blockly@11.2.1/msg/ja.js"></script>
+  <script src="https://unpkg.com/blockly@11.2.1/blockly.min.js" onerror="cdnLoadFailed('Blockly')"></script>
+  <script src="https://unpkg.com/blockly@11.2.1/msg/ja.js" onerror="cdnLoadFailed('Blockly（日本語版）')"></script>
   <!-- CodeMirror（VBAコード直打ち用エディタ）(CDN) -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css" />
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/vbscript/vbscript.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css"
+        onerror="console.warn('CodeMirrorのスタイル読み込みに失敗しました（表示のみ影響）')" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js" onerror="cdnLoadFailed('CodeMirror')"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/vbscript/vbscript.min.js" onerror="cdnLoadFailed('CodeMirror（VBAモード）')"></script>
 </head>
 <body>
 

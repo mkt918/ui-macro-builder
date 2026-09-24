@@ -65,12 +65,31 @@
       document.body.classList.add("light-mode");
       document.getElementById("theme-toggle-btn").textContent = "☀️";
       if (workspace) workspace.setTheme(themes.light);
+      updateWorkspaceGridColour(false);
     } else {
       document.body.classList.remove("light-mode");
       document.getElementById("theme-toggle-btn").textContent = "🌙";
       if (workspace) workspace.setTheme(themes.dark);
+      updateWorkspaceGridColour(true);
     }
     localStorage.setItem("theme", mode);
+  }
+
+  // workspace.setTheme() はグリッド線の色を更新しないため、切替のたびに手動で合わせる
+  // （合わせないと、ライト→ダークと往復したときにグリッドがほぼ見えなくなる）
+  function updateWorkspaceGridColour(isDark) {
+    if (!workspace) return;
+    try {
+      const grid = workspace.getGrid && workspace.getGrid();
+      // Blockly 11.2.1 の Grid クラスには色を変更する公開APIが無いため、
+      // 生成済みの SVG 線要素（line1/line2）の stroke 属性を直接書き換える
+      const colour = isDark ? "#333" : "#ddd";
+      if (grid && grid.line1 && grid.line1.setAttribute) grid.line1.setAttribute("stroke", colour);
+      if (grid && grid.line2 && grid.line2.setAttribute) grid.line2.setAttribute("stroke", colour);
+    } catch (e) {
+      // Blockly のバージョン差で失敗しても致命的ではないので握りつぶす
+      console.warn("グリッド色の更新に失敗:", e);
+    }
   }
 
   // ----- 永続化（B4 / F1）-----
@@ -134,6 +153,20 @@
     const guide = document.getElementById("canvas-guide");
     if (!guide || !workspace) return;
     guide.hidden = workspace.getTopBlocks(false).length > 0;
+  }
+
+  // ----- 「＋ 変数を作る」ボタンの新規変数名プロンプト（ひらがな・予約名を検証） -----
+  function promptNewVariableName(ws) {
+    const raw = window.prompt("新しい変数の名前を入力してください（ひらがな不可、i / arr は予約語）", "");
+    if (raw === null) return; // キャンセル
+    const name = raw.trim();
+    if (!name) return;
+    const errMsg = window.UMB_validateVarName ? window.UMB_validateVarName(name) : null;
+    if (errMsg) {
+      alert(errMsg);
+      return promptNewVariableName(ws); // 直してもう一度
+    }
+    ws.createVariable(name); // 既に同名があれば Blockly 側でそのまま再利用される
   }
 
   // ----- 「実行の出発点」表示の更新 -----
@@ -295,6 +328,27 @@
     onWorkspaceChange(); // ブロックから正規化されたコードで表示を更新
   }
 
+  // ----- コード編集中の内容を、課題切替・全消去などの前に守る -----
+  // 戻り値: true = 続行してよい（反映できた or 生徒が破棄に同意した）
+  //         false = 中止すべき（生徒が「戻る」を選んだ）
+  // codeDirty のまま呼び出し元で workspace.clear() 等を続けると、
+  // 手打ちしたコードが無警告で失われてしまうため、必ずこれを通す
+  function confirmDiscardDirtyCode() {
+    if (!codeDirty) return true;
+    applyCodeToBlocks(); // まず反映を試みる（成功すれば codeDirty は false になる）
+    if (!codeDirty) return true;
+    const ok = confirm(
+      "VBAコードタブに、まだブロックへ反映されていない変更があります。\n" +
+        "このまま進めると、その変更は失われます。続けますか？"
+    );
+    if (ok) {
+      codeDirty = false;
+      hideCodeError();
+      updateCodeSyncStatus(); // 「✏️ 未反映」バッジを消す
+    }
+    return ok;
+  }
+
   // ----- 初期化 -----
   window.addEventListener("load", () => {
     initTheme();
@@ -330,8 +384,10 @@
       }
       return items;
     });
+    // 「＋ 変数を作る」ボタン。Blockly標準の createVariableButtonHandler は
+    // ひらがな/予約名チェックを経由しないため、自前でプロンプト＋検証する
     workspace.registerButtonCallback("CREATE_VARIABLE_JP", function (button) {
-      Blockly.Variables.createVariableButtonHandler(button.getTargetWorkspace());
+      promptNewVariableName(button.getTargetWorkspace());
     });
 
     view = new ExcelView({
@@ -388,7 +444,43 @@
     bindControls();
     loadFreeMode(); // 起動時はクエスト未選択＝フリーモード
     loadFromShareUrl(); // 共有リンクがあればブロック復元（F8）
+
+    // 他タブでの更新を取り込む（複数タブを開いたとき、後から persist した方が
+    // 一方的に上書きしてしまう事故を防ぐ）
+    window.addEventListener("storage", onOtherTabStorageChange);
   });
+
+  // ----- 他タブでの localStorage 更新を取り込む -----
+  // storage イベントは「変更したタブ以外」でのみ発火する。
+  // クリア済みフラグは合算（減らさない）、ブロック/初期データは
+  // 「今このタブで編集中でない課題」だけ取り込む（作業中のものを壊さないため）
+  function onOtherTabStorageChange(e) {
+    if (![LS_BLOCKS, LS_SOLVED, LS_INITIAL].includes(e.key)) return;
+    try {
+      const otherSolved = JSON.parse(localStorage.getItem(LS_SOLVED) || "[]");
+      let solvedChanged = false;
+      otherSolved.forEach((id) => {
+        if (!solved.has(id)) {
+          solved.add(id);
+          solvedChanged = true;
+        }
+      });
+
+      const otherBlocks = JSON.parse(localStorage.getItem(LS_BLOCKS) || "{}");
+      const otherInitial = JSON.parse(localStorage.getItem(LS_INITIAL) || "{}");
+      const activeKey = currentTaskId === null ? FREE_MODE_ID : currentTaskId;
+      Object.keys(otherBlocks).forEach((k) => {
+        if (k !== activeKey) savedBlocks[k] = otherBlocks[k];
+      });
+      Object.keys(otherInitial).forEach((k) => {
+        if (k !== activeKey) savedInitial[k] = otherInitial[k];
+      });
+
+      if (solvedChanged) updateCurrentQuestDisplay();
+    } catch (err) {
+      console.warn("他タブの更新の取り込みに失敗:", err);
+    }
+  }
 
   // ----- クエスト一覧モーダル描画 -----
   function buildQuestModal() {
@@ -406,8 +498,11 @@
         <div class="quest-item-stars">${"★".repeat(quest.difficulty)}</div>
       `;
       item.addEventListener("click", () => {
-        loadTask(quest.id);
-        document.getElementById("quest-modal").hidden = true;
+        // loadTask が false を返す＝コード未反映を理由に中止された場合は
+        // モーダルを閉じない（生徒がコードタブに戻って直せるように）
+        if (loadTask(quest.id)) {
+          document.getElementById("quest-modal").hidden = true;
+        }
       });
       list.appendChild(item);
     });
@@ -428,7 +523,10 @@
   }
 
   // ----- 課題読み込み -----
+  // 戻り値: true = 読み込みを実行した / false = 中止した（呼び出し元はUIを変更しないこと）
   function loadTask(taskId) {
+    // コードタブに未反映の変更があれば、先に確認する（無ければ即 true）
+    if (!confirmDiscardDirtyCode()) return false;
     // 現在のブロックを保存（共有閲覧中は保存されない）
     if (hasLoadedOnce && workspace) {
       saveCurrentBlocks();
@@ -437,7 +535,7 @@
     sharedViewMode = false; // 課題を選んだら通常モードに復帰
     currentTaskId = taskId;
     const task = TASKS.find((t) => t.id === taskId);
-    if (!task) return;
+    if (!task) return false;
 
     // 課題説明
     document.getElementById("task-title").textContent = task.title;
@@ -452,9 +550,8 @@
     // 仮想Excelの初期データを復元（課題ごと）
     view.setInitialCells(savedInitial[taskId] || {});
 
-    codeDirty = false;
-    hideCodeError();
     // ブロック復元（無ければ真っ白）。復元中は保存抑制（B7）
+    // ※ codeDirty はここに来る前に confirmDiscardDirtyCode() で確実に false 済み
     suppressSave = true;
     workspace.clear();
     const xml = savedBlocks[taskId];
@@ -471,10 +568,13 @@
     updateCurrentQuestDisplay();
     onWorkspaceChange();
     applyQuestCollapsed(false); // 課題の内容が見えた状態で始める
+    return true;
   }
 
   // ----- フリーモード読み込み（クエスト未選択時の初期状態）-----
+  // 戻り値: true = 読み込みを実行した / false = 中止した
   function loadFreeMode() {
+    if (!confirmDiscardDirtyCode()) return false;
     if (hasLoadedOnce && workspace) {
       saveCurrentBlocks();
     }
@@ -492,8 +592,7 @@
 
     view.setInitialCells(savedInitial[FREE_MODE_ID] || {});
 
-    codeDirty = false;
-    hideCodeError();
+    // ※ codeDirty はここに来る前に confirmDiscardDirtyCode() で確実に false 済み
     suppressSave = true;
     workspace.clear();
     const xml = savedBlocks[FREE_MODE_ID];
@@ -509,6 +608,7 @@
 
     updateCurrentQuestDisplay();
     onWorkspaceChange();
+    return true;
   }
 
   // ----- 完成イメージのミニグリッド描画（F7）-----
@@ -617,11 +717,16 @@
       if (nextBtn) nextBtn.hidden = true;
       return;
     }
+    // セルへの直接入力だけ（ブロックを一切組んでいない）でクリア判定が
+    // 通ってしまわないよう、実行可能なステップが1つ以上あることを条件にする
+    const hasSteps = view.steps.length > 0;
     let passed = false;
-    try {
-      passed = task.check(view.finalModel());
-    } catch (e) {
-      passed = false;
+    if (hasSteps) {
+      try {
+        passed = task.check(view.finalModel());
+      } catch (e) {
+        passed = false;
+      }
     }
     if (passed) {
       const firstTime = !solved.has(currentTaskId);
@@ -830,10 +935,9 @@
       )}</pre>`;
       document.getElementById("hint-display").appendChild(item);
 
-      // 模範解答のブロック配置をワークスペースに読み込む（コードだけでなく組み方も見せる）
-      codeDirty = false;
-      hideCodeError();
-      if (task.answerBlocks) {
+      // 模範解答のブロック配置をワークスペースに読み込む（コードだけでなく組み方も見せる）。
+      // コードタブに未反映の変更があれば先に確認する（中止なら文字コードの表示だけで終わる）
+      if (task.answerBlocks && confirmDiscardDirtyCode()) {
         suppressSave = true;
         try {
           workspace.clear();
@@ -935,11 +1039,22 @@
     // コードコピー
     document.getElementById("copy-btn").addEventListener("click", () => {
       const code = codeEditor ? codeEditor.getValue() : "";
-      navigator.clipboard.writeText(code).then(() => {
-        const btn = document.getElementById("copy-btn");
-        btn.textContent = "✅ コピー済み";
-        setTimeout(() => (btn.textContent = "📋 コピー"), 1500);
-      });
+      const btn = document.getElementById("copy-btn");
+      // file:// で直接開いた場合など、非セキュアなコンテキストでは
+      // navigator.clipboard 自体が存在しないことがある
+      if (!navigator.clipboard || !navigator.clipboard.writeText) {
+        alert("この環境では自動コピーが使えません。コードを選択して手動でコピーしてください。");
+        return;
+      }
+      navigator.clipboard
+        .writeText(code)
+        .then(() => {
+          btn.textContent = "✅ コピー済み";
+          setTimeout(() => (btn.textContent = "📋 コピー"), 1500);
+        })
+        .catch(() => {
+          alert("コピーに失敗しました。コードを選択して手動でコピーしてください。");
+        });
     });
 
     // エディタタブ切り替え
@@ -980,12 +1095,10 @@
     // 全部消す（F2）
     document.getElementById("clear-all-btn").addEventListener("click", () => {
       if (workspace.getTopBlocks(false).length === 0) return;
-      if (confirm("組み立てたブロックを全部消しますか？")) {
-        codeDirty = false;
-        hideCodeError();
-        workspace.clear();
-        onWorkspaceChange();
-      }
+      if (!confirm("組み立てたブロックを全部消しますか？")) return;
+      if (!confirmDiscardDirtyCode()) return; // コード未反映があれば先に確認
+      workspace.clear();
+      onWorkspaceChange();
     });
 
     // 次のクエストへ（F4）
@@ -1001,10 +1114,20 @@
           const xml = Blockly.Xml.domToText(dom);
           const encoded = encodeURIComponent(btoa(unescape(encodeURIComponent(xml))));
           const url = `${location.origin}${location.pathname}#share=${encoded}`;
-          navigator.clipboard.writeText(url).then(() => {
-            shareBtn.textContent = "✅ リンクをコピー";
-            setTimeout(() => (shareBtn.textContent = "🔗 共有"), 1500);
-          });
+          if (!navigator.clipboard || !navigator.clipboard.writeText) {
+            // 自動コピーできない環境では、URLを選んでコピーできるダイアログで代替
+            prompt("このURLをコピーしてください（この環境では自動コピーが使えません）:", url);
+            return;
+          }
+          navigator.clipboard
+            .writeText(url)
+            .then(() => {
+              shareBtn.textContent = "✅ リンクをコピー";
+              setTimeout(() => (shareBtn.textContent = "🔗 共有"), 1500);
+            })
+            .catch(() => {
+              prompt("このURLをコピーしてください（自動コピーに失敗しました）:", url);
+            });
         } catch (e) {
           console.warn("共有リンク生成失敗:", e);
         }
@@ -1016,10 +1139,9 @@
   function loadFromShareUrl() {
     const m = location.hash.match(/share=([^&]+)/);
     if (!m) return false;
+    if (!confirmDiscardDirtyCode()) return false; // コード未反映があれば先に確認
     try {
       const xml = decodeURIComponent(escape(atob(decodeURIComponent(m[1]))));
-      codeDirty = false;
-      hideCodeError();
       suppressSave = true;
       workspace.clear();
       const dom = Blockly.utils.xml.textToDom(xml);

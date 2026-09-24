@@ -611,8 +611,7 @@ const SIMPLE_RULES = [
   [
     /^([A-Za-z_]\w*)\s*=\s*\1\s*\+\s*(.+)$/i,
     (m, line) => {
-      if (m[1] === "i") throw new VbaParseError("カウンタ i には代入できません", line);
-      if (HIRAGANA_RE.test(m[1])) throw new VbaParseError(`変数名にひらがなは使えません: ${m[1]}`, line);
+      checkVarNameAssignable(m[1], line);
       return { type: "var_change", fields: { VAR: { __var: m[1] } }, inputs: { DELTA: { block: parseExprString(m[2], line) } } };
     },
   ],
@@ -620,12 +619,20 @@ const SIMPLE_RULES = [
   [
     /^([A-Za-z_]\w*)\s*=\s*(.+)$/i,
     (m, line) => {
-      if (m[1] === "i") throw new VbaParseError("カウンタ i には代入できません", line);
-      if (HIRAGANA_RE.test(m[1])) throw new VbaParseError(`変数名にひらがなは使えません: ${m[1]}`, line);
+      checkVarNameAssignable(m[1], line);
       return { type: "var_set", fields: { VAR: { __var: m[1] } }, inputs: { VALUE: { block: parseExprString(m[2], line) } } };
     },
   ],
 ];
+
+// 変数名として代入してよいかチェックする（ひらがな禁止・予約名禁止）。
+// 予約名（i, arr）はループカウンタ・配列と衝突し、生成コードで Dim が
+// 二重になってしまうため弾く（ブロックエディタ側の制限と揃える）
+function checkVarNameAssignable(name, line) {
+  if (name === "i") throw new VbaParseError("カウンタ i には代入できません", line);
+  if (name === "arr") throw new VbaParseError("arr は配列の名前として予約されているため、変数には使えません", line);
+  if (HIRAGANA_RE.test(name)) throw new VbaParseError(`変数名にひらがなは使えません: ${name}`, line);
+}
 
 function parseSimpleStatement(cursor) {
   const { text, line } = cursor.next();

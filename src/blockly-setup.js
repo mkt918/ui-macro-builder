@@ -519,24 +519,35 @@ Blockly.Blocks["range_select"] = {
 
 // ===== 変数（ドロップダウン選択式）=====
 
-// ひらがなを含む変数名を拒否する validator
-const validateVarName = (newName) => {
-  if (/[぀-ゟ]/.test(newName)) {
-    return null;
-  }
-  return newName;
-};
+// 予約名（ループカウンタ i / 配列 arr と同じ名前だと、VBAコード生成時に
+// Dim の二重宣言でコンパイルエラーになる）。大文字小文字は区別しない。
+const RESERVED_VAR_NAMES = new Set(["i", "arr"]);
 
-// FieldVariable のサブクラス（ひらがな拒否）
+// 変数名として使えるかチェックする。OKなら null、NGなら理由（日本語メッセージ）を返す。
+// FieldVariable のフィールド検証（doClassValidation_）と、
+// 「＋ 変数を作る」ボタンの両方から共通で使う（app.js から window.UMB_validateVarName で参照）。
+function validateVarNameMessage(name) {
+  if (!name || !name.trim()) return "変数名を入力してください";
+  if (/[぀-ゟ]/.test(name)) return `変数名にひらがなは使えません: ${name}`;
+  if (RESERVED_VAR_NAMES.has(name.toLowerCase())) {
+    return `「${name}」はループのカウンタ(i)や配列(arr)と同じ名前のため使えません`;
+  }
+  return null;
+}
+window.UMB_validateVarName = validateVarNameMessage;
+
+// FieldVariable のサブクラス（ひらがな・予約名を拒否）
+// 注意: これは「既存フィールドの値を書き換える」経路（ドロップダウンでの
+// 名前変更など）だけを検証する。「＋ 変数を作る」ボタンからの新規作成は
+// この検証を経由しないため、app.js 側の CREATE_VARIABLE_JP ボタン
+// コールバックでも同じ validateVarNameMessage を使ってチェックしている。
 class FieldVariableNoHiragana extends Blockly.FieldVariable {
   constructor(varName = "Gokei") {
     super(varName);
   }
 
   doClassValidation_(newValue) {
-    if (!newValue || /[぀-ゟ]/.test(newValue)) {
-      return null;
-    }
+    if (validateVarNameMessage(newValue)) return null;
     return newValue;
   }
 }

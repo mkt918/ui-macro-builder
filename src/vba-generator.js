@@ -326,10 +326,21 @@ function generateVBA(workspace) {
     .map((line) => (line.trim() ? "    " + line : line))
     .join("\n");
   let header = "Sub MyMacro()\n";
-  if (usesI) header += "    Dim i As Integer\n";
-  if (usesArr) header += "    Dim arr(1 To 100) As Variant\n";
+  // 予約名（ループカウンタ i / 配列 arr）と同じ名前の変数があっても
+  // Dim を二重に出力しない（実Excelでの「重複する宣言」コンパイルエラー対策）
+  const declared = new Set();
+  if (usesI) {
+    header += "    Dim i As Integer\n";
+    declared.add("i");
+  }
+  if (usesArr) {
+    header += "    Dim arr(1 To 100) As Variant\n";
+    declared.add("arr");
+  }
   varNames.forEach((n) => {
+    if (declared.has(n)) return;
     header += `    Dim ${n} As Variant\n`;
+    declared.add(n);
   });
   return header + indented + "\nEnd Sub";
 }
