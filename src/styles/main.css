@@ -362,6 +362,13 @@ body.quest-mode-off .main-layout .right-pane {
 }
 .editor-toolbar .step-controls-inline,
 .editor-toolbar .tool-btn { align-self: center; }
+.toolbar-divider {
+  width: 1px;
+  align-self: stretch;
+  margin: 10px 2px;
+  background: var(--border);
+  flex-shrink: 0;
+}
 
 /* エディタタブ */
 .editor-tabs {
@@ -410,6 +417,30 @@ body.quest-mode-off .main-layout .right-pane {
 }
 .code-header-bar .copy-btn { margin-left: auto; }
 
+/* 文字サイズ調整（コード直打ちエディタ） */
+.code-font-size {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.code-font-btn {
+  padding: 2px 8px;
+  background: var(--border);
+  color: var(--text);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+}
+.code-font-btn:hover { background: var(--accent-blue); color: #fff; }
+#code-font-size-value {
+  font-size: 11px;
+  color: var(--text-muted);
+  min-width: 16px;
+  text-align: center;
+}
+
 /* ===== VBAコードエディタ（CodeMirror） ===== */
 .code-editor-host {
   flex: 1;
@@ -419,7 +450,7 @@ body.quest-mode-off .main-layout .right-pane {
 .code-editor-host .CodeMirror {
   height: 100%;
   font-family: Consolas, "Courier New", monospace;
-  font-size: 13px;
+  font-size: var(--code-font-size, 15px);
   line-height: 1.7;
   background: var(--bg-editor);
   color: var(--text);
@@ -639,21 +670,21 @@ li.CodeMirror-hint-active.vba-hint-item {
 .excel-table th {
   background: #f0f0f0;
   border: 1px solid #d0d0d0;
-  padding: 2px 4px;
+  padding: 4px 8px;
   font-weight: normal;
-  font-size: 12px;
+  font-size: 24px;
   color: #555;
-  min-width: 54px;
+  min-width: 108px;
   position: sticky;
   top: 0;
 }
-.excel-table th.corner { left: 0; z-index: 2; min-width: 30px; width: 30px; }
+.excel-table th.corner { left: 0; z-index: 2; min-width: 60px; width: 60px; }
 .excel-table td {
   border: 1px solid #d0d0d0;
-  padding: 2px 5px;
-  min-width: 54px;
-  height: 22px;
-  font-size: 12px;
+  padding: 4px 10px;
+  min-width: 108px;
+  height: 44px;
+  font-size: 24px;
   color: #000;
   white-space: nowrap;
 }
@@ -663,8 +694,8 @@ li.CodeMirror-hint-active.vba-hint-item {
   color: #555;
   position: sticky;
   left: 0;
-  min-width: 30px;
-  width: 30px;
+  min-width: 60px;
+  width: 60px;
 }
 .excel-table td.editable { cursor: cell; }
 .excel-table td.editable:hover { background: #eef6ff; }
@@ -697,7 +728,7 @@ li.CodeMirror-hint-active.vba-hint-item {
   position: absolute;
   top: 0;
   left: 0;
-  border-width: 5px 5px 0 0;
+  border-width: 9px 9px 0 0;
   border-style: solid;
   border-color: #e0a800 transparent transparent transparent;
   pointer-events: none;
@@ -718,9 +749,9 @@ li.CodeMirror-hint-active.vba-hint-item {
   display: none;
   align-items: center;
   gap: 8px;
-  padding: 6px 8px;
-  background: #fdf1e3;
-  border-top: 2px solid #d35400;
+  padding: 6px 10px;
+  background: rgba(211, 84, 0, 0.05);
+  border-top: 1px solid #e3e6ea;
   overflow-x: auto;
 }
 .var-viz.show { display: flex; }
@@ -812,9 +843,9 @@ li.CodeMirror-hint-active.vba-hint-item {
   display: none;
   align-items: center;
   gap: 8px;
-  padding: 6px 8px;
-  background: #e8f6f3;
-  border-top: 2px solid #16a085;
+  padding: 6px 10px;
+  background: rgba(22, 160, 133, 0.05);
+  border-top: 1px solid #e3e6ea;
   overflow-x: auto;
 }
 .array-viz.show { display: flex; }
@@ -857,9 +888,9 @@ li.CodeMirror-hint-active.vba-hint-item {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 8px;
-  background: #eef3f8;
-  border-top: 1px solid #c5d3e0;
+  padding: 6px 10px;
+  background: #f4f6f8;
+  border-top: 1px solid #e3e6ea;
 }
 .tl-btn {
   padding: 3px 8px;
@@ -902,9 +933,9 @@ li.CodeMirror-hint-active.vba-hint-item {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 8px;
-  background: #fff8e6;
-  border-top: 1px solid #e0c98a;
+  padding: 5px 10px;
+  background: #f4f6f8;
+  border-top: 1px solid #e3e6ea;
 }
 .baseline-label {
   font-size: 12px;
@@ -934,9 +965,9 @@ li.CodeMirror-hint-active.vba-hint-item {
 .excel-tabs {
   display: flex;
   gap: 2px;
-  padding: 3px 8px 0;
-  background: #f0f0f0;
-  border-top: 1px solid #ccc;
+  padding: 4px 10px 0;
+  background: #f4f6f8;
+  border-top: 1px solid #e3e6ea;
 }
 .sheet-tab {
   padding: 3px 12px;
@@ -1137,8 +1168,6 @@ li.CodeMirror-hint-active.vba-hint-item {
   font-size: 12px;
   font-weight: 600;
   padding: 5px 10px;
-  border-color: var(--accent-blue);
-  color: var(--accent-blue);
   white-space: nowrap;
 }
 .header-btn.help-btn:hover {
@@ -1171,8 +1200,6 @@ li.CodeMirror-hint-active.vba-hint-item {
   font-size: 12px;
   font-weight: 600;
   padding: 5px 10px;
-  border-color: var(--accent-green);
-  color: var(--accent-green);
   white-space: nowrap;
 }
 .header-btn.reference-btn:hover {

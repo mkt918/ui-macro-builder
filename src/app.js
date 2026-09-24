@@ -77,6 +77,41 @@
     localStorage.setItem("theme", mode);
   }
 
+  // ----- VBAコード直打ちエディタの文字サイズ（好みで変更可能） -----
+  const LS_CODE_FONT = "umb_codeFontSize";
+  const CODE_FONT_MIN = 12;
+  const CODE_FONT_MAX = 26;
+  const CODE_FONT_DEFAULT = 15;
+  function getCodeFontSize() {
+    const saved = Number(localStorage.getItem(LS_CODE_FONT));
+    return saved && saved >= CODE_FONT_MIN && saved <= CODE_FONT_MAX ? saved : CODE_FONT_DEFAULT;
+  }
+  function applyCodeFontSize(size) {
+    document.documentElement.style.setProperty("--code-font-size", `${size}px`);
+    const label = document.getElementById("code-font-size-value");
+    if (label) label.textContent = size;
+    if (codeEditor) codeEditor.refresh();
+  }
+  function initCodeFontSize() {
+    applyCodeFontSize(getCodeFontSize());
+    const dec = document.getElementById("code-font-dec");
+    const inc = document.getElementById("code-font-inc");
+    if (dec) {
+      dec.addEventListener("click", () => {
+        const next = Math.max(CODE_FONT_MIN, getCodeFontSize() - 1);
+        localStorage.setItem(LS_CODE_FONT, next);
+        applyCodeFontSize(next);
+      });
+    }
+    if (inc) {
+      inc.addEventListener("click", () => {
+        const next = Math.min(CODE_FONT_MAX, getCodeFontSize() + 1);
+        localStorage.setItem(LS_CODE_FONT, next);
+        applyCodeFontSize(next);
+      });
+    }
+  }
+
   // workspace.setTheme() はグリッド線の色を更新しないため、切替のたびに手動で合わせる
   // （合わせないと、ライト→ダークと往復したときにグリッドがほぼ見えなくなる）
   function updateWorkspaceGridColour(isDark) {
@@ -1072,6 +1107,9 @@
       const next = current === "dark" ? "light" : "dark";
       applyTheme(next);
     });
+
+    // コード直打ちエディタの文字サイズ
+    initCodeFontSize();
 
     // 使い方ガイド
     const helpModal = document.getElementById("help-modal");

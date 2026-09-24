@@ -129,6 +129,7 @@
           <button class="step-btn" id="step-btn" title="1ステップだけ進む">⏭ 1コマ</button>
           <button class="step-btn" id="reset-btn" title="実行前の状態に戻す">↺ 最初へ</button>
         </div>
+        <span class="toolbar-divider"></span>
         <button class="tool-btn" id="share-btn" title="今のブロックを共有リンクにする">🔗 共有</button>
         <button class="tool-btn danger" id="clear-all-btn" title="ブロックを全部消す">🗑 全消去</button>
       </div>
@@ -152,6 +153,11 @@
           <div class="code-header-bar">
             <span id="code-header-label">VBA コード（直接編集できます）</span>
             <span class="code-sync-status" id="code-sync-status" hidden></span>
+            <div class="code-font-size" title="文字の大きさ">
+              <button class="code-font-btn" id="code-font-dec" title="文字を小さく">A−</button>
+              <span id="code-font-size-value">15</span>
+              <button class="code-font-btn" id="code-font-inc" title="文字を大きく">A+</button>
+            </div>
             <button class="copy-btn" id="copy-btn">📋 コピー</button>
           </div>
           <div id="code-editor" class="code-editor-host"></div>
