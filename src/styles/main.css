@@ -255,6 +255,24 @@ body.light-mode .quest-item:hover { background: #f0f0f0; }
   border-left: 1px solid var(--border);
 }
 
+/* ===== クエストモード非表示（コード直打ち機能を先に作り込むため一時的にOFF） =====
+   body.quest-mode-off クラスを外せば、元のクエスト選択UIに戻る */
+body.quest-mode-off .quest-selector { display: none; }
+body.quest-mode-off .left-pane { display: none; }
+body.quest-mode-off .app-header { grid-template-columns: 1fr auto; }
+body.quest-mode-off .main-layout {
+  grid-template-columns: minmax(0, 1fr) 540px;
+  grid-template-rows: minmax(0, 1fr);
+}
+body.quest-mode-off .main-layout .editor-pane {
+  grid-column: 1;
+  grid-row: 1;
+}
+body.quest-mode-off .main-layout .right-pane {
+  grid-column: 2;
+  grid-row: 1;
+}
+
 /* ===== 左ペイン ===== */
 .left-pane {
   background: var(--bg-panel);

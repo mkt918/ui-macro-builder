@@ -8,6 +8,8 @@
   let codeEditor = null; // CodeMirror インスタンス（VBAコード直打ち）
   let codeDirty = false; // コード側が編集されてブロックへ未反映かどうか
   let suppressCodeChange = false; // setValue によるプログラム的な更新中フラグ
+  let dedentTimer = null; // 保留中の自動デデント（setTimeout ID）
+  let dedentTimerLine = null; // ↑がどの行に対する処理か
   let currentTaskId = null;
   let hasLoadedOnce = false; // 初回ロード時は保存前のブロックが存在しないため保存をスキップ
   let suppressSave = false; // 復元中の保存抑制フラグ（B7）
@@ -227,7 +229,22 @@
 
   // Enter: For / Do While・Until / If...Then / Else の次行は自動でインデントを1段深くする
   function handleCodeEnterKey(cm) {
-    const cursor = cm.getCursor();
+    // 閉じキーワード（Next/Loop/End If/Else）を打った直後、間髪入れずEnterを押すと、
+    // change イベント経由の setTimeout(0) デデント（dedentClosingKeywordLine）が
+    // まだ実行されていない古いインデント状態を読んでしまい、次の行までインデントが
+    // ズレて引き継がれてしまう競合があった。Enter処理の先頭で同期的にデデントを
+    // 確定させてから改行することで解消する。
+    // 注意: dedentClosingKeywordLine は「呼ばれるたびに無条件で4スペース減らす」
+    // 実装で冪等ではない（2回呼ぶと8段階減ってしまう）。保留中の非同期デデントが
+    // 後から同じ行にもう一度効いてしまわないよう、ここでタイマーを止めてから呼ぶ
+    const enterLine = cm.getCursor().line;
+    if (dedentTimer && dedentTimerLine === enterLine) {
+      clearTimeout(dedentTimer);
+      dedentTimer = null;
+    }
+    dedentClosingKeywordLine(cm, enterLine);
+
+    const cursor = cm.getCursor(); // 上のデデントで行が短くなっている場合があるので取り直す
     const line = cm.getLine(cursor.line);
     const before = line.slice(0, cursor.ch);
     const trimmed = before.trim();
@@ -434,7 +451,14 @@
       hideCodeError(); // 直前のエラーは打ち直している間は消しておく
       if (changeObj.origin !== "setValue") {
         const lineNo = changeObj.to.line;
-        setTimeout(() => dedentClosingKeywordLine(cm, lineNo), 0);
+        // 同じ行に対して前回分の保留中デデントがあれば上書き（二重発火でのインデント
+        // 過剰減少を防ぐ。Enterキー側の同期デデントとも dedentTimer 経由で連携する）
+        if (dedentTimer) clearTimeout(dedentTimer);
+        dedentTimerLine = lineNo;
+        dedentTimer = setTimeout(() => {
+          dedentClosingKeywordLine(cm, dedentTimerLine);
+          dedentTimer = null;
+        }, 0);
       }
     });
     codeEditor.on("blur", () => {
