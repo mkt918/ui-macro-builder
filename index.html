@@ -8,6 +8,10 @@
   <!-- Blockly (CDN) -->
   <script src="https://unpkg.com/blockly@11.2.1/blockly.min.js"></script>
   <script src="https://unpkg.com/blockly@11.2.1/msg/ja.js"></script>
+  <!-- CodeMirror（VBAコード直打ち用エディタ）(CDN) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/vbscript/vbscript.min.js"></script>
 </head>
 <body>
 
@@ -92,14 +96,20 @@
         </div>
       </div>
 
-      <!-- VBAコードパネル -->
+      <!-- VBAコードパネル（直接編集できるエディタ） -->
       <div id="tab-code-panel" class="tab-panel code-tab-panel">
         <div class="code-panel-inner">
           <div class="code-header-bar">
-            <span>生成された VBA コード</span>
+            <span id="code-header-label">VBA コード（直接編集できます）</span>
+            <span class="code-sync-status" id="code-sync-status" hidden></span>
             <button class="copy-btn" id="copy-btn">📋 コピー</button>
           </div>
-          <pre id="code-output"><code></code></pre>
+          <div id="code-editor" class="code-editor-host"></div>
+          <div class="code-error-banner" id="code-error-banner" hidden></div>
+          <div class="code-hint-bar">
+            💡 <code>for</code> <code>while</code> <code>until</code> <code>if</code> <code>ifelse</code> と打って
+            <kbd>Tab</kbd> で骨組みを入力できます。ブロックタブに戻ると自動でブロックに反映されます
+          </div>
         </div>
       </div>
 
@@ -264,6 +274,7 @@
   <!-- スクリプト -->
   <script src="src/blockly-setup.js"></script>
   <script src="src/vba-generator.js"></script>
+  <script src="src/vba-parser.js"></script>
   <script src="src/excel-preview.js"></script>
   <script src="src/tasks/tasks.js"></script>
   <script src="src/app.js"></script>

@@ -377,23 +377,94 @@ body.light-mode .quest-item:hover { background: #f0f0f0; }
 .code-header-bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 10px;
   padding: 6px 14px;
   background: var(--toolbar-bg);
   border-bottom: 1px solid var(--border);
   font-size: 12px;
   color: var(--text-muted);
 }
-#code-output {
+#code-header-label { white-space: nowrap; }
+.code-sync-status {
+  color: #f1c40f;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.code-header-bar .copy-btn { margin-left: auto; }
+
+/* ===== VBAコードエディタ（CodeMirror） ===== */
+.code-editor-host {
   flex: 1;
-  overflow: auto;
-  padding: 12px 16px;
+  min-height: 0;
+  overflow: hidden;
+}
+.code-editor-host .CodeMirror {
+  height: 100%;
   font-family: Consolas, "Courier New", monospace;
   font-size: 13px;
   line-height: 1.7;
+  background: var(--bg-editor);
   color: var(--text);
-  white-space: pre;
-  margin: 0;
+}
+.code-editor-host .CodeMirror-gutters {
+  background: var(--bg-editor);
+  border-right: 1px solid var(--border);
+}
+.code-editor-host .CodeMirror-linenumber { color: var(--text-muted); }
+.code-editor-host .CodeMirror-cursor { border-left: 2px solid var(--accent-blue); }
+.code-editor-host .CodeMirror-selected { background: rgba(137, 180, 250, 0.25); }
+.code-editor-host .cm-keyword { color: #ff7b72; font-weight: 600; }
+.code-editor-host .cm-string { color: #a5d6ff; }
+.code-editor-host .cm-number { color: #79c0ff; }
+.code-editor-host .cm-atom { color: #79c0ff; }
+.code-editor-host .cm-comment { color: #8b949e; font-style: italic; }
+.code-editor-host .cm-builtin { color: #d2a8ff; }
+.code-editor-host .cm-variable,
+.code-editor-host .cm-variable-2 { color: var(--text); }
+body.light-mode .code-editor-host .cm-keyword { color: #cf222e; }
+body.light-mode .code-editor-host .cm-string { color: #0a3069; }
+body.light-mode .code-editor-host .cm-number,
+body.light-mode .code-editor-host .cm-atom { color: #0550ae; }
+body.light-mode .code-editor-host .cm-comment { color: #6e7781; }
+body.light-mode .code-editor-host .cm-builtin { color: #8250df; }
+
+/* 解析エラー行のハイライト */
+.code-editor-host .code-error-line { background: rgba(243, 139, 168, 0.18); }
+
+.code-error-banner {
+  padding: 8px 14px;
+  background: rgba(231, 76, 60, 0.15);
+  border-top: 2px solid var(--accent);
+  color: #ff8a80;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.code-hint-bar {
+  padding: 6px 14px;
+  background: var(--toolbar-bg);
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+.code-hint-bar code {
+  padding: 1px 5px;
+  background: var(--bg-dark);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font-family: Consolas, monospace;
+  color: var(--text);
+}
+.code-hint-bar kbd {
+  padding: 1px 6px;
+  background: var(--bg-dark);
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  font-family: Consolas, monospace;
+  font-size: 10px;
+  color: var(--text);
 }
 
 .toolbar-spacer { flex: 1; }
@@ -892,18 +963,7 @@ body.light-mode .quest-item:hover { background: #f0f0f0; }
 .modal-btn.confirm { background: var(--accent); color: #fff; }
 
 /* ===== Phase 6 追加スタイル ===== */
-
-/* VBA シンタックスハイライト */
-.vba-kw { color: #ff7b72; }
-.vba-st { color: #a5d6ff; }
-.vba-nm { color: #79c0ff; }
-.vba-fn { color: #d2a8ff; }
-.vba-cm { color: #8b949e; font-style: italic; }
-body.light-mode .vba-kw { color: #cf222e; }
-body.light-mode .vba-st { color: #0a3069; }
-body.light-mode .vba-nm { color: #0550ae; }
-body.light-mode .vba-fn { color: #8250df; }
-body.light-mode .vba-cm { color: #6e7781; }
+/* VBA シンタックスハイライトは CodeMirror（.code-editor-host 内の .cm-* クラス）に移行済み */
 
 /* 配列の省略表示 */
 .array-cell.array-more {

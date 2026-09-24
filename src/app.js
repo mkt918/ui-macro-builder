@@ -5,6 +5,9 @@
 (function () {
   let workspace = null;
   let view = null;
+  let codeEditor = null; // CodeMirror インスタンス（VBAコード直打ち）
+  let codeDirty = false; // コード側が編集されてブロックへ未反映かどうか
+  let suppressCodeChange = false; // setValue によるプログラム的な更新中フラグ
   let currentTaskId = null;
   let hasLoadedOnce = false; // 初回ロード時は保存前のブロックが存在しないため保存をスキップ
   let suppressSave = false; // 復元中の保存抑制フラグ（B7）
@@ -141,6 +144,157 @@
     el.textContent = n ? `📌 出発点: ${n} セル` : "📌 出発点: なし";
   }
 
+  // ===== VBAコード直打ち：入力アシスト（スニペット・自動インデント） =====
+
+  // for / while / until / if / ifelse と打って Tab で展開できる骨組み。
+  // cursorLine/cursorCol は挿入後にカーソルを置く位置（0行目基準、baseIndent加算前）
+  const CODE_SNIPPETS = {
+    for: { template: "For i = 1 To 10\n    \nNext i", cursorLine: 1, cursorCol: 4 },
+    while: { template: "Do While \nLoop", cursorLine: 0, cursorCol: 9 },
+    until: { template: "Do Until \nLoop", cursorLine: 0, cursorCol: 9 },
+    if: { template: "If  Then\nEnd If", cursorLine: 0, cursorCol: 3 },
+    ifelse: { template: "If  Then\nElse\nEnd If", cursorLine: 0, cursorCol: 3 },
+  };
+
+  // 現在行のインデントを引き継ぎつつスニペットを展開する
+  // 注意: CODE_SNIPPETS のテンプレート文字列自体に、行ごとの相対インデント
+  // （本体行は4スペース、閉じキーワード行は0）を埋め込んである。
+  // ここでは各行の先頭に baseIndent を足すだけでよい（さらに4スペース加算しない）
+  function insertCodeSnippet(cm, key) {
+    const snip = CODE_SNIPPETS[key];
+    if (!snip) return false;
+    const cursor = cm.getCursor();
+    const line = cm.getLine(cursor.line);
+    const baseIndent = (line.match(/^(\s*)/) || ["", ""])[1];
+    const wordStart = { line: cursor.line, ch: cursor.ch - key.length };
+    const lines = snip.template.split("\n");
+    const indented = lines.map((l, i) => (i === 0 ? l : baseIndent + l));
+    cm.replaceRange(indented.join("\n"), wordStart, cursor);
+    const targetLine = wordStart.line + snip.cursorLine;
+    const targetCh = (snip.cursorLine === 0 ? wordStart.ch : baseIndent.length) + snip.cursorCol;
+    cm.setCursor({ line: targetLine, ch: targetCh });
+    return true;
+  }
+
+  // Tab: 直前の単語がスニペットキーワードならそれを展開。それ以外は通常インデント
+  function handleCodeTabKey(cm) {
+    if (cm.somethingSelected()) {
+      cm.execCommand("indentMore");
+      return;
+    }
+    const cursor = cm.getCursor();
+    const line = cm.getLine(cursor.line);
+    const before = line.slice(0, cursor.ch);
+    const m = before.match(/([A-Za-z]+)$/);
+    if (m && CODE_SNIPPETS[m[1].toLowerCase()] && m[1].toLowerCase() === m[1]) {
+      if (insertCodeSnippet(cm, m[1])) return;
+    }
+    cm.replaceSelection("    ");
+  }
+
+  // Enter: For / Do While・Until / If...Then / Else の次行は自動でインデントを1段深くする
+  function handleCodeEnterKey(cm) {
+    const cursor = cm.getCursor();
+    const line = cm.getLine(cursor.line);
+    const before = line.slice(0, cursor.ch);
+    const trimmed = before.trim();
+    const curIndent = (before.match(/^(\s*)/) || ["", ""])[1];
+    const opensBlock =
+      /^For\s+/i.test(trimmed) ||
+      /^Do\s+(While|Until)\s+/i.test(trimmed) ||
+      /\bThen$/i.test(trimmed) ||
+      /^Else$/i.test(trimmed);
+    const newIndent = opensBlock ? curIndent + "    " : curIndent;
+    cm.replaceSelection("\n" + newIndent);
+  }
+
+  // Next / Loop / End If / Else を打ち終えた行は、その場でインデントを1段浅くする
+  function dedentClosingKeywordLine(cm, lineNo) {
+    const line = cm.getLine(lineNo);
+    if (line === undefined) return;
+    const m = line.match(/^(\s*)(Next(?:\s+i)?|Loop|End If|Else)\s*$/i);
+    if (!m) return;
+    const cur = m[1];
+    const desired = cur.length >= 4 ? cur.slice(4) : "";
+    if (desired === cur) return;
+    const keyword = m[2];
+    cm.replaceRange(desired + keyword, { line: lineNo, ch: 0 }, { line: lineNo, ch: cur.length + keyword.length });
+  }
+
+  // ----- コード編集済み状態の表示更新 -----
+  function updateCodeSyncStatus() {
+    const el = document.getElementById("code-sync-status");
+    if (!el) return;
+    if (codeDirty) {
+      el.textContent = "✏️ 未反映（ブロックタブに戻すと反映）";
+      el.hidden = false;
+    } else {
+      el.hidden = true;
+    }
+  }
+
+  function hideCodeError() {
+    const banner = document.getElementById("code-error-banner");
+    if (banner) banner.hidden = true;
+    if (codeEditor) {
+      for (let i = 0; i < codeEditor.lineCount(); i++) {
+        codeEditor.removeLineClass(i, "background", "code-error-line");
+      }
+    }
+  }
+
+  function showCodeError(err) {
+    const banner = document.getElementById("code-error-banner");
+    if (banner) {
+      const lineText = err.line ? `${err.line}行目: ` : "";
+      banner.textContent = `⚠️ ${lineText}${err.message}`;
+      banner.hidden = false;
+    }
+    if (codeEditor && err.line) {
+      codeEditor.addLineClass(err.line - 1, "background", "code-error-line");
+      codeEditor.scrollIntoView({ line: err.line - 1, ch: 0 }, 60);
+    }
+  }
+
+  // ----- コード → ブロック 変換の実行 -----
+  // タブ切替時 / エディタからのフォーカス離脱時に呼ばれる。
+  // 解析に失敗した場合はブロックを一切変更せず、エラー表示のみ行う（要件4.2）
+  function applyCodeToBlocks() {
+    if (!codeEditor || !workspace) return;
+    if (!codeDirty) return;
+    const text = codeEditor.getValue();
+    hideCodeError();
+
+    let result;
+    try {
+      result = window.VbaParser.parseVBA(text);
+    } catch (e) {
+      showCodeError(e);
+      return; // ブロックは変更しない。codeDirty も維持（コードは消さない）
+    }
+
+    suppressSave = true;
+    try {
+      workspace.clear();
+      if (result.root) {
+        window.VbaParser.resolveVariables(result.root, workspace);
+        const json = window.VbaParser.toWorkspaceJson(result.root);
+        Blockly.serialization.workspaces.load(json, workspace);
+        workspace.cleanUp();
+      }
+    } catch (e) {
+      suppressSave = false;
+      console.warn("ブロック構築に失敗:", e);
+      showCodeError({ message: "ブロックを組み立てられませんでした（" + e.message + "）", line: null });
+      return;
+    }
+    suppressSave = false;
+
+    codeDirty = false;
+    updateCodeSyncStatus();
+    onWorkspaceChange(); // ブロックから正規化されたコードで表示を更新
+  }
+
   // ----- 初期化 -----
   window.addEventListener("load", () => {
     initTheme();
@@ -203,6 +357,33 @@
 
     // ブロック変更 → コード再生成 + ステップ再構築
     workspace.addChangeListener(onWorkspaceChange);
+
+    // ----- VBAコードエディタ（CodeMirror）初期化 -----
+    codeEditor = CodeMirror(document.getElementById("code-editor"), {
+      mode: "vbscript",
+      lineNumbers: true,
+      indentUnit: 4,
+      tabSize: 4,
+      indentWithTabs: false,
+      lineWrapping: false,
+      extraKeys: {
+        Tab: handleCodeTabKey,
+        Enter: handleCodeEnterKey,
+      },
+    });
+    codeEditor.on("change", (cm, changeObj) => {
+      if (suppressCodeChange) return;
+      codeDirty = true;
+      updateCodeSyncStatus();
+      hideCodeError(); // 直前のエラーは打ち直している間は消しておく
+      if (changeObj.origin !== "setValue") {
+        const lineNo = changeObj.to.line;
+        setTimeout(() => dedentClosingKeywordLine(cm, lineNo), 0);
+      }
+    });
+    codeEditor.on("blur", () => {
+      if (codeDirty) applyCodeToBlocks();
+    });
 
     bindControls();
     loadFreeMode(); // 起動時はクエスト未選択＝フリーモード
@@ -271,6 +452,8 @@
     // 仮想Excelの初期データを復元（課題ごと）
     view.setInitialCells(savedInitial[taskId] || {});
 
+    codeDirty = false;
+    hideCodeError();
     // ブロック復元（無ければ真っ白）。復元中は保存抑制（B7）
     suppressSave = true;
     workspace.clear();
@@ -309,6 +492,8 @@
 
     view.setInitialCells(savedInitial[FREE_MODE_ID] || {});
 
+    codeDirty = false;
+    hideCodeError();
     suppressSave = true;
     workspace.clear();
     const xml = savedBlocks[FREE_MODE_ID];
@@ -381,9 +566,17 @@
   function onWorkspaceChange(event) {
     if (event && event.isUiEvent) return;
 
-    // VBA コード生成 + シンタックスハイライト（F6）
+    // VBA コード生成 → コードエディタへ反映
+    // ただしコード側が編集済み（codeDirty）のときは上書きしない
+    // （手打ち中のコードを消さないため。ブロックタブに戻った時に反映される）
     const code = generateVBA(workspace);
-    document.querySelector("#code-output code").innerHTML = highlightVBA(code);
+    if (codeEditor && !codeDirty) {
+      // codeDirty=false のときは生徒はコード欄を編集していないので、
+      // カーソル位置を気にせずまるごと置き換えてよい
+      suppressCodeChange = true;
+      codeEditor.setValue(code);
+      suppressCodeChange = false;
+    }
 
     // エラーチェック（未接続の値ブロックなど簡易検出）
     checkErrors();
@@ -411,26 +604,8 @@
     updateCanvasGuide();
   }
 
-  // ----- VBA シンタックスハイライト（F6）-----
-  // 単一パスのトークナイザ。挿入したタグを再処理しないので安全。
-  function highlightVBA(code) {
-    const tokenRe =
-      /('[^\n]*)|("[^"]*")|\b(\d+)\b|\b(Sub|End|Dim|As|Integer|Long|Single|String|Variant|For|To|Step|Next|If|Then|Else|And|Or|Not|Mod|True|False|Do|While|Until|Loop)\b|\b(Cells|Range|Rows|Worksheets|WorksheetFunction|Round|MsgBox|InputBox|Date)\b/g;
-    let out = "";
-    let last = 0;
-    let m;
-    while ((m = tokenRe.exec(code)) !== null) {
-      out += escapeHtml(code.slice(last, m.index));
-      if (m[1]) out += `<span class="vba-cm">${escapeHtml(m[1])}</span>`;
-      else if (m[2]) out += `<span class="vba-st">${escapeHtml(m[2])}</span>`;
-      else if (m[3]) out += `<span class="vba-nm">${escapeHtml(m[3])}</span>`;
-      else if (m[4]) out += `<span class="vba-kw">${escapeHtml(m[4])}</span>`;
-      else if (m[5]) out += `<span class="vba-fn">${escapeHtml(m[5])}</span>`;
-      last = m.index + m[0].length;
-    }
-    out += escapeHtml(code.slice(last));
-    return out;
-  }
+  // シンタックスハイライトは CodeMirror（vbscript モード）が担当するため、
+  // 旧・単一パス正規表現ハイライタ（highlightVBA）は撤去済み。
 
   // ----- クエストクリア自動判定 -----
   function checkQuestClear() {
@@ -656,6 +831,8 @@
       document.getElementById("hint-display").appendChild(item);
 
       // 模範解答のブロック配置をワークスペースに読み込む（コードだけでなく組み方も見せる）
+      codeDirty = false;
+      hideCodeError();
       if (task.answerBlocks) {
         suppressSave = true;
         try {
@@ -757,7 +934,7 @@
 
     // コードコピー
     document.getElementById("copy-btn").addEventListener("click", () => {
-      const code = document.querySelector("#code-output code").textContent;
+      const code = codeEditor ? codeEditor.getValue() : "";
       navigator.clipboard.writeText(code).then(() => {
         const btn = document.getElementById("copy-btn");
         btn.textContent = "✅ コピー済み";
@@ -769,6 +946,13 @@
     document.querySelectorAll(".editor-tab").forEach((tab) => {
       tab.addEventListener("click", () => {
         const target = tab.dataset.tab;
+        const leavingCodeTab = document.getElementById("tab-code-panel").classList.contains("active");
+        // コードタブを離れるときは、手打ちしたコードをブロックへ反映する。
+        // 解析エラーで反映できなかった場合は、エラーが見えるようコードタブに留まる
+        if (leavingCodeTab && target !== "code" && codeDirty) {
+          applyCodeToBlocks();
+          if (codeDirty) return; // まだ未反映＝エラー中。タブは切り替えない
+        }
         document.querySelectorAll(".editor-tab").forEach((t) => t.classList.remove("active"));
         document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
         tab.classList.add("active");
@@ -776,6 +960,9 @@
         // ブロックタブに戻ったときBlocklyをリサイズ
         if (target === "blocks") {
           setTimeout(() => Blockly.svgResize(workspace), 50);
+        }
+        if (target === "code" && codeEditor) {
+          setTimeout(() => codeEditor.refresh(), 50); // 非表示中にサイズが取れていないため
         }
       });
     });
@@ -794,6 +981,8 @@
     document.getElementById("clear-all-btn").addEventListener("click", () => {
       if (workspace.getTopBlocks(false).length === 0) return;
       if (confirm("組み立てたブロックを全部消しますか？")) {
+        codeDirty = false;
+        hideCodeError();
         workspace.clear();
         onWorkspaceChange();
       }
@@ -829,6 +1018,8 @@
     if (!m) return false;
     try {
       const xml = decodeURIComponent(escape(atob(decodeURIComponent(m[1]))));
+      codeDirty = false;
+      hideCodeError();
       suppressSave = true;
       workspace.clear();
       const dom = Blockly.utils.xml.textToDom(xml);
