@@ -449,6 +449,44 @@ body.light-mode .code-editor-host .cm-builtin { color: #8250df; }
 /* 解析エラー行のハイライト */
 .code-editor-host .code-error-line { background: rgba(243, 139, 168, 0.18); }
 
+/* ===== 入力アシスト：For/Dim等を打つと出る例文候補ポップアップ =====
+   CodeMirrorのshow-hintアドオンが生成する .CodeMirror-hints を上書き。
+   デフォルトはライト固定テーマなので、アプリのパレットに合わせて全面的に差し替える */
+.CodeMirror-hints {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  font-family: "Segoe UI", sans-serif;
+  padding: 4px;
+  z-index: 500;
+}
+.CodeMirror-hint.vba-hint-item {
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+}
+li.CodeMirror-hint-active.vba-hint-item {
+  background: var(--accent-blue);
+}
+.vba-hint-title {
+  font-family: Consolas, "Courier New", monospace;
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--text);
+  white-space: nowrap;
+}
+.vba-hint-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  white-space: nowrap;
+}
+.CodeMirror-hint-active .vba-hint-title,
+.CodeMirror-hint-active .vba-hint-desc {
+  color: #fff;
+}
+
 .code-error-banner {
   padding: 8px 14px;
   background: rgba(231, 76, 60, 0.15);

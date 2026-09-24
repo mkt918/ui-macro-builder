@@ -181,27 +181,67 @@
 
   // ===== VBAコード直打ち：入力アシスト（スニペット・自動インデント） =====
 
-  // for / while / until / if / ifelse と打って Tab で展開できる骨組み。
+  // キーワードを打つと自動で例文候補がポップアップ表示され（CodeMirrorの
+  // show-hintアドオン）、選ぶとその場で展開される骨組み集。
+  // Tabキーでの直接展開（ポップアップを使わない打ち方）にも同じデータを使う。
+  // label: ポップアップに出す見出し / desc: 一言説明
   // cursorLine/cursorCol は挿入後にカーソルを置く位置（0行目基準、baseIndent加算前）
   const CODE_SNIPPETS = {
-    for: { template: "For i = 1 To 10\n    \nNext i", cursorLine: 1, cursorCol: 4 },
-    while: { template: "Do While \nLoop", cursorLine: 0, cursorCol: 9 },
-    until: { template: "Do Until \nLoop", cursorLine: 0, cursorCol: 9 },
-    if: { template: "If  Then\nEnd If", cursorLine: 0, cursorCol: 3 },
-    ifelse: { template: "If  Then\nElse\nEnd If", cursorLine: 0, cursorCol: 3 },
+    for: {
+      template: "For i = 1 To 10\n    \nNext i",
+      cursorLine: 1, cursorCol: 4,
+      label: "For i = ... To ... / Next i",
+      desc: "決まった回数くり返す",
+    },
+    while: {
+      template: "Do While \nLoop",
+      cursorLine: 0, cursorCol: 9,
+      label: "Do While ... / Loop",
+      desc: "条件が真の間くり返す",
+    },
+    until: {
+      template: "Do Until \nLoop",
+      cursorLine: 0, cursorCol: 9,
+      label: "Do Until ... / Loop",
+      desc: "条件が真になるまでくり返す",
+    },
+    if: {
+      template: "If  Then\nEnd If",
+      cursorLine: 0, cursorCol: 3,
+      label: "If ... Then / End If",
+      desc: "もし〜なら",
+    },
+    ifelse: {
+      template: "If  Then\nElse\nEnd If",
+      cursorLine: 0, cursorCol: 3,
+      label: "If ... Then / Else / End If",
+      desc: "もし〜なら／そうでなければ",
+    },
+    dim: {
+      template: "Dim 変数名 As Variant",
+      cursorLine: 0, cursorCol: 4,
+      label: "Dim ... As ...",
+      desc: "変数を用意する（このアプリでは自動で付くので、通常は書かなくてOK）",
+    },
   };
 
-  // 現在行のインデントを引き継ぎつつスニペットを展開する
+  // 現在行のインデントを引き継ぎつつスニペットを展開する。
   // 注意: CODE_SNIPPETS のテンプレート文字列自体に、行ごとの相対インデント
   // （本体行は4スペース、閉じキーワード行は0）を埋め込んである。
   // ここでは各行の先頭に baseIndent を足すだけでよい（さらに4スペース加算しない）
-  function insertCodeSnippet(cm, key) {
+  //
+  // from/to を省略した場合（Tabキーでの直接展開）は「今まさに打ち終えた
+  // キーワード＝key の文字数ぶん」をカーソルから遡って置換対象にする。
+  // ヒントポップアップからの選択時は、実際にタイプされていた文字数が
+  // key と一致するとは限らない（例: "fo" まで打った時点で "for" を選ぶ等）ため、
+  // 呼び出し側が計算した実際の from/to を明示的に渡す
+  function insertCodeSnippet(cm, key, from, to) {
     const snip = CODE_SNIPPETS[key];
     if (!snip) return false;
-    const cursor = cm.getCursor();
+    const cursor = to || cm.getCursor();
     const line = cm.getLine(cursor.line);
     const baseIndent = (line.match(/^(\s*)/) || ["", ""])[1];
-    const wordStart = { line: cursor.line, ch: cursor.ch - key.length };
+    const wordStart = from || { line: cursor.line, ch: cursor.ch - key.length };
     const lines = snip.template.split("\n");
     const indented = lines.map((l, i) => (i === 0 ? l : baseIndent + l));
     cm.replaceRange(indented.join("\n"), wordStart, cursor);
@@ -209,6 +249,59 @@
     const targetCh = (snip.cursorLine === 0 ? wordStart.ch : baseIndent.length) + snip.cursorCol;
     cm.setCursor({ line: targetLine, ch: targetCh });
     return true;
+  }
+
+  // 今カーソルの直前にある単語（アルファベット列）と、その開始位置を返す
+  function currentWordBeforeCursor(cm) {
+    const cursor = cm.getCursor();
+    const line = cm.getLine(cursor.line);
+    const before = line.slice(0, cursor.ch);
+    const m = before.match(/([A-Za-z]+)$/);
+    if (!m) return null;
+    return { word: m[1], from: { line: cursor.line, ch: cursor.ch - m[1].length }, to: cursor };
+  }
+
+  // For/Dim 等のキーワードを打つと、CodeMirror の show-hint アドオンで
+  // 例文候補をその場にポップアップ表示する（入力アシスト）。
+  // 前方一致するキーワードが1つも無ければ null を返し、ポップアップは出さない
+  if (typeof CodeMirror !== "undefined" && CodeMirror.registerHelper) {
+    CodeMirror.registerHelper("hint", "vbaSnippet", function (cm) {
+      const cur = currentWordBeforeCursor(cm);
+      if (!cur || !cur.word) return null;
+      const wordLower = cur.word.toLowerCase();
+      const matches = Object.keys(CODE_SNIPPETS).filter((k) => k.startsWith(wordLower));
+      if (matches.length === 0) return null;
+      return {
+        list: matches.map((key) => {
+          const snip = CODE_SNIPPETS[key];
+          return {
+            // text はプレーンテキスト表示のフォールバック用（render を使うので通常は表示されない）
+            text: snip.label,
+            displayText: snip.label,
+            className: "vba-hint-item",
+            render: function (el) {
+              const title = document.createElement("div");
+              title.className = "vba-hint-title";
+              title.textContent = snip.label;
+              const desc = document.createElement("div");
+              desc.className = "vba-hint-desc";
+              desc.textContent = snip.desc;
+              el.appendChild(title);
+              el.appendChild(desc);
+            },
+            // 選択されたら insertCodeSnippet で実際に展開する
+            // （from/to はポップアップを開いた時点のものではなく、選択時点の
+            // 最新カーソル位置を使う。表示中にさらに文字を打ち足した場合に対応するため）
+            hint: function (cm2) {
+              const latest = currentWordBeforeCursor(cm2) || cur;
+              insertCodeSnippet(cm2, key, latest.from, latest.to);
+            },
+          };
+        }),
+        from: cur.from,
+        to: cur.to,
+      };
+    });
   }
 
   // Tab: 直前の単語がスニペットキーワードならそれを展開。それ以外は通常インデント
@@ -442,6 +535,16 @@
       extraKeys: {
         Tab: handleCodeTabKey,
         Enter: handleCodeEnterKey,
+        // show-hint アドオン内蔵の Esc ハンドラ（Esc: n.close）が、この環境では
+        // なぜか CodeMirror.lookupKey に見つけてもらえず動作しなかったため、
+        // extraKeys 側で明示的に閉じる処理を持たせて確実に効くようにする
+        Esc: function (cm) {
+          if (cm.state.completionActive) {
+            cm.state.completionActive.close();
+            return;
+          }
+          return CodeMirror.Pass;
+        },
       },
     });
     codeEditor.on("change", (cm, changeObj) => {
@@ -464,6 +567,21 @@
     codeEditor.on("blur", () => {
       if (codeDirty) applyCodeToBlocks();
     });
+
+    // 入力アシスト: For/Dim等のキーワードを打つと自動で例文候補をポップアップ表示する。
+    // 前方一致する候補が無ければ何も出さない（hintヘルパーがnullを返し showHint は無視する）
+    if (typeof CodeMirror !== "undefined" && codeEditor.showHint) {
+      codeEditor.on("inputRead", (cm, change) => {
+        if (change.origin !== "+input") return;
+        if (!/[A-Za-z]/.test(change.text[0] || "")) return;
+        if (cm.state.completionActive) return; // 既にポップアップ表示中なら出し直さない
+        const cur = currentWordBeforeCursor(cm);
+        if (!cur) return;
+        const wordLower = cur.word.toLowerCase();
+        if (!Object.keys(CODE_SNIPPETS).some((k) => k.startsWith(wordLower))) return;
+        cm.showHint({ hint: CodeMirror.hint.vbaSnippet, completeSingle: false, alignWithWord: true });
+      });
+    }
 
     bindControls();
     loadFreeMode(); // 起動時はクエスト未選択＝フリーモード

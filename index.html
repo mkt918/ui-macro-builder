@@ -51,8 +51,14 @@
   <!-- CodeMirror（VBAコード直打ち用エディタ）(CDN) -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css"
         onerror="console.warn('CodeMirrorのスタイル読み込みに失敗しました（表示のみ影響）')" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.css"
+        onerror="console.warn('CodeMirrorヒントのスタイル読み込みに失敗しました（表示のみ影響）')" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js" onerror="cdnLoadFailed('CodeMirror')"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/vbscript/vbscript.min.js" onerror="cdnLoadFailed('CodeMirror（VBAモード）')"></script>
+  <!-- 入力アシスト（For/Dim等の例文候補ポップアップ）用アドオン。
+       読み込めなくてもエディタ自体は動くので cdnLoadFailed は呼ばず警告のみ -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.js"
+          onerror="console.warn('入力アシスト機能の読み込みに失敗しました（エディタ自体は使えます）')"></script>
 </head>
 <!-- quest-mode-off: クエスト機能を一旦非表示（コード直打ち機能を作り込んでから再検討する）。
      クラスを外せば元のクエスト選択UIに戻る -->
