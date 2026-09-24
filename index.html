@@ -155,9 +155,14 @@
             <span class="code-sync-status" id="code-sync-status" hidden></span>
             <div class="code-font-size" title="文字の大きさ">
               <button class="code-font-btn" id="code-font-dec" title="文字を小さく">A−</button>
-              <span id="code-font-size-value">15</span>
+              <span id="code-font-size-value">20</span>
               <button class="code-font-btn" id="code-font-inc" title="文字を大きく">A+</button>
             </div>
+            <label class="code-grid-toggle"
+                   title="1文字＝1マスのグリッド線を表示します。インデントが4マスになっているか、全角/半角の文字幅の違いを目で確認できます">
+              <input type="checkbox" id="code-grid-toggle" />
+              グリッド線
+            </label>
             <button class="copy-btn" id="copy-btn">📋 コピー</button>
           </div>
           <div id="code-editor" class="code-editor-host"></div>

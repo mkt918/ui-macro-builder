@@ -80,8 +80,9 @@
   // ----- VBAコード直打ちエディタの文字サイズ（好みで変更可能） -----
   const LS_CODE_FONT = "umb_codeFontSize";
   const CODE_FONT_MIN = 12;
-  const CODE_FONT_MAX = 26;
-  const CODE_FONT_DEFAULT = 15;
+  const CODE_FONT_MAX = 50;
+  const CODE_FONT_STEP = 2;
+  const CODE_FONT_DEFAULT = 20;
   function getCodeFontSize() {
     const saved = Number(localStorage.getItem(LS_CODE_FONT));
     return saved && saved >= CODE_FONT_MIN && saved <= CODE_FONT_MAX ? saved : CODE_FONT_DEFAULT;
@@ -98,16 +99,36 @@
     const inc = document.getElementById("code-font-inc");
     if (dec) {
       dec.addEventListener("click", () => {
-        const next = Math.max(CODE_FONT_MIN, getCodeFontSize() - 1);
+        const next = Math.max(CODE_FONT_MIN, getCodeFontSize() - CODE_FONT_STEP);
         localStorage.setItem(LS_CODE_FONT, next);
         applyCodeFontSize(next);
       });
     }
     if (inc) {
       inc.addEventListener("click", () => {
-        const next = Math.min(CODE_FONT_MAX, getCodeFontSize() + 1);
+        const next = Math.min(CODE_FONT_MAX, getCodeFontSize() + CODE_FONT_STEP);
         localStorage.setItem(LS_CODE_FONT, next);
         applyCodeFontSize(next);
+      });
+    }
+  }
+
+  // ----- コード直打ちエディタのグリッド線（1文字＝1マスの目安表示） -----
+  // インデントが4マスになっているか、全角/半角の文字幅の違いを目で確認できるようにする
+  const LS_CODE_GRID = "umb_codeGridLines";
+  function applyCodeGrid(enabled) {
+    const host = document.getElementById("code-editor");
+    if (host) host.classList.toggle("show-grid", enabled);
+  }
+  function initCodeGrid() {
+    const enabled = localStorage.getItem(LS_CODE_GRID) === "1";
+    applyCodeGrid(enabled);
+    const checkbox = document.getElementById("code-grid-toggle");
+    if (checkbox) {
+      checkbox.checked = enabled;
+      checkbox.addEventListener("change", () => {
+        localStorage.setItem(LS_CODE_GRID, checkbox.checked ? "1" : "0");
+        applyCodeGrid(checkbox.checked);
       });
     }
   }
@@ -1108,8 +1129,9 @@
       applyTheme(next);
     });
 
-    // コード直打ちエディタの文字サイズ
+    // コード直打ちエディタの文字サイズ / グリッド線
     initCodeFontSize();
+    initCodeGrid();
 
     // 使い方ガイド
     const helpModal = document.getElementById("help-modal");

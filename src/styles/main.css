@@ -17,6 +17,9 @@
   --run-green-hover: #3fb950;
   --toolbar-bg: #1e1e2e;
   --header-bg: #181825;
+  /* コードエディタのグリッド線（1文字1マスの目安表示） */
+  --code-grid-line: rgba(255, 255, 255, 0.14);
+  --code-grid-line-strong: rgba(255, 255, 255, 0.32);
   /* 角丸スケール */
   --radius-sm: 4px;
   --radius-md: 6px;
@@ -40,6 +43,8 @@ body.light-mode {
   --run-green-hover: #2ea043;
   --toolbar-bg: #e6e9ef;
   --header-bg: #eff1f5;
+  --code-grid-line: rgba(0, 0, 0, 0.12);
+  --code-grid-line-strong: rgba(0, 0, 0, 0.28);
 }
 
 /* ライトモードは CSS 変数の差し替えで対応する。
@@ -441,6 +446,20 @@ body.quest-mode-off .main-layout .right-pane {
   text-align: center;
 }
 
+/* グリッド線表示切り替え（コード直打ちエディタ） */
+.code-grid-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+.code-grid-toggle input { cursor: pointer; }
+
 /* ===== VBAコードエディタ（CodeMirror） ===== */
 .code-editor-host {
   flex: 1;
@@ -450,7 +469,7 @@ body.quest-mode-off .main-layout .right-pane {
 .code-editor-host .CodeMirror {
   height: 100%;
   font-family: Consolas, "Courier New", monospace;
-  font-size: var(--code-font-size, 15px);
+  font-size: var(--code-font-size, 20px);
   line-height: 1.7;
   background: var(--bg-editor);
   color: var(--text);
@@ -476,6 +495,29 @@ body.light-mode .code-editor-host .cm-number,
 body.light-mode .code-editor-host .cm-atom { color: #0550ae; }
 body.light-mode .code-editor-host .cm-comment { color: #6e7781; }
 body.light-mode .code-editor-host .cm-builtin { color: #8250df; }
+
+/* グリッド線（1文字＝1マスの目安表示）。border ではなく background-image /
+   box-shadow で描くのは、CodeMirror が内部で行の高さを実測しているため、
+   border でボックスサイズを変えてしまうと行送りの計算とズレるのを避けるため。
+   4ch ごとに濃い線を重ねてインデント（4マス）を数えやすくしている */
+.code-editor-host.show-grid .CodeMirror-line {
+  background-image:
+    repeating-linear-gradient(
+      to right,
+      var(--code-grid-line-strong) 0,
+      var(--code-grid-line-strong) 1px,
+      transparent 1px,
+      transparent 4ch
+    ),
+    repeating-linear-gradient(
+      to right,
+      var(--code-grid-line) 0,
+      var(--code-grid-line) 1px,
+      transparent 1px,
+      transparent 1ch
+    );
+  box-shadow: inset 0 -1px 0 0 var(--code-grid-line);
+}
 
 /* 解析エラー行のハイライト */
 .code-editor-host .code-error-line { background: rgba(243, 139, 168, 0.18); }
