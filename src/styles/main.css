@@ -1163,6 +1163,113 @@ li.CodeMirror-hint-active.vba-hint-item {
   flex-direction: column;
   gap: 20px;
 }
+
+/* ===== 右ペイン：仮想Excel / VBA逆引きリファレンス タブ切替 =====
+   コードを書きながら見られるよう、モーダルではなく右ペイン内のタブとして実装
+   （中央エディタの 🧩ブロック / 🤖VBAコード タブと同じ考え方） */
+.header-btn.reference-btn {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-color: var(--accent-green);
+  color: var(--accent-green);
+  white-space: nowrap;
+}
+.header-btn.reference-btn:hover {
+  background: var(--accent-green);
+  border-color: var(--accent-green);
+  color: #0b1a10;
+}
+
+.right-pane-tabs {
+  display: flex;
+  background: var(--toolbar-bg);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.right-tab {
+  padding: 7px 14px;
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.right-tab:hover { background: var(--border); color: var(--text); }
+.right-tab.active {
+  background: var(--bg-editor);
+  color: var(--accent-blue);
+  box-shadow: inset 0 -2px 0 var(--accent-blue);
+}
+
+.right-pane-body {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+.right-tab-panel {
+  display: none;
+  flex-direction: column;
+  position: absolute;
+  inset: 0;
+}
+.right-tab-panel.active { display: flex; }
+
+.reference-header {
+  background: var(--excel-green);
+  color: #fff;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+.reference-newtab-link {
+  font-size: 11px;
+  color: #fff;
+  text-decoration: none;
+  white-space: nowrap;
+  padding: 3px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: var(--radius-sm);
+  transition: all 0.15s;
+}
+.reference-newtab-link:hover { background: rgba(255, 255, 255, 0.2); }
+
+.reference-body {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  background: #fff; /* リファレンスサイト自体がライト前提なので白背景で違和感を減らす */
+}
+.reference-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+}
+.reference-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 24px;
+  text-align: center;
+  background: var(--bg-panel);
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+.reference-fallback[hidden] { display: none; }
 .help-section h4 {
   font-size: 14px;
   color: var(--accent-blue);
@@ -1319,5 +1426,9 @@ li.CodeMirror-hint-active.vba-hint-item {
   .left-pane, .right-pane { border: none; border-bottom: 1px solid var(--border); }
   .editor-pane { height: 400px; }
   .blockly-area { min-height: 360px; }
-  .right-pane { min-height: 500px; }
+  /* .right-pane-body の中身（.right-tab-panel）は position:absolute のため
+     通常のフローでの高さ計算に寄与しない。min-height だけでは親
+     （.right-pane, .right-pane-body）の高さが確定せず絶対配置の基準が
+     潰れてしまうため、height を明示的に固定する */
+  .right-pane { height: 500px; min-height: 500px; }
 }

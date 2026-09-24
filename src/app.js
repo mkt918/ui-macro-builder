@@ -1032,6 +1032,39 @@
     document.getElementById("answer-btn").disabled = !(task && task.answer);
   }
 
+  // ----- 右ペイン（📊仮想Excel / 📖リファレンス）のタブ切り替え -----
+  const REFERENCE_URL = "https://mkt918.github.io/vba-programming-basics/reference.html";
+  function switchRightTab(target) {
+    document.querySelectorAll(".right-tab").forEach((t) => {
+      t.classList.toggle("active", t.dataset.rightTab === target);
+    });
+    document.querySelectorAll(".right-tab-panel").forEach((p) => p.classList.remove("active"));
+    const panel = document.getElementById(`right-panel-${target}`);
+    if (panel) panel.classList.add("active");
+
+    if (target === "reference") {
+      const iframe = document.getElementById("reference-iframe");
+      const fallback = document.getElementById("reference-fallback");
+      if (iframe && !iframe.src) {
+        // 初めて開いたときだけ実際に読み込む（無駄な事前アクセスを避ける）
+        iframe.src = REFERENCE_URL;
+        let loaded = false;
+        iframe.addEventListener(
+          "load",
+          () => {
+            loaded = true;
+            if (fallback) fallback.hidden = true;
+          },
+          { once: true }
+        );
+        // 読み込みに時間がかかっている（あるいは失敗した）場合の案内を出す
+        setTimeout(() => {
+          if (!loaded && fallback) fallback.hidden = false;
+        }, 6000);
+      }
+    }
+  }
+
   function bindControls() {
     // テーマ切り替え
     document.getElementById("theme-toggle-btn").addEventListener("click", () => {
@@ -1050,6 +1083,18 @@
       helpModal.addEventListener("click", (e) => {
         if (e.target === helpModal) helpModal.hidden = true;
       });
+    }
+
+    // 右ペイン（📊仮想Excel / 📖リファレンス）のタブ切り替え。
+    // モーダルではなくタブにしているのは、コードを見ながら（隠さずに）
+    // リファレンスを参照できるようにするため
+    document.querySelectorAll(".right-tab").forEach((tab) => {
+      tab.addEventListener("click", () => switchRightTab(tab.dataset.rightTab));
+    });
+    // ヘッダーの「📖 リファレンス」ボタンは右ペインのリファレンスタブへのショートカット
+    const referenceBtn = document.getElementById("reference-btn");
+    if (referenceBtn) {
+      referenceBtn.addEventListener("click", () => switchRightTab("reference"));
     }
 
     // Esc でモーダルを閉じる

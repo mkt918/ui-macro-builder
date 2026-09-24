@@ -78,6 +78,7 @@
     </div>
     <div class="header-actions">
       <span id="task-progress" class="task-progress"></span>
+      <button id="reference-btn" class="header-btn reference-btn" title="右側をVBA逆引きリファレンスに切り替える">📖 リファレンス</button>
       <button id="help-btn" class="header-btn help-btn" title="このアプリの使い方を見る">❓ 使い方</button>
       <button id="theme-toggle-btn" class="header-btn" title="ダーク/ライトモード">🌙</button>
     </div>
@@ -165,9 +166,15 @@
       <div class="error-banner" id="error-banner"></div>
     </section>
 
-    <!-- 右: 仮想Excelプレビュー -->
+    <!-- 右: 仮想Excelプレビュー / VBA逆引きリファレンス（タブ切替） -->
     <aside class="right-pane">
-      <div class="excel-panel">
+      <div class="right-pane-tabs">
+        <button class="right-tab active" id="right-tab-excel" data-right-tab="excel">📊 仮想Excel</button>
+        <button class="right-tab" id="right-tab-reference" data-right-tab="reference">📖 リファレンス</button>
+      </div>
+      <div class="right-pane-body">
+
+      <div class="excel-panel right-tab-panel active" id="right-panel-excel">
         <div class="excel-header">
           <span>📊 仮想 Excel</span>
           <span class="excel-hint">クリックして選択 → そのまま入力 / 矢印キーで移動</span>
@@ -222,6 +229,25 @@
           🎉 クエストクリア！おめでとう！
           <button class="next-quest-btn" id="next-quest-btn" hidden>次のクエストへ ▶</button>
         </div>
+      </div>
+
+      <div class="reference-panel right-tab-panel" id="right-panel-reference">
+        <div class="reference-header">
+          <span>📖 VBA逆引きリファレンス</span>
+          <a id="reference-open-new-tab" class="reference-newtab-link"
+             href="https://mkt918.github.io/vba-programming-basics/reference.html"
+             target="_blank" rel="noopener noreferrer" title="新しいタブで開く">↗ 新しいタブで開く</a>
+        </div>
+        <div class="reference-body">
+          <!-- src はこのタブを初めて開いたときにJSから設定する（無駄な事前読み込みを避ける） -->
+          <iframe id="reference-iframe" class="reference-iframe" title="VBA逆引きリファレンス" loading="lazy"></iframe>
+          <div class="reference-fallback" id="reference-fallback" hidden>
+            <p>⚠️ リファレンスの読み込みに時間がかかっています。</p>
+            <p>ネットワークが不安定な場合は、上の「↗ 新しいタブで開く」からもアクセスできます。</p>
+          </div>
+        </div>
+      </div>
+
       </div>
     </aside>
 
