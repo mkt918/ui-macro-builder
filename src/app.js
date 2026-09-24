@@ -458,25 +458,42 @@
     if (![LS_BLOCKS, LS_SOLVED, LS_INITIAL].includes(e.key)) return;
     try {
       const otherSolved = JSON.parse(localStorage.getItem(LS_SOLVED) || "[]");
-      let solvedChanged = false;
+      let newlySolvedCount = 0;
       otherSolved.forEach((id) => {
         if (!solved.has(id)) {
           solved.add(id);
-          solvedChanged = true;
+          newlySolvedCount++;
         }
       });
 
       const otherBlocks = JSON.parse(localStorage.getItem(LS_BLOCKS) || "{}");
       const otherInitial = JSON.parse(localStorage.getItem(LS_INITIAL) || "{}");
       const activeKey = currentTaskId === null ? FREE_MODE_ID : currentTaskId;
+      // 実際に内容が変わったものだけ数える（毎回のstorageイベントで
+      // 無関係なキーまで「更新した」扱いにしてトーストが乱発しないように）
+      let updatedTaskCount = 0;
       Object.keys(otherBlocks).forEach((k) => {
-        if (k !== activeKey) savedBlocks[k] = otherBlocks[k];
+        if (k === activeKey) return;
+        if (savedBlocks[k] !== otherBlocks[k]) {
+          savedBlocks[k] = otherBlocks[k];
+          updatedTaskCount++;
+        }
       });
       Object.keys(otherInitial).forEach((k) => {
         if (k !== activeKey) savedInitial[k] = otherInitial[k];
       });
 
-      if (solvedChanged) updateCurrentQuestDisplay();
+      if (newlySolvedCount > 0 || updatedTaskCount > 0) {
+        updateCurrentQuestDisplay();
+        // クエスト一覧モーダルを開いたままだった場合、✓表示を最新化する
+        const questModal = document.getElementById("quest-modal");
+        if (questModal && !questModal.hidden) buildQuestModal();
+        const msg =
+          newlySolvedCount > 0
+            ? `🔄 別のタブでの更新を取り込みました（クエストクリア +${newlySolvedCount}）`
+            : "🔄 別のタブでの更新を取り込みました";
+        showToast(msg);
+      }
     } catch (err) {
       console.warn("他タブの更新の取り込みに失敗:", err);
     }
@@ -708,6 +725,16 @@
   // 旧・単一パス正規表現ハイライタ（highlightVBA）は撤去済み。
 
   // ----- クエストクリア自動判定 -----
+  // ----- 「実際に実行可能なプログラムが組まれているか」の判定 -----
+  // クエストクリア判定は、これが true のときだけ task.check() を呼ぶ。
+  // セルへの直接入力だけ（ブロックを一切組んでいない）でも model の見た目は
+  // 正解と同じになりうるため、「ブロックを実行した結果としての model か」を
+  // 先に保証する。新しい判定条件（例: 特定ブロックの使用を必須にする等）を
+  // 追加したくなったら、この関数に足せば全課題に一括で効く。
+  function hasExecutableProgram() {
+    return view.steps.length > 0;
+  }
+
   function checkQuestClear() {
     const task = TASKS.find((t) => t.id === currentTaskId);
     const banner = document.getElementById("clear-banner");
@@ -717,11 +744,8 @@
       if (nextBtn) nextBtn.hidden = true;
       return;
     }
-    // セルへの直接入力だけ（ブロックを一切組んでいない）でクリア判定が
-    // 通ってしまわないよう、実行可能なステップが1つ以上あることを条件にする
-    const hasSteps = view.steps.length > 0;
     let passed = false;
-    if (hasSteps) {
+    if (hasExecutableProgram()) {
       try {
         passed = task.check(view.finalModel());
       } catch (e) {
@@ -763,6 +787,24 @@
       layer.appendChild(piece);
       setTimeout(() => piece.remove(), 2200);
     }
+  }
+
+  // ----- トースト通知（他タブでの更新取り込みなど、軽いお知らせ用） -----
+  let toastTimer = null;
+  function showToast(message, duration) {
+    const el = document.getElementById("toast");
+    if (!el) return;
+    el.textContent = message;
+    el.hidden = false;
+    // hidden解除直後にクラスを付けないとtransitionが効かないことがあるため次フレームで
+    requestAnimationFrame(() => el.classList.add("show"));
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      el.classList.remove("show");
+      setTimeout(() => {
+        el.hidden = true;
+      }, 300);
+    }, duration || 3500);
   }
 
   function goNextQuest() {

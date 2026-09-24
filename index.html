@@ -12,18 +12,38 @@
     function cdnLoadFailed(name) {
       if (window.__cdnLoadFailedShown) return;
       window.__cdnLoadFailedShown = true;
-      document.body.innerHTML =
-        '<div style="padding:48px 24px;max-width:520px;margin:0 auto;' +
-        'font-family:\'Segoe UI\',sans-serif;text-align:center;color:#c0392b;">' +
-        '<h2 style="margin-bottom:12px;">⚠️ 読み込みに失敗しました</h2>' +
-        '<p style="color:#444;line-height:1.7;">「' + name + '」の読み込みができませんでした。' +
-        'インターネット接続を確認して、ページを再読み込みしてください。</p>' +
-        '<p style="color:#888;font-size:13px;">学校のネットワークでブロックされている場合は、先生にご確認ください。</p>' +
-        '<button onclick="location.reload()" ' +
-        'style="margin-top:16px;padding:10px 24px;font-size:14px;cursor:pointer;' +
-        'border-radius:6px;border:1px solid #c0392b;background:#fff;color:#c0392b;">再読み込み</button>' +
-        '</div>';
+      // <head> 内のCDN読み込みが失敗した時点では <body> がまだ存在しないことがあり、
+      // document.body.innerHTML への代入がそのまま落ちて表示自体が出せなくなる。
+      // <body> ができるまで軽くポーリングしてから描画する
+      function render() {
+        if (!document.body) {
+          setTimeout(render, 10);
+          return;
+        }
+        document.body.innerHTML =
+          '<div style="padding:48px 24px;max-width:520px;margin:0 auto;' +
+          'font-family:\'Segoe UI\',sans-serif;text-align:center;color:#c0392b;">' +
+          '<h2 style="margin-bottom:12px;">⚠️ 読み込みに失敗しました</h2>' +
+          '<p style="color:#444;line-height:1.7;">「' + name + '」の読み込みができませんでした。' +
+          'インターネット接続を確認して、ページを再読み込みしてください。</p>' +
+          '<p style="color:#888;font-size:13px;">学校のネットワークでブロックされている場合は、先生にご確認ください。</p>' +
+          '<button onclick="location.reload()" ' +
+          'style="margin-top:16px;padding:10px 24px;font-size:14px;cursor:pointer;' +
+          'border-radius:6px;border:1px solid #c0392b;background:#fff;color:#c0392b;">再読み込み</button>' +
+          '</div>';
+      }
+      render();
     }
+    // onerror は主にネットワーク障害用。CDNが200を返しつつ中身が壊れている/
+    // 途中で切れているような場合は onerror が発火しないことがあるため、
+    // ページ読み込み完了後に主要グローバルの存在を再チェックする保険をかける
+    window.addEventListener("load", function () {
+      setTimeout(function () {
+        if (window.__cdnLoadFailedShown) return;
+        if (typeof Blockly === "undefined") { cdnLoadFailed("Blockly"); return; }
+        if (typeof CodeMirror === "undefined") { cdnLoadFailed("CodeMirror"); return; }
+      }, 3000);
+    });
   </script>
   <!-- Blockly (CDN) -->
   <script src="https://unpkg.com/blockly@11.2.1/blockly.min.js" onerror="cdnLoadFailed('Blockly')"></script>
@@ -288,6 +308,9 @@
 
   <!-- 紙吹雪レイヤー -->
   <div class="confetti-layer" id="confetti-layer"></div>
+
+  <!-- トースト通知（他タブでの更新取り込みなど、軽い一時的なお知らせ用） -->
+  <div class="toast" id="toast" role="status" hidden></div>
 
   <!-- ブロック定義用のツールボックス (非表示) -->
   <xml id="toolbox" style="display:none"></xml>
