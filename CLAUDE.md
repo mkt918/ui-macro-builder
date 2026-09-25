@@ -3,6 +3,12 @@
 授業用の Excel VBA ビジュアルプログラミング学習ツール。
 詳細な計画は [PLAN.md](PLAN.md) を参照。
 
+## 会話・作業のまとめ保存
+このプロジェクトには会話ログ用の記録規約が無い（`PLAN.md`・`docs/vba-code-editing-*.md`は
+設計・タスク管理用のドキュメント）。ユーザー共通skill `save`（`~/.claude/skills/save/`）で
+「ここまでまとめて」等と頼まれた場合は、`.claude/summaries/YYYY-MM-DD_見出し.md` に
+保存する（汎用フォーマット）。
+
 ## 構成（ビルド不要・Blockly / CodeMirror CDN）
 
 - `index.html` — エントリーポイント
