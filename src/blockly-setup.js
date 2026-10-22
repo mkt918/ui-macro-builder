@@ -170,15 +170,181 @@ Blockly.Blocks["loop_index"] = {
 
 // ===== 条件分岐 =====
 
-Blockly.Blocks["cond_if"] = {
+// 「＋ / −」ボタンで項目（ElseIf・Case）を増やし減らせるブロックの共通部品。
+// 初学者にも使えるよう、マウスでの小さな「ミューテーター窓」ではなく、ブロックの上のボタンで増減する
+const BTN_SVG = (sign) =>
+  "data:image/svg+xml;utf8," +
+  encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22"><circle cx="11" cy="11" r="10" fill="#ffffff" stroke="#444" stroke-width="1.5"/><path d="${
+      sign === "+" ? "M6 11h10M11 6v10" : "M6 11h10"
+    }" stroke="#222" stroke-width="2.2" stroke-linecap="round"/></svg>`
+  );
+const COUNT_MUTATION = {
+  count_: 0,
+  mutationToDom: function () {
+    if (!this.count_) return null;
+    const e = Blockly.utils.xml.createElement("mutation");
+    e.setAttribute("count", String(this.count_));
+    return e;
+  },
+  domToMutation: function (e) {
+    this.setCount_(Number(e.getAttribute("count")) || 0);
+  },
+  saveExtraState: function () {
+    return this.count_ ? { count: this.count_ } : null;
+  },
+  loadExtraState: function (s) {
+    this.setCount_((s && s.count) || 0);
+  },
+  setCount_: function (n) {
+    while (this.count_ < n) {
+      this.addItem_(this.count_);
+      this.count_++;
+    }
+    while (this.count_ > n) {
+      this.count_--;
+      this.removeItem_(this.count_);
+    }
+  },
+  // ボタンで1つ増やす・減らす（元に戻すで戻せるよう、変更のイベントを記録する）
+  changeCount_: function (delta) {
+    if (this.isInFlyout) return;
+    const n = Math.max(0, Math.min(12, this.count_ + delta));
+    if (n === this.count_) return;
+    const text = () => {
+      const m = this.mutationToDom();
+      return Blockly.Xml.domToText(m || Blockly.utils.xml.createElement("mutation"));
+    };
+    const before = text();
+    Blockly.Events.setGroup(true);
+    this.setCount_(n);
+    Blockly.Events.fire(new Blockly.Events.BlockChange(this, "mutation", null, before, text()));
+    Blockly.Events.setGroup(false);
+  },
+  appendCountButtons_: function (label) {
+    this.appendDummyInput("BTNS")
+      .appendField(new Blockly.FieldImage(BTN_SVG("+"), 22, 22, "＋", () => this.changeCount_(1)))
+      .appendField(new Blockly.FieldImage(BTN_SVG("-"), 22, 22, "－", () => this.changeCount_(-1)))
+      .appendField(label);
+  },
+};
+
+Blockly.Blocks["cond_if"] = Object.assign({}, COUNT_MUTATION, {
   init: function () {
+    this.count_ = 0;
     this.appendValueInput("CONDITION").appendField("❓ もし");
     this.appendStatementInput("THEN").appendField("なら → やること");
-    this.appendStatementInput("ELSE").appendField("ちがうなら → やること");
+    this.appendStatementInput("ELSE").appendField("ぜんぶ ちがうなら → やること");
+    this.appendCountButtons_("「ちがうけど もし」を ふやす／へらす（ElseIf）");
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
     this.setColour(CAT_COLORS.cond);
-    this.setTooltip("条件が合うかどうかで処理を分けます。「ちがうなら」は空でもOK");
+    this.setTooltip("条件が合うかどうかで処理を分けます。「ちがうなら」は空でもOK。＋を押すと「ちがうけど もし〜なら」（ElseIf）を足せます");
+  },
+  addItem_: function (i) {
+    this.appendValueInput("ELSEIF_COND_" + i).appendField("ちがうけど もし");
+    this.appendStatementInput("ELSEIF_DO_" + i).appendField("なら → やること");
+    this.moveInputBefore("ELSEIF_COND_" + i, "ELSE");
+    this.moveInputBefore("ELSEIF_DO_" + i, "ELSE");
+  },
+  removeItem_: function (i) {
+    this.removeInput("ELSEIF_COND_" + i);
+    this.removeInput("ELSEIF_DO_" + i);
+  },
+});
+
+// 場合分け（Select Case）：「＋」で場合（Case）を足す
+Blockly.Blocks["cond_select"] = Object.assign({}, COUNT_MUTATION, {
+  init: function () {
+    this.count_ = 0;
+    this.appendValueInput("SUBJECT").appendField("🔀 場合分け Select Case");
+    this.appendStatementInput("ELSE").appendField("どれでもないとき（Case Else） →");
+    this.appendCountButtons_("「場合（Case）」を ふやす／へらす");
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(CAT_COLORS.cond);
+    this.setTooltip("1つの値で、いくつかに場合分けします。場合の欄には「1」「1, 2, 3」「60 To 79」「Is >= 80」のように書きます");
+    this.addItem_(0);
+    this.count_ = 1;
+  },
+  addItem_: function (i) {
+    this.appendStatementInput("CASE_DO_" + i)
+      .appendField("場合（Case）")
+      .appendField(new Blockly.FieldTextInput("1"), "CASE_" + i)
+      .appendField("のとき →");
+    this.moveInputBefore("CASE_DO_" + i, "ELSE");
+  },
+  removeItem_: function (i) {
+    this.removeInput("CASE_DO_" + i);
+  },
+  mutationToDom: function () {
+    const e = Blockly.utils.xml.createElement("mutation");
+    e.setAttribute("count", String(this.count_));
+    return e;
+  },
+  saveExtraState: function () {
+    return { count: this.count_ };
+  },
+  loadExtraState: function (s) {
+    this.setCount_(s && s.count !== undefined ? s.count : 1);
+  },
+  domToMutation: function (e) {
+    const c = e.getAttribute("count");
+    this.setCount_(c === null ? 1 : Number(c) || 0);
+  },
+});
+
+// かつ・または（And / Or）
+Blockly.Blocks["cond_logic"] = {
+  init: function () {
+    this.appendValueInput("A");
+    this.appendDummyInput().appendField(
+      new Blockly.FieldDropdown([
+        ["かつ（And）", "And"],
+        ["または（Or）", "Or"],
+      ]),
+      "OP"
+    );
+    this.appendValueInput("B");
+    this.setInputsInline(true);
+    this.setOutput(true, "Boolean");
+    this.setColour(CAT_COLORS.cond);
+    this.setTooltip("かつ（And）：両方とも合っているとき。または（Or）：どちらか合っているとき");
+  },
+};
+
+Blockly.Blocks["cond_not"] = {
+  init: function () {
+    this.appendValueInput("A").appendField("🚫 ではない（Not）");
+    this.setInputsInline(true);
+    this.setOutput(true, "Boolean");
+    this.setColour(CAT_COLORS.cond);
+    this.setTooltip("条件の合う・合わないを、ぎゃくにします");
+  },
+};
+
+Blockly.Blocks["value_bool"] = {
+  init: function () {
+    this.appendDummyInput().appendField(
+      new Blockly.FieldDropdown([
+        ["✅ 正しい（True）", "True"],
+        ["❌ まちがい（False）", "False"],
+      ]),
+      "BOOL"
+    );
+    this.setOutput(true, "Boolean");
+    this.setColour(CAT_COLORS.cond);
+    this.setTooltip("正しい（True）かまちがい（False）かを表す値です");
+  },
+};
+
+Blockly.Blocks["prog_exit_sub"] = {
+  init: function () {
+    this.appendDummyInput().appendField("↩ ここで命令を終わる（Exit Sub）");
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(CAT_COLORS.cond);
+    this.setTooltip("この命令のまとまり（Sub）を、ここで終わりにします。もし〜なら の中でよく使います");
   },
 };
 
@@ -423,10 +589,13 @@ Blockly.Blocks["io_inputbox"] = {
     this.appendDummyInput()
       .appendField("💬「")
       .appendField(new Blockly.FieldTextInput("行数を入れてね"), "PROMPT")
-      .appendField("」と聞いて答えをもらう");
+      .appendField("」と聞いて答えをもらう　窓の題名")
+      .appendField(new Blockly.FieldTextInput(""), "TITLE")
+      .appendField("はじめの答え")
+      .appendField(new Blockly.FieldTextInput(""), "DEFAULT");
     this.setOutput(true, null);
     this.setColour("#e91e63");
-    this.setTooltip("ユーザーに文字や数字を入力してもらいます。変数に入れて使います");
+    this.setTooltip("ユーザーに文字や数字を入力してもらいます。答えは「文字」として返るので、計算するときは Val(…) で数にしよう。「窓の題名」「はじめの答え」は空でもOK（VBA の2番目・3番目の引数）");
   },
 };
 
@@ -944,6 +1113,11 @@ const TOOLBOX = {
       contents: [
         { kind: "block", type: "cond_if" },
         { kind: "block", type: "cond_compare" },
+        { kind: "block", type: "cond_logic" },
+        { kind: "block", type: "cond_not" },
+        { kind: "block", type: "value_bool" },
+        { kind: "block", type: "cond_select", extraState: { count: 2 } },
+        { kind: "block", type: "prog_exit_sub" },
         { kind: "block", type: "cond_is_even" },
       ],
     },

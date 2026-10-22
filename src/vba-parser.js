@@ -152,17 +152,63 @@ class ExprParser {
     return this.pos >= this.tokens.length;
   }
 
-  // 比較を含む条件式（If / Do While / Do Until 用）
+  // 条件式（If / Do While / Do Until 用）。優先順位は ( ) → 比較 → Not → And → Or
   parseCondition() {
-    const a = this.parseConcat();
+    const c = this.parseCondOr();
+    if (!this.atEnd()) throw new VbaParseError("条件の書き方が読み取れません", this.line);
+    return c;
+  }
+  isKeyword(word) {
     const t = this.peek();
+    return !!t && t.type === "IDENT" && t.value.toLowerCase() === word;
+  }
+  parseCondOr() {
+    let left = this.parseCondAnd();
+    while (this.isKeyword("or")) {
+      this.next();
+      const right = this.parseCondAnd();
+      left = { type: "cond_logic", fields: { OP: "Or" }, inputs: { A: { block: left }, B: { block: right } } };
+    }
+    return left;
+  }
+  parseCondAnd() {
+    let left = this.parseCondNot();
+    while (this.isKeyword("and")) {
+      this.next();
+      const right = this.parseCondNot();
+      left = { type: "cond_logic", fields: { OP: "And" }, inputs: { A: { block: left }, B: { block: right } } };
+    }
+    return left;
+  }
+  parseCondNot() {
+    if (this.isKeyword("not")) {
+      this.next();
+      return { type: "cond_not", inputs: { A: { block: this.parseCondNot() } } };
+    }
+    return this.parseCondCompare();
+  }
+  parseCondCompare() {
     const cmpOps = ["=", "<>", "<", ">", "<=", ">="];
+    const start = this.pos;
+    let a;
+    try {
+      a = this.parseConcat();
+    } catch (e) {
+      // 「(A > 1)」のように、かっこの中が条件のとき：かっこ全体を条件として読み直す
+      const t0 = this.tokens[start];
+      if (!(t0 && t0.type === "OP" && t0.value === "(")) throw e;
+      this.pos = start + 1;
+      const inner = this.parseCondOr();
+      this.expectOp(")");
+      return inner;
+    }
+    const t = this.peek();
     if (t && t.type === "OP" && cmpOps.includes(t.value)) {
       this.next();
       const b = this.parseConcat();
-      if (!this.atEnd()) throw new VbaParseError("条件の書き方が読み取れません", this.line);
       return { type: "cond_compare", fields: { OP: t.value }, inputs: { A: { block: a }, B: { block: b } } };
     }
+    if (a.type === "value_bool") return a;
     throw new VbaParseError(
       "条件には比較（= や < など）が必要です。例: GOKEI < 100",
       this.line
@@ -304,8 +350,19 @@ class ExprParser {
       this.expectOp("(");
       const t = this.next();
       if (!t || t.type !== "STR") throw new VbaParseError('InputBox の中身は "文字" にしてください', this.line);
+      const fields = { PROMPT: t.value };
+      // 2番目（窓の題名）・3番目（はじめの答え）は、文字か数のときだけブロックで表せる
+      for (const key of ["TITLE", "DEFAULT"]) {
+        if (!(this.peek() && this.peek().type === "OP" && this.peek().value === ",")) break;
+        this.next();
+        const a = this.next();
+        if (!a || (a.type !== "STR" && a.type !== "NUM")) {
+          throw new VbaParseError("InputBox の2番目・3番目は、文字か数だけブロックで表せます", this.line);
+        }
+        fields[key] = String(a.value);
+      }
       this.expectOp(")");
-      return { type: "io_inputbox", fields: { PROMPT: t.value } };
+      return { type: "io_inputbox", fields };
     }
     if (name === "WorksheetFunction") {
       this.expectOp(".");
@@ -328,7 +385,7 @@ class ExprParser {
       return { type: "loop_index" };
     }
     if (name === "True" || name === "False") {
-      throw new VbaParseError("真偽値（True/False）を値として使うブロックはありません", this.line);
+      return { type: "value_bool", fields: { BOOL: name } };
     }
     // 予約語なのに専用ルールに引っかからなかった＝対応外の使い方
     const RESERVED = [
@@ -466,6 +523,7 @@ function parseOneStatement(cursor) {
   if (STMT_STARTERS.FOR.test(text)) return parseFor(cursor);
   if (STMT_STARTERS.DO.test(text)) return parseDo(cursor);
   if (STMT_STARTERS.IF.test(text)) return parseIf(cursor);
+  if (/^Select\s+Case\s+/i.test(text)) return parseSelect(cursor);
   if (STMT_STARTERS.MSGBOX.test(text)) return parseMsgBox(cursor);
   return parseSimpleStatement(cursor);
 }
@@ -548,8 +606,18 @@ function parseIf(cursor) {
     throw new VbaParseError('"If 条件 Then" の形にしてください（Then で終わる1行）', line);
   }
   const cond = parseConditionString(m[1], line);
-  const thenBody = parseStatements(cursor, ["Else", "End If"]);
+  const thenBody = parseStatements(cursor, ["ElseIf", "Else", "End If"]);
   if (cursor.atEnd()) throw new VbaParseError('"End If" が見つかりません（If に対応する終わり）', line);
+  const elseifs = [];
+  while (!cursor.atEnd()) {
+    const em = cursor.peek().text.match(/^ElseIf\s+(.+?)\s+Then$/i);
+    if (!em) break;
+    const l = cursor.next().line;
+    const c = parseConditionString(em[1], l);
+    const b = parseStatements(cursor, ["ElseIf", "Else", "End If"]);
+    if (cursor.atEnd()) throw new VbaParseError('"End If" が見つかりません（ElseIf に対応する終わり）', l);
+    elseifs.push({ c, b });
+  }
   let elseBody = null;
   if (/^Else$/i.test(cursor.peek().text)) {
     cursor.next();
@@ -562,8 +630,49 @@ function parseIf(cursor) {
   }
   const inputs = { CONDITION: { block: cond } };
   if (thenBody) inputs.THEN = { block: thenBody };
+  elseifs.forEach((e, i) => {
+    inputs["ELSEIF_COND_" + i] = { block: e.c };
+    if (e.b) inputs["ELSEIF_DO_" + i] = { block: e.b };
+  });
   if (elseBody) inputs.ELSE = { block: elseBody };
-  return { type: "cond_if", inputs };
+  const spec = { type: "cond_if", inputs };
+  if (elseifs.length) spec.extraState = { count: elseifs.length };
+  return spec;
+}
+
+// Select Case 式 / Case ... / Case Else / End Select
+function parseSelect(cursor) {
+  const { text, line } = cursor.next();
+  const m = text.match(/^Select\s+Case\s+(.+)$/i);
+  if (!m) throw new VbaParseError('"Select Case 式" の形にしてください', line);
+  const subject = parseExprString(m[1], line);
+  const cases = [];
+  let elseBody = null;
+  for (;;) {
+    if (cursor.atEnd()) throw new VbaParseError('"End Select" が見つかりません（Select Case に対応する終わり）', line);
+    const t = cursor.peek();
+    if (/^End\s+Select$/i.test(t.text)) {
+      cursor.next();
+      break;
+    }
+    const cm = t.text.match(/^Case\s+(.+)$/i);
+    if (!cm) throw new VbaParseError('Select Case のすぐ下には "Case 値" を書いてください', t.line);
+    cursor.next();
+    const body = parseStatements(cursor, ["Case", "End Select"]);
+    if (/^Else$/i.test(cm[1].trim())) {
+      elseBody = body;
+    } else {
+      cases.push({ tests: cm[1].trim(), body });
+    }
+  }
+  const inputs = { SUBJECT: { block: subject } };
+  const fields = {};
+  cases.forEach((c, i) => {
+    fields["CASE_" + i] = c.tests;
+    if (c.body) inputs["CASE_DO_" + i] = { block: c.body };
+  });
+  if (elseBody) inputs.ELSE = { block: elseBody };
+  return { type: "cond_select", fields, inputs, extraState: { count: cases.length } };
 }
 
 function parseMsgBox(cursor) {
@@ -578,6 +687,7 @@ const SIMPLE_RULES = [
   // フォーム
   [/^Unload\s+Me$/i, () => ({ type: "form_unload" })],
   [/^End$/i, () => ({ type: "prog_end" })],
+  [/^Exit\s+Sub$/i, () => ({ type: "prog_exit_sub" })],
   // 命令のまとまり（Sub）の呼び出し
   [/^Call\s+([A-Za-z_]\w*)(\s*\(\s*\))?$/i, (m) => ({ type: "proc_call", fields: { NAME: m[1] } })],
   // 箱を用意する（Dim 名前 As 型）

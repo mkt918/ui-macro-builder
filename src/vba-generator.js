@@ -142,11 +142,52 @@ vbaGenerator.forBlock["cond_if"] = function (block) {
   const thenCode = vbaGenerator.statementToCode(block, "THEN");
   const elseCode = vbaGenerator.statementToCode(block, "ELSE");
   let code = `If ${cond} Then\n${thenCode}`;
+  for (let i = 0; block.getInput("ELSEIF_COND_" + i); i++) {
+    const c = vbaGenerator.valueToCode(block, "ELSEIF_COND_" + i, vbaGenerator.ORDER_NONE) || "False";
+    code += `\nElseIf ${c} Then\n${vbaGenerator.statementToCode(block, "ELSEIF_DO_" + i)}`;
+  }
   if (elseCode.trim()) {
     code += `\nElse\n${elseCode}`;
   }
   code += `\nEnd If`;
   return code;
+};
+
+// Select Case：Case の行は1段、中身は2段字下げする
+vbaGenerator.forBlock["cond_select"] = function (block) {
+  const subject = vbaGenerator.valueToCode(block, "SUBJECT", vbaGenerator.ORDER_NONE) || "0";
+  const deeper = (code) =>
+    code
+      .split("\n")
+      .map((l) => (l.trim() ? vbaGenerator.INDENT + l : l))
+      .join("\n");
+  let code = `Select Case ${subject}`;
+  for (let i = 0; block.getInput("CASE_DO_" + i); i++) {
+    const tests = String(block.getFieldValue("CASE_" + i) || "").trim() || "0";
+    code += `\n${vbaGenerator.INDENT}Case ${tests}\n${deeper(vbaGenerator.statementToCode(block, "CASE_DO_" + i))}`;
+  }
+  const elseCode = vbaGenerator.statementToCode(block, "ELSE");
+  if (elseCode.trim()) code += `\n${vbaGenerator.INDENT}Case Else\n${deeper(elseCode)}`;
+  return code + "\nEnd Select";
+};
+
+vbaGenerator.forBlock["cond_logic"] = function (block) {
+  const a = vbaGenerator.valueToCode(block, "A", vbaGenerator.ORDER_NONE) || "False";
+  const b = vbaGenerator.valueToCode(block, "B", vbaGenerator.ORDER_NONE) || "False";
+  return [`(${a} ${block.getFieldValue("OP")} ${b})`, vbaGenerator.ORDER_ATOMIC];
+};
+
+vbaGenerator.forBlock["cond_not"] = function (block) {
+  const a = vbaGenerator.valueToCode(block, "A", vbaGenerator.ORDER_NONE) || "False";
+  return [`Not (${a})`, vbaGenerator.ORDER_ATOMIC];
+};
+
+vbaGenerator.forBlock["value_bool"] = function (block) {
+  return [block.getFieldValue("BOOL"), vbaGenerator.ORDER_ATOMIC];
+};
+
+vbaGenerator.forBlock["prog_exit_sub"] = function () {
+  return "Exit Sub";
 };
 
 vbaGenerator.forBlock["cond_compare"] = function (block) {
@@ -234,7 +275,12 @@ vbaGenerator.forBlock["range_select"] = function (block) {
 
 vbaGenerator.forBlock["io_inputbox"] = function (block) {
   const prompt = block.getFieldValue("PROMPT");
-  return [`InputBox(${vbaStr(prompt)})`, vbaGenerator.ORDER_ATOMIC];
+  const title = block.getFieldValue("TITLE") || "";
+  const def = block.getFieldValue("DEFAULT") || "";
+  if (!title && !def) return [`InputBox(${vbaStr(prompt)})`, vbaGenerator.ORDER_ATOMIC];
+  // はじめの答えが数なら、教科書のように数のまま書く
+  const defCode = !def ? '""' : /^-?\d+(\.\d+)?$/.test(def) ? def : vbaStr(def);
+  return [`InputBox(${vbaStr(prompt)}, ${vbaStr(title)}, ${defCode})`, vbaGenerator.ORDER_ATOMIC];
 };
 
 vbaGenerator.forBlock["io_msgbox"] = function (block) {
