@@ -268,7 +268,8 @@ class ExprParser {
     if (name === "Date") {
       return { type: "value_date" };
     }
-    if (name === "i") {
+    if (COUNTER_NAMES.includes(name)) {
+      checkCounterRef(name, this.line);
       return { type: "loop_index" };
     }
     if (name === "True" || name === "False") {
@@ -307,9 +308,10 @@ class ExprParser {
     if (this.peek() && this.peek().type === "OP" && this.peek().value === "&") {
       this.next();
       const idTok = this.next();
-      if (!idTok || idTok.type !== "IDENT" || idTok.value !== "i") {
+      if (!idTok || idTok.type !== "IDENT" || !COUNTER_NAMES.includes(idTok.value)) {
         throw new VbaParseError('動的なセル番地は "A" & i の形だけ対応しています', this.line);
       }
+      checkCounterRef(idTok.value, this.line);
       return t.value + "{i}";
     }
     return t.value;
@@ -330,8 +332,11 @@ function parseRangeAddrArg(rawInner, line) {
   const t = rawInner.trim();
   let m = t.match(/^"([^"]*)"$/);
   if (m) return m[1];
-  m = t.match(/^"([A-Za-z]+)"\s*&\s*i$/);
-  if (m) return m[1] + "{i}";
+  m = t.match(/^"([A-Za-z]+)"\s*&\s*([ijk])$/);
+  if (m) {
+    checkCounterRef(m[2], line);
+    return m[1] + "{i}";
+  }
   throw new VbaParseError(`セル番地の書き方が読み取れません: Range(${t})`, line);
 }
 
@@ -419,22 +424,47 @@ function parseOneStatement(cursor) {
   return parseSimpleStatement(cursor);
 }
 
+// ブロックの「カウンタ」は一番内側のくり返しのカウンタを指す。
+// 入れ子の深さに応じて i → j → k を使う（vba-generator.js と同じ決まり）
+const COUNTER_NAMES = ["i", "j", "k"];
+let counterStack = [];
+
+// カウンタ名の参照がブロックで表せるか確かめる（外側のくり返しのカウンタは表せない）
+function checkCounterRef(name, line) {
+  if (counterStack.length === 0) {
+    if (name !== "i") throw new VbaParseError(`${name} はくり返しのカウンタ用の名前です`, line);
+    return name;
+  }
+  if (counterStack[counterStack.length - 1] !== name) {
+    throw new VbaParseError(`外側のくり返しのカウンタ（${name}）は、ブロックでは表せません`, line);
+  }
+  return name;
+}
+
 function parseFor(cursor) {
   const { text, line } = cursor.next();
-  const m = text.match(/^For\s+i\s*=\s*(.+?)\s+To\s+(.+?)(?:\s+Step\s+(.+))?$/i);
+  const m = text.match(/^For\s+([ijk])\s*=\s*(.+?)\s+To\s+(.+?)(?:\s+Step\s+(.+))?$/i);
   if (!m) {
     throw new VbaParseError(
       '"For i = 開始 To 終わり" の形にしてください（例: For i = 1 To 5）',
       line
     );
   }
-  const start = parseExprString(m[1], line);
-  const end = parseExprString(m[2], line);
-  const step = m[3] ? parseExprString(m[3], line) : null;
-  const body = parseStatements(cursor, ["Next"]);
+  const counter = m[1].toLowerCase();
+  const start = parseExprString(m[2], line);
+  const end = parseExprString(m[3], line);
+  const step = m[4] ? parseExprString(m[4], line) : null;
+  counterStack.push(counter);
+  let body;
+  try {
+    body = parseStatements(cursor, ["Next"]);
+  } finally {
+    counterStack.pop();
+  }
   if (cursor.atEnd()) throw new VbaParseError('"Next" が見つかりません（For に対応する終わり）', line);
   const closer = cursor.next();
-  if (!/^Next(\s+i)?$/i.test(closer.text)) {
+  const nm = closer.text.match(/^Next(?:\s+([ijk]))?$/i);
+  if (!nm || (nm[1] && nm[1].toLowerCase() !== counter)) {
     throw new VbaParseError('"Next" の書き方が違います', closer.line);
   }
   const inputs = { START: { block: start }, END: { block: end } };
@@ -629,7 +659,7 @@ const SIMPLE_RULES = [
 // 予約名（i, arr）はループカウンタ・配列と衝突し、生成コードで Dim が
 // 二重になってしまうため弾く（ブロックエディタ側の制限と揃える）
 function checkVarNameAssignable(name, line) {
-  if (name === "i") throw new VbaParseError("カウンタ i には代入できません", line);
+  if (COUNTER_NAMES.includes(name)) throw new VbaParseError(`カウンタ ${name} には代入できません`, line);
   if (name === "arr") throw new VbaParseError("arr は配列の名前として予約されているため、変数には使えません", line);
   if (HIRAGANA_RE.test(name)) throw new VbaParseError(`変数名にひらがなは使えません: ${name}`, line);
 }
@@ -654,6 +684,7 @@ function parseSimpleStatement(cursor) {
 // source: エディタの全文（Sub〜End Subの外側込みでも中身だけでもOK）
 // 戻り値: { root: <先頭ブロック spec or null>, variableNames: string[] }
 function parseVBA(source) {
+  counterStack = [];
   const lines = stripWrapper(preprocessLines(source));
   const cursor = new LineCursor(lines);
   const root = parseStatements(cursor, []);

@@ -1,25 +1,22 @@
 /* ===== 仮想 Excel プレビュー =====
- * Blockly のブロックツリーを「解釈実行」して、
- * セルがどう変化するかをステップごとに記録し、アニメーション表示する。
+ * 実行エンジン（src/vba/session.js）が記録した step を、HTML テーブルに描いて再生する。
  *
- * ExcelModel  : セルの値・書式を保持するデータモデル
- * Interpreter : ブロックを walk して「ステップ列」を生成
- * ExcelView   : HTML テーブルへの描画とアニメーション
+ * ExcelView : 描画・再生（アニメーション）・タイムライン・セルの直接入力
+ *
+ * cursor は「何個の step を実行し終えたか」。0 = 実行前、n = n 個目の step の後の状態。
+ * 各時点の状態は session.store.modelAt(i) で取り出す（差分から復元される）。
  */
 
-const GRID_ROWS = 26; // 最小表示行数（Z行まで）
+const GRID_ROWS = 26; // 最小表示行数
 const GRID_COLS = 26; // 最小表示列数（Z列まで）
-const MAX_GRID_ROWS = 26; // 安全上限（Z行）
+const MAX_GRID_ROWS = 100; // 安全上限
 const MAX_GRID_COLS = 26; // Z列
-const MAX_STEPS = 5000; // ステップ爆発ガード
 const MAX_ARRAY_DISPLAY = 30; // 配列ビジュアライザの表示上限
 
-const COLOR_HEX = {
-  RED: "#e74c3c",
-  GREEN: "#217346",
-  BLUE: "#3498db",
-  YELLOW: "#f1c40f",
-  WHITE: "#ffffff",
+const TYPE_JA_PV = {
+  Integer: "整数型", Long: "長整数型", Single: "単精度浮動小数点数型", Double: "倍精度浮動小数点数型",
+  String: "文字列型", Variant: "バリアント型", Boolean: "ブール型", Date: "日付型", Currency: "通貨型",
+  Byte: "バイト型", Object: "オブジェクト型",
 };
 
 function colLetter(n) {
@@ -28,11 +25,6 @@ function colLetter(n) {
 }
 function colNum(letter) {
   return letter.toUpperCase().charCodeAt(0) - 64;
-}
-// FieldVariable から変数名（表示名）を取り出す
-function varNameOf(block) {
-  const f = block.getField("VAR");
-  return f ? f.getText() : "x";
 }
 // HTMLエスケープ（ビジュアライザ描画用）
 function escapeHtmlPv(s) {
@@ -44,438 +36,20 @@ function parseAddr(addr) {
   if (!m) return null;
   return { col: colNum(m[1]), row: parseInt(m[2], 10), letter: m[1].toUpperCase() };
 }
-
-/* ---------- モデル ---------- */
-class ExcelModel {
-  constructor() {
-    this.cells = {}; // "A1" -> { value, bg, bold }
-    this.arr = {}; // 配列: index -> value
-    this.sheet = "Sheet1"; // 現在のシート名
-    this.sheets = ["Sheet1"]; // 存在するシート一覧
-  }
-  key(col, row) {
-    return colLetter(col) + row;
-  }
-  set(addr, value) {
-    const c = (this.cells[addr] = this.cells[addr] || {});
-    c.value = value;
-  }
-  get(addr) {
-    const c = this.cells[addr];
-    return c && c.value !== undefined ? c.value : "";
-  }
-  setBg(addr, color) {
-    const c = (this.cells[addr] = this.cells[addr] || {});
-    c.bg = color;
-  }
-  setBold(addr) {
-    const c = (this.cells[addr] = this.cells[addr] || {});
-    c.bold = true;
-  }
-  clearContents(addr) {
-    if (this.cells[addr]) this.cells[addr].value = "";
-  }
-  setArr(idx, value) {
-    this.arr[idx] = value;
-  }
-  getArr(idx) {
-    return this.arr[idx] !== undefined ? this.arr[idx] : "";
-  }
-  addSheet(name) {
-    if (!this.sheets.includes(name)) this.sheets.push(name);
-  }
-  selectSheet(name) {
-    this.sheet = name;
-  }
+// 変数・配列の値を表示用の文字に
+function showVal(v) {
+  if (v === undefined || v === null) return "";
+  if (typeof v === "boolean") return v ? "True" : "False";
+  if (typeof v === "object") return "…";
+  return String(v);
 }
-
-/* ---------- インタプリタ ----------
- * ブロックを実行して steps[] を作る。
- * 各 step = { addr, type:'value'|'bg'|'bold'|'clear', model:<snapshot>, desc }
- */
-class Interpreter {
-  constructor(initialCells, opts) {
-    opts = opts || {};
-    // InputBox の答えキャッシュ（block.id -> 値）。
-    // interactive=true（▶実行時）のときだけ prompt() で質問し、
-    // 編集中の再構築では仮値 "?" を使ってダイアログを出さない。
-    this.inputCache = opts.inputCache || {};
-    this.interactive = !!opts.interactive;
-    this.model = new ExcelModel();
-    // 実行開始時の状態（値＋書式）を種付け。
-    // ここが「毎回同じ出発点」になるので、実行の再現性はこの初期データで決まる。
-    if (initialCells) {
-      for (const addr in initialCells) {
-        const c = initialCells[addr];
-        if (!c) continue;
-        if (c.value !== undefined && c.value !== "") this.model.set(addr, c.value);
-        if (c.bg) this.model.setBg(addr, c.bg);
-        if (c.bold) this.model.setBold(addr);
-        if (c.fontSize || c.border) {
-          const cell = (this.model.cells[addr] = this.model.cells[addr] || {});
-          if (c.fontSize) cell.fontSize = c.fontSize;
-          if (c.border) cell.border = true;
-        }
-      }
-    }
-    this.steps = [];
-    this.i = 0; // ループカウンタ
-    this.vars = {}; // 変数ストア: name -> value
-    this.inputCallCounts = {}; // block.id -> このビルド内での呼び出し回数（ループ内で複数回聞かれるケースを区別する）
-  }
-
-  snapshot() {
-    return {
-      cells: JSON.parse(JSON.stringify(this.model.cells)),
-      arr: JSON.parse(JSON.stringify(this.model.arr)),
-      vars: JSON.parse(JSON.stringify(this.vars)),
-      sheet: this.model.sheet,
-      sheets: this.model.sheets.slice(),
-    };
-  }
-
-  // scope: 'cell' | 'array' | 'sheet'
-  record(scope, key, desc) {
-    if (this.steps.length >= MAX_STEPS) {
-      const err = new Error("STEP_LIMIT");
-      err.code = "STEP_LIMIT";
-      throw err;
-    }
-    this.steps.push({ scope, key, model: this.snapshot(), desc });
-  }
-
-  // セルアドレスの {i} 置換
-  resolveAddr(addr) {
-    if (/\{i\}/.test(addr)) {
-      // "C{i}" 形式
-      return addr.replace(/\{i\}/g, this.i);
-    }
-    return addr;
-  }
-
-  run(topBlock) {
-    let block = topBlock;
-    while (block) {
-      this.execBlock(block);
-      block = block.getNextBlock();
-    }
-  }
-
-  execBlock(block) {
-    switch (block.type) {
-      case "cell_set_value": {
-        const addr = this.resolveAddr(block.getFieldValue("CELL"));
-        const val = this.evalValue(block.getInputTargetBlock("VALUE"));
-        this.model.set(addr, val);
-        this.record("cell", addr, `${addr} に「${val}」を入力`);
-        break;
-      }
-      case "cell_copy": {
-        const from = this.resolveAddr(block.getFieldValue("FROM"));
-        const to = this.resolveAddr(block.getFieldValue("TO"));
-        this.model.set(to, this.model.get(from));
-        this.record("cell", to, `${from} を ${to} にコピー`);
-        break;
-      }
-      case "cell_clear": {
-        const addr = this.resolveAddr(block.getFieldValue("CELL"));
-        this.model.clearContents(addr);
-        this.record("cell", addr, `${addr} をクリア`);
-        break;
-      }
-      case "array_set": {
-        const idx = this.evalValue(block.getInputTargetBlock("INDEX"));
-        const val = this.evalValue(block.getInputTargetBlock("VALUE"));
-        this.model.setArr(idx, val);
-        this.record("array", idx, `配列の ${idx} 番目に「${val}」を入れる`);
-        break;
-      }
-      case "sheet_add": {
-        const name = block.getFieldValue("NAME");
-        this.model.addSheet(name);
-        this.record("sheet", name, `シート「${name}」を追加`);
-        break;
-      }
-      case "sheet_select": {
-        const name = block.getFieldValue("NAME");
-        this.model.selectSheet(name);
-        this.record("sheet", name, `シート「${name}」に切り替え`);
-        break;
-      }
-      case "loop_repeat": {
-        const times = Number(this.evalValue(block.getInputTargetBlock("TIMES"))) || 0;
-        const saved = this.i;
-        for (let k = 1; k <= times; k++) {
-          this.i = k;
-          this.run(block.getInputTargetBlock("DO"));
-          if (this.steps.length >= MAX_STEPS) break;
-        }
-        this.i = saved;
-        break;
-      }
-      case "loop_range": {
-        const start = Number(this.evalValue(block.getInputTargetBlock("START")));
-        const end = Number(this.evalValue(block.getInputTargetBlock("END")));
-        const saved = this.i;
-        for (let k = start; k <= end; k++) {
-          this.i = k;
-          this.run(block.getInputTargetBlock("DO"));
-          if (this.steps.length >= MAX_STEPS) break;
-        }
-        this.i = saved;
-        break;
-      }
-      case "loop_for_step": {
-        const start = Number(this.evalValue(block.getInputTargetBlock("START")));
-        const end = Number(this.evalValue(block.getInputTargetBlock("END")));
-        const step = Number(this.evalValue(block.getInputTargetBlock("STEP"))) || 1;
-        const saved = this.i;
-        if (step > 0) {
-          for (let k = start; k <= end; k += step) {
-            this.i = k;
-            this.run(block.getInputTargetBlock("DO"));
-            if (this.steps.length >= MAX_STEPS) break;
-          }
-        } else if (step < 0) {
-          for (let k = start; k >= end; k += step) {
-            this.i = k;
-            this.run(block.getInputTargetBlock("DO"));
-            if (this.steps.length >= MAX_STEPS) break;
-          }
-        }
-        this.i = saved;
-        break;
-      }
-      case "loop_while": {
-        const saved = this.i;
-        let guard = 0;
-        while (this.evalValue(block.getInputTargetBlock("CONDITION"))) {
-          if (++guard > MAX_STEPS || this.steps.length >= MAX_STEPS) break;
-          this.run(block.getInputTargetBlock("DO"));
-        }
-        this.i = saved;
-        break;
-      }
-      case "loop_do_until": {
-        const saved = this.i;
-        let guard = 0;
-        while (!this.evalValue(block.getInputTargetBlock("CONDITION"))) {
-          if (++guard > MAX_STEPS || this.steps.length >= MAX_STEPS) break;
-          this.run(block.getInputTargetBlock("DO"));
-        }
-        this.i = saved;
-        break;
-      }
-      case "io_msgbox": {
-        const msg = String(this.evalValue(block.getInputTargetBlock("MSG")));
-        this.record("msg", msg, `📢 「${msg}」を表示`);
-        break;
-      }
-      case "range_border": {
-        const r1 = Number(this.evalValue(block.getInputTargetBlock("R1"))) || 1;
-        const c1 = Number(this.evalValue(block.getInputTargetBlock("C1"))) || 1;
-        const r2 = Number(this.evalValue(block.getInputTargetBlock("R2"))) || 1;
-        const c2 = Number(this.evalValue(block.getInputTargetBlock("C2"))) || 1;
-        for (let r = r1; r <= r2; r++) {
-          for (let c = c1; c <= c2; c++) {
-            const addr = colLetter(c) + r;
-            const cell = (this.model.cells[addr] = this.model.cells[addr] || {});
-            cell.border = true;
-          }
-        }
-        this.record("cell", colLetter(c1) + r1, `行${r1}列${c1}〜行${r2}列${c2} 罫線`);
-        break;
-      }
-      case "range_select": {
-        const r1 = Number(this.evalValue(block.getInputTargetBlock("R1"))) || 1;
-        const c1 = Number(this.evalValue(block.getInputTargetBlock("C1"))) || 1;
-        const r2 = Number(this.evalValue(block.getInputTargetBlock("R2"))) || 1;
-        const c2 = Number(this.evalValue(block.getInputTargetBlock("C2"))) || 1;
-        this.record("cell", colLetter(c1) + r1, `行${r1}列${c1}〜行${r2}列${c2} を選択`);
-        break;
-      }
-      case "cond_if": {
-        const cond = this.evalValue(block.getInputTargetBlock("CONDITION"));
-        if (cond) {
-          this.run(block.getInputTargetBlock("THEN"));
-        } else {
-          this.run(block.getInputTargetBlock("ELSE"));
-        }
-        break;
-      }
-      case "fmt_bgcolor": {
-        const addr = this.resolveAddr(block.getFieldValue("CELL"));
-        const color = block.getFieldValue("COLOR");
-        this.model.setBg(addr, COLOR_HEX[color]);
-        this.record("cell", addr, `${addr} の背景色を変更`);
-        break;
-      }
-      case "fmt_bold": {
-        const addr = this.resolveAddr(block.getFieldValue("CELL"));
-        this.model.setBold(addr);
-        this.record("cell", addr, `${addr} を太字に`);
-        break;
-      }
-      case "fmt_fontsize": {
-        const addr = this.resolveAddr(block.getFieldValue("CELL"));
-        const size = Number(this.evalValue(block.getInputTargetBlock("SIZE"))) || 14;
-        const c = (this.model.cells[addr] = this.model.cells[addr] || {});
-        c.fontSize = size;
-        this.record("cell", addr, `${addr} の文字サイズを ${size} に`);
-        break;
-      }
-      case "cell_clear_row": {
-        const row = Number(this.evalValue(block.getInputTargetBlock("ROW"))) || 1;
-        for (let col = 1; col <= 30; col++) {
-          const addr = String.fromCharCode(64 + col) + row;
-          this.model.clearContents(addr);
-        }
-        this.record("cell", "A" + row, `${row} 行目をクリア`);
-        break;
-      }
-      case "var_set": {
-        const name = varNameOf(block);
-        const val = this.evalValue(block.getInputTargetBlock("VALUE"));
-        this.vars[name] = val;
-        this.record("var", name, `変数「${name}」に「${val}」を入れる`);
-        break;
-      }
-      case "var_change": {
-        const name = varNameOf(block);
-        const delta = Number(this.evalValue(block.getInputTargetBlock("DELTA"))) || 0;
-        const cur = Number(this.vars[name]) || 0;
-        this.vars[name] = cur + delta;
-        this.record("var", name, `変数「${name}」を ${delta} ふやす（→ ${this.vars[name]}）`);
-        break;
-      }
-      case "cells_set_value": {
-        const row = Number(this.evalValue(block.getInputTargetBlock("ROW"))) || 1;
-        const col = Number(this.evalValue(block.getInputTargetBlock("COL"))) || 1;
-        const addr = colLetter(col) + row;
-        const val = this.evalValue(block.getInputTargetBlock("VALUE"));
-        this.model.set(addr, val);
-        this.record("cell", addr, `Cells(${row},${col}) に「${val}」を入力`);
-        break;
-      }
-      case "cells_clear": {
-        const row = Number(this.evalValue(block.getInputTargetBlock("ROW"))) || 1;
-        const col = Number(this.evalValue(block.getInputTargetBlock("COL"))) || 1;
-        const addr = colLetter(col) + row;
-        this.model.clearContents(addr);
-        this.record("cell", addr, `Cells(${row},${col}) をクリア`);
-        break;
-      }
-      case "cells_bgcolor": {
-        const row = Number(this.evalValue(block.getInputTargetBlock("ROW"))) || 1;
-        const col = Number(this.evalValue(block.getInputTargetBlock("COL"))) || 1;
-        const addr = colLetter(col) + row;
-        const color = block.getFieldValue("COLOR");
-        this.model.setBg(addr, COLOR_HEX[color]);
-        this.record("cell", addr, `Cells(${row},${col}) 背景色変更`);
-        break;
-      }
-      case "cells_bold": {
-        const row = Number(this.evalValue(block.getInputTargetBlock("ROW"))) || 1;
-        const col = Number(this.evalValue(block.getInputTargetBlock("COL"))) || 1;
-        const addr = colLetter(col) + row;
-        this.model.setBold(addr);
-        this.record("cell", addr, `Cells(${row},${col}) を太字に`);
-        break;
-      }
-    }
-  }
-
-  // 値ブロックを評価
-  evalValue(block) {
-    if (!block) return "";
-    switch (block.type) {
-      case "value_number":
-        return Number(block.getFieldValue("NUM"));
-      case "value_text":
-        return block.getFieldValue("TEXT");
-      case "loop_index":
-        return this.i;
-      case "cell_get_value":
-        return this.model.get(this.resolveAddr(block.getFieldValue("CELL")));
-      case "array_get": {
-        const idx = this.evalValue(block.getInputTargetBlock("INDEX"));
-        return this.model.getArr(idx);
-      }
-      case "value_math": {
-        const a = Number(this.evalValue(block.getInputTargetBlock("A"))) || 0;
-        const b = Number(this.evalValue(block.getInputTargetBlock("B"))) || 0;
-        const op = block.getFieldValue("OP");
-        if (op === "+") return a + b;
-        if (op === "-") return a - b;
-        if (op === "*") return a * b;
-        if (op === "mod") return b ? a % b : 0;
-        return b ? a / b : 0;
-      }
-      case "cond_compare": {
-        const a = this.evalValue(block.getInputTargetBlock("A"));
-        const b = this.evalValue(block.getInputTargetBlock("B"));
-        const op = block.getFieldValue("OP");
-        switch (op) {
-          case "=": return a == b;
-          case "<>": return a != b;
-          case "<": return a < b;
-          case "<=": return a <= b;
-          case ">": return a > b;
-          case ">=": return a >= b;
-        }
-        return false;
-      }
-      case "cond_is_even": {
-        const num = Number(this.evalValue(block.getInputTargetBlock("NUM")));
-        return num % 2 === 0;
-      }
-      case "var_get": {
-        const name = varNameOf(block);
-        return this.vars[name] !== undefined ? this.vars[name] : 0;
-      }
-      case "cells_get_value": {
-        const row = Number(this.evalValue(block.getInputTargetBlock("ROW"))) || 1;
-        const col = Number(this.evalValue(block.getInputTargetBlock("COL"))) || 1;
-        return this.model.get(colLetter(col) + row);
-      }
-      case "io_inputbox": {
-        // ループの中で同じ InputBox ブロックが複数回評価されても、
-        // 実際のExcelと同じように毎回たずねる（反復回数ごとに別キーにする）
-        const n = this.inputCallCounts[block.id] || 0;
-        this.inputCallCounts[block.id] = n + 1;
-        const key = block.id + "#" + n;
-        if (this.inputCache[key] !== undefined) return this.inputCache[key];
-        if (!this.interactive) return "?"; // 編集中はダイアログを出さない
-        const promptText = block.getFieldValue("PROMPT");
-        const raw = window.prompt(promptText);
-        const str = raw === null ? "" : raw;
-        const num = Number(str);
-        const val = str.trim() !== "" && !isNaN(num) ? num : str;
-        this.inputCache[key] = val; // 同じ反復回では答えを使い回す（編集中プレビューの再現用）
-        return val;
-      }
-      case "text_concat": {
-        const a = this.evalValue(block.getInputTargetBlock("A"));
-        const b = this.evalValue(block.getInputTargetBlock("B"));
-        return String(a) + String(b);
-      }
-      case "value_date": {
-        return new Date().toLocaleDateString("ja-JP");
-      }
-      case "math_round": {
-        const val = Number(this.evalValue(block.getInputTargetBlock("VALUE"))) || 0;
-        const digits = Number(this.evalValue(block.getInputTargetBlock("DIGITS"))) || 0;
-        const factor = Math.pow(10, digits);
-        return Math.round(val * factor) / factor;
-      }
-    }
-    return "";
-  }
+function typeJa(t) {
+  if (!t) return "";
+  const base = String(t).replace(/（定数）$/, "");
+  return (TYPE_JA_PV[base] || base) + (/（定数）$/.test(t) ? "・定数" : "");
 }
 
 /* ---------- ビュー ---------- */
-const EMPTY_MODEL = { cells: {}, arr: {}, vars: {}, sheet: "Sheet1", sheets: ["Sheet1"] };
-
 class ExcelView {
   constructor(els) {
     this.table = els.table;
@@ -484,16 +58,23 @@ class ExcelView {
     this.statusEl = els.status;
     this.arrayEl = els.array; // 配列ビジュアライザのコンテナ
     this.varEl = els.vars || null; // 変数ウォッチのコンテナ
-    this.msgOverlay = els.msgbox || null; // MsgBox オーバーレイ
+    this.msgOverlay = els.msgbox || null; // MsgBox オーバーレイ（タイムラインで見返すとき用）
     this.tabsEl = els.tabs; // シートタブのコンテナ
     this.onEdit = els.onEdit || null; // セル編集時のコールバック
     this.onPlayState = els.onPlayState || null; // 再生状態変更コールバック
     this.onStepChange = els.onStepChange || null; // カーソル移動時（タイムライン同期用）
+    this.onStepApplied = els.onStepApplied || null; // step を表示したとき（行・ブロックのハイライト用）
+    // 再生中・1コマで MsgBox の step に来たとき（ダイアログを出す）。done() で再生を続ける
+    this.onMsgStep = els.onMsgStep || null;
+    // 再生中に記録の最後まで来たとき。InputBox などの答え待ちなら、答えのあと resume() を呼んで true を返す
+    this.onReachEnd = els.onReachEnd || null;
     this.selected = "A1"; // キーボード操作の選択セル
     if (this.msgOverlay) {
       const ok = this.msgOverlay.querySelector(".msgbox-ok");
       if (ok) ok.addEventListener("click", () => this.hideMsgBox());
     }
+    this.session = null;
+    this.store = null;
     this.steps = [];
     this.cursor = 0;
     this.timer = null;
@@ -503,24 +84,9 @@ class ExcelView {
     this.initialCells = {}; // 生徒が直接入力した初期データ
     this.editing = false; // 編集中フラグ（描画でclobberしない用）
     this.playing = false; // アニメーション中は編集不可
-    this._workspace = null; // Blockly workspace への参照（常時変数表示用）
+    this.idleText = "セルに値を入力したり、ブロックを組み立てよう";
     this.buildGrid(GRID_ROWS, GRID_COLS);
     this.bindEditing();
-  }
-
-  // workspace をバインドして変数パネルを常時更新
-  bindWorkspace(workspace) {
-    this._workspace = workspace;
-    workspace.addChangeListener((e) => {
-      if (
-        e.type === Blockly.Events.VAR_CREATE ||
-        e.type === Blockly.Events.VAR_DELETE ||
-        e.type === Blockly.Events.VAR_RENAME
-      ) {
-        this.renderVars({}, null);
-      }
-    });
-    this.renderVars({}, null);
   }
 
   buildGrid(rows, cols) {
@@ -718,17 +284,20 @@ class ExcelView {
   getInitialCells() {
     return this.initialCells;
   }
-  // 初期データを1つのモデルにして表示用に
-  initialModel() {
-    return { cells: this.initialCells, arr: {}, vars: {}, sheet: "Sheet1", sheets: ["Sheet1"] };
-  }
 
+  // ---------- 各時点の状態 ----------
+  modelAt(index) {
+    if (this.store) return this.store.modelAt(index);
+    return this.initialModel();
+  }
+  // 実行前の状態（実行エンジンが無いとき＝文法エラー中などは、直接入力したセルだけ）
+  initialModel() {
+    if (this.store) return this.store.modelAt(-1);
+    return { cells: this.initialCells, arrays: {}, vars: {}, varTypes: {}, sheet: "Sheet1", sheets: ["Sheet1"], msgs: [], controls: {} };
+  }
   // いま画面に映しているモデル（cursor は「次に実行するステップ」を指す）
   currentModel() {
-    if (this.cursor > 0 && this.steps[this.cursor - 1]) {
-      return this.steps[this.cursor - 1].model;
-    }
-    return this.initialModel();
+    return this.modelAt(this.cursor - 1);
   }
 
   // いまの表示内容を「実行開始時の状態」として焼き付ける。
@@ -770,7 +339,7 @@ class ExcelView {
             c.bold ? "b" : "",
             c.fontSize || "",
             c.border ? "r" : "",
-          ].join("");
+          ].join("");
     const addrs = new Set([...Object.keys(base), ...Object.keys(cells)]);
     addrs.forEach((addr) => {
       if (sig(base[addr]) !== sig(cells[addr])) diff.add(addr);
@@ -778,8 +347,8 @@ class ExcelView {
     return diff;
   }
 
-  // 全ステップ＋初期データから必要なグリッドサイズを算出して再構築
-  fitGrid(steps) {
+  // 記録に出てくるセルと初期データから、必要なグリッドの大きさを決めて作り直す
+  fitGrid() {
     let maxRow = GRID_ROWS;
     let maxCol = GRID_COLS;
     const bump = (addr) => {
@@ -788,8 +357,8 @@ class ExcelView {
       if (p.row > maxRow) maxRow = p.row;
       if (p.col > maxCol) maxCol = p.col;
     };
-    for (const step of steps) {
-      for (const addr in step.model.cells) bump(addr);
+    for (const step of this.steps) {
+      for (const [path] of step.ops) if (path[0] === "cells" && path[1]) bump(path[1]);
     }
     for (const addr in this.initialCells) bump(addr);
     maxRow = Math.min(maxRow, MAX_GRID_ROWS);
@@ -804,7 +373,6 @@ class ExcelView {
   renderModel(model, active, changed, diffSet) {
     const cells = model.cells || {};
     const base = this.initialCells || {};
-    // セル
     for (let r = 1; r <= this.rows; r++) {
       for (let c = 1; c <= this.cols; c++) {
         const addr = colLetter(c) + r;
@@ -818,7 +386,7 @@ class ExcelView {
         td.style.fontSize = cell.fontSize ? cell.fontSize + "px" : "";
         // 罫線は inset box-shadow で描く（active-cell の outline と共存させるため）
         td.style.boxShadow = cell.border ? "inset 0 0 0 1.5px #555" : "";
-        td.style.color = cell.bg && cell.bg !== "#ffffff" ? "#fff" : "";
+        td.style.color = cell.color || (cell.bg && cell.bg !== "#ffffff" ? "#fff" : "");
         td.classList.remove("active-cell", "changed", "result-diff");
         if (active && active.scope === "cell" && addr === active.key) td.classList.add("active-cell");
         if (changed && changed.scope === "cell" && addr === changed.key) td.classList.add("changed");
@@ -829,137 +397,186 @@ class ExcelView {
         td.classList.toggle("selected", addr === this.selected);
       }
     }
-    this.renderArray(model.arr || {}, active);
-    this.renderVars(model.vars || {}, active);
+    this.renderArray(model.arrays || {}, active);
+    this.renderVars(model.vars || {}, model.varTypes || {}, active);
     this.renderTabs(model.sheets || ["Sheet1"], model.sheet || "Sheet1");
   }
 
-  // 変数ウォッチ（📦 変数の名前と今の値を常時表示）
-  renderVars(vars, active) {
+  // 変数（教科書の絵と同じ「名前の付いた箱」）
+  renderVars(vars, types, active) {
     if (!this.varEl) return;
-    const ws = this._workspace;
-    // ワークスペースに定義された変数名を取得
-    const declaredNames = ws
-      ? ws.getAllVariables().map((v) => v.name)
-      : Object.keys(vars);
-    if (declaredNames.length === 0) {
+    const names = Object.keys(vars).concat(Object.keys(types).filter((n) => !(n in vars)));
+    if (names.length === 0) {
       this.varEl.classList.remove("show");
       this.varEl.innerHTML = "";
       return;
     }
     this.varEl.classList.add("show");
-    let html = '<span class="var-label">📦 変数</span><div class="var-chips">';
-    declaredNames.forEach((n) => {
-      const isActive = active && active.scope === "var" && active.key === n;
-      const val = vars[n] !== undefined ? vars[n] : "—";
-      html += `<div class="var-chip ${isActive ? "active" : ""}">
-        <span class="var-name">${escapeHtmlPv(n)}</span>
-        <span class="var-val">${escapeHtmlPv(val)}</span>
+    let html = '<span class="var-label" title="変数は、値を入れておく「箱」です">📦 変数（箱）</span><div class="var-boxes">';
+    names.forEach((n) => {
+      const isActive = active && (active.scope === "var" || active.scope === "file") && (active.key === n || (active.names && active.names.includes(n)));
+      const v = vars[n];
+      const empty = v === undefined || v === "";
+      const t = types[n];
+      html += `<div class="var-box ${isActive ? "active" : ""}" title="${escapeHtmlPv(n)}（${escapeHtmlPv(typeJa(t))}）">
+        <div class="var-box-val ${empty ? "empty" : ""}">${empty ? "&nbsp;" : escapeHtmlPv(showVal(v))}</div>
+        <div class="var-box-name">${escapeHtmlPv(n)}</div>
+        ${t ? `<div class="var-box-type">${escapeHtmlPv(typeJa(t))}</div>` : ""}
       </div>`;
     });
     html += "</div>";
     this.varEl.innerHTML = html;
   }
 
-  // MsgBox オーバーレイ
-  showMsgBox(text) {
+  // 配列（教科書の絵と同じく、添字の付いた箱を横に並べる）
+  renderArray(arrays, active) {
+    if (!this.arrayEl) return;
+    const names = Object.keys(arrays);
+    if (names.length === 0) {
+      this.arrayEl.classList.remove("show");
+      this.arrayEl.innerHTML = "";
+      return;
+    }
+    this.arrayEl.classList.add("show");
+    let html = "";
+    names.forEach((name) => {
+      const a = arrays[name];
+      const data = a.data || {};
+      const dims = a.dims || [];
+      const activeKey = active && active.scope === "array" && active.arrayName === name ? active.index : null;
+      html += `<div class="array-row"><span class="array-label">📦 配列 ${escapeHtmlPv(name)}<small>（${escapeHtmlPv(typeJa(a.type))}）</small></span>`;
+      if (dims.length === 0) {
+        html += '<span class="array-note">大きさがまだ決まっていません（ReDim で決めよう）</span></div>';
+        return;
+      }
+      if (dims.length === 1) {
+        const [lo, hi] = dims[0];
+        const last = Math.min(hi, lo + MAX_ARRAY_DISPLAY - 1);
+        html += '<div class="array-cells">';
+        for (let i = lo; i <= last; i++) {
+          const key = String(i);
+          const has = Object.prototype.hasOwnProperty.call(data, key);
+          const cls = ["array-cell"];
+          if (!has) cls.push("unused");
+          if (activeKey === key) cls.push("active-cell");
+          html += `<div class="${cls.join(" ")}">
+            <div class="array-val">${has ? escapeHtmlPv(showVal(data[key])) : "&nbsp;"}</div>
+            <div class="array-idx">${i}</div>
+          </div>`;
+        }
+        if (hi > last) html += `<div class="array-cell array-more">… +${hi - last}</div>`;
+        html += "</div></div>";
+        return;
+      }
+      // 2次元：表で表示（行が1つ目の添字、列が2つ目の添字）
+      const [[r0, r1], [c0, c1]] = dims;
+      const rLast = Math.min(r1, r0 + 19);
+      const cLast = Math.min(c1, c0 + 14);
+      html += '<table class="array-2d"><tr><th></th>';
+      for (let c = c0; c <= cLast; c++) html += `<th>${c}</th>`;
+      html += "</tr>";
+      for (let r = r0; r <= rLast; r++) {
+        html += `<tr><th>${r}</th>`;
+        for (let c = c0; c <= cLast; c++) {
+          const key = `${r},${c}`;
+          const has = Object.prototype.hasOwnProperty.call(data, key);
+          html += `<td class="${has ? "" : "unused"} ${activeKey === key ? "active-cell" : ""}">${has ? escapeHtmlPv(showVal(data[key])) : ""}</td>`;
+        }
+        html += "</tr>";
+      }
+      html += "</table></div>";
+    });
+    this.arrayEl.innerHTML = html;
+  }
+
+  // MsgBox オーバーレイ（タイムラインで見返すとき用。再生中・1コマのときはダイアログを使う）
+  showMsgBox(text, title) {
     if (!this.msgOverlay) return;
     this.msgOverlay.querySelector(".msgbox-body").textContent = text;
+    const t = this.msgOverlay.querySelector(".msgbox-title");
+    if (t) t.textContent = title || "Microsoft Excel";
     this.msgOverlay.hidden = false;
   }
   hideMsgBox() {
     if (this.msgOverlay) this.msgOverlay.hidden = true;
   }
 
-  // 配列ビジュアライザ（実行中のみ表示）
-  renderArray(arr, active) {
-    if (!this.arrayEl) return;
-    const keys = Object.keys(arr).map(Number).sort((a, b) => a - b);
-    if (keys.length === 0) {
-      this.arrayEl.classList.remove("show");
-      this.arrayEl.innerHTML = "";
-      return;
-    }
-    this.arrayEl.classList.add("show");
-    const max = Math.max(...keys);
-    const shown = Math.min(max, MAX_ARRAY_DISPLAY); // 表示上限ガード
-    let html = '<span class="array-label">📦 配列 arr</span><div class="array-cells">';
-    for (let i = 1; i <= shown; i++) {
-      const v = arr[i] !== undefined ? arr[i] : "";
-      const isActive = active && active.scope === "array" && Number(active.key) === i;
-      html += `<div class="array-cell ${isActive ? "active-cell" : ""}">
-        <div class="array-idx">${i}</div>
-        <div class="array-val">${v}</div>
-      </div>`;
-    }
-    if (max > shown) {
-      html += `<div class="array-cell array-more">… +${max - shown}</div>`;
-    }
-    html += "</div>";
-    this.arrayEl.innerHTML = html;
-  }
-
   // シートタブ
   renderTabs(sheets, current) {
     if (!this.tabsEl) return;
     this.tabsEl.innerHTML = sheets
-      .map((s) => `<div class="sheet-tab ${s === current ? "active" : ""}">${s}</div>`)
+      .map((s) => `<div class="sheet-tab ${s === current ? "active" : ""}">${escapeHtmlPv(s)}</div>`)
       .join("");
   }
 
-  load(steps, limitHit) {
+  // 実行（session）を読み込む。session が null のときは、直接入力したセルだけを表示する
+  loadSession(session, statusText) {
     this.stop();
-    this.steps = steps;
+    this.session = session;
+    this.store = session ? session.store : null;
+    this.steps = session ? session.steps : [];
     this.cursor = 0;
     this.hideMsgBox();
-    this.fitGrid(steps);
-    // アイドル状態では生徒が入力した初期データを表示
+    this.fitGrid();
     this.renderModel(this.initialModel(), null, null);
     this.refEl.textContent = "A1";
     this.formulaEl.textContent = "";
-    if (limitHit) {
-      this.statusEl.textContent =
-        `⚠️ 処理が多すぎます（${MAX_STEPS}ステップで打ち切り）。くり返し回数を減らしてください`;
-    } else {
-      this.statusEl.textContent = steps.length
-        ? `準備完了（全 ${steps.length} ステップ）`
-        : "セルに値を入力したり、ブロックを組み立てよう";
-    }
+    this.statusEl.textContent = statusText || (this.steps.length ? `準備完了（全 ${this.steps.length} ステップ）` : this.idleText);
+    if (this.onStepApplied) this.onStepApplied(null);
     this.notifyStepChange();
   }
 
-  applyStep(idx) {
+  // session の記録が後ろに増えたとき（InputBox に答えた・ボタンを押したなど）
+  stepsAppended() {
+    this.fitGrid();
+    this.notifyStepChange();
+  }
+
+  // 実行がすべて終わっていて、最後の step を表示しているか
+  isFinished(idx) {
+    const s = this.session;
+    const done = !s || (s.status !== "waiting" && s.status !== "running");
+    return done && idx === this.steps.length - 1;
+  }
+
+  // interactive: 再生・1コマで進めたとき（MsgBox はダイアログで出す）
+  applyStep(idx, interactive) {
     const step = this.steps[idx];
     if (!step) return;
-    const marker = { scope: step.scope, key: step.key };
+    const model = this.modelAt(idx);
+    const marker = { scope: step.scope, key: step.key, arrayName: step.arrayName, index: step.index, names: step.names };
     // 最後のステップ＝実行結果。初期状態から変わったセルをまとめて光らせる
-    const isLast = idx === this.steps.length - 1;
-    const diffSet = isLast ? this.diffFromInitial(step.model) : null;
-    this.renderModel(step.model, marker, marker, diffSet);
-    // MsgBox ステップのときだけオーバーレイ表示
-    if (step.scope === "msg") {
-      this.showMsgBox(step.key);
+    const isLast = this.isFinished(idx);
+    const diffSet = isLast ? this.diffFromInitial(model) : null;
+    this.renderModel(model, marker, marker, diffSet);
+    if (step.scope === "msg" && !interactive) {
+      this.showMsgBox(step.key, step.title);
     } else {
       this.hideMsgBox();
     }
-    // フォーミュラバー表示
+    // 数式バー（左の欄に「どこ」、右の欄に「何」）
     if (step.scope === "cell") {
       this.refEl.textContent = step.key;
-      const cell = step.model.cells[step.key];
+      const cell = model.cells[step.key];
       this.formulaEl.textContent = cell && cell.value !== undefined ? cell.value : "";
       const td = document.getElementById("cell-" + step.key);
       if (td) td.scrollIntoView({ block: "nearest", inline: "nearest" });
     } else if (step.scope === "array") {
-      this.refEl.textContent = `arr(${step.key})`;
-      this.formulaEl.textContent = step.model.arr[step.key];
+      this.refEl.textContent = step.key;
+      const a = model.arrays && model.arrays[step.arrayName];
+      this.formulaEl.textContent = a && a.data ? showVal(a.data[step.index]) : "";
     } else if (step.scope === "var") {
       this.refEl.textContent = step.key;
-      this.formulaEl.textContent = step.model.vars ? step.model.vars[step.key] : "";
+      this.formulaEl.textContent = model.vars ? showVal(model.vars[step.key]) : "";
     } else if (step.scope === "msg") {
       this.refEl.textContent = "MsgBox";
       this.formulaEl.textContent = step.key;
+    } else if (step.scope === "control" || step.scope === "user") {
+      this.refEl.textContent = step.key;
+      const c = model.controls && model.controls[step.key];
+      this.formulaEl.textContent = c ? showVal(c.Caption !== undefined ? c.Caption : c.Text) : "";
     } else {
-      this.refEl.textContent = step.model.sheet;
+      this.refEl.textContent = step.proc || model.sheet || "";
       this.formulaEl.textContent = "";
     }
     if (isLast) {
@@ -968,6 +585,7 @@ class ExcelView {
     } else {
       this.statusEl.textContent = `ステップ ${idx + 1} / ${this.steps.length}: ${step.desc}`;
     }
+    if (this.onStepApplied) this.onStepApplied(step);
   }
 
   // タイムライン（スライダー・カウンタ）へ現在位置を通知
@@ -975,14 +593,17 @@ class ExcelView {
     if (this.onStepChange) this.onStepChange(this.cursor, this.steps.length);
   }
 
-  stepForward() {
-    if (this.cursor >= this.steps.length) {
-      // 最終ステップの結果メッセージ（変化したセル数）を消さずに残す
-      return false;
-    }
-    this.applyStep(this.cursor);
+  // 1つ進める。done: MsgBox のダイアログを閉じたあとに呼ばれる
+  stepForward(interactive, done) {
+    if (this.cursor >= this.steps.length) return false;
+    const step = this.steps[this.cursor];
+    this.applyStep(this.cursor, interactive);
     this.cursor++;
     this.notifyStepChange();
+    if (interactive && step.scope === "msg" && this.onMsgStep) {
+      this.onMsgStep(step, done || (() => {}));
+      return "dialog";
+    }
     return true;
   }
 
@@ -1004,9 +625,10 @@ class ExcelView {
       this.formulaEl.textContent = "";
       this.statusEl.textContent = this.steps.length
         ? `⏱ 実行前の状態（全 ${this.steps.length} ステップ）`
-        : "セルに値を入力したり、ブロックを組み立てよう";
+        : this.idleText;
+      if (this.onStepApplied) this.onStepApplied(null);
     } else {
-      this.applyStep(n - 1);
+      this.applyStep(n - 1, false);
     }
     this.notifyStepChange();
   }
@@ -1017,20 +639,38 @@ class ExcelView {
     this.goToStep(this.steps.length);
   }
 
-  play() {
+  // 再生。restart: 最初から（最後まで見終わっているときも最初から）
+  play(restart) {
     this.stop();
-    if (this.cursor >= this.steps.length) this.cursor = 0;
+    if (restart || this.cursor >= this.steps.length) {
+      const waiting = this.session && this.session.status === "waiting";
+      if (restart || !waiting) this.cursor = 0;
+    }
     this.playing = true;
     this.table.classList.add("playing");
     if (this.onPlayState) this.onPlayState(true);
-    const tick = () => {
-      if (!this.stepForward()) {
-        this.stop();
-        return;
-      }
-      this.timer = setTimeout(tick, this.speed);
-    };
-    tick();
+    this.tick();
+  }
+
+  tick() {
+    if (!this.playing) return;
+    this.timer = null;
+    if (this.cursor >= this.steps.length) {
+      // 記録の最後まで来た。答え待ち（InputBox など）なら、答えのあと続きを再生する
+      const handled = this.onReachEnd ? this.onReachEnd(() => this.continuePlay()) : false;
+      if (!handled) this.stop();
+      return;
+    }
+    const r = this.stepForward(true, () => this.continuePlay());
+    if (r === "dialog") return; // MsgBox のダイアログを閉じるまで待つ
+    this.timer = setTimeout(() => this.tick(), this.speed);
+  }
+
+  continuePlay() {
+    if (!this.playing) return;
+    this.stepsAppended();
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = setTimeout(() => this.tick(), Math.min(this.speed, 250));
   }
 
   stop() {
@@ -1049,7 +689,7 @@ class ExcelView {
     this.goToStep(0);
     this.statusEl.textContent = this.steps.length
       ? `準備完了（全 ${this.steps.length} ステップ）`
-      : "セルに値を入力したり、ブロックを組み立てよう";
+      : this.idleText;
   }
 
   setSpeed(ms) {
@@ -1066,33 +706,11 @@ class ExcelView {
     }
   }
 
-  // 最終結果のモデル（クリア判定用）。ブロックが無くても初期データを返す
+  // 最終結果のモデル（クリア判定用・書き換えてよい写し）。
+  // 古い課題の check(model) のために model.arr（配列 arr の中身）も付ける
   finalModel() {
-    return this.steps.length
-      ? this.steps[this.steps.length - 1].model
-      : this.initialModel();
+    const m = this.store ? this.store.modelCopy(this.steps.length - 1) : JSON.parse(JSON.stringify(this.initialModel()));
+    m.arr = m.arrays && m.arrays.arr ? m.arrays.arr.data || {} : {};
+    return m;
   }
-}
-
-// ワークスペースからステップ列を生成
-// 戻り値: { steps, limitHit }
-// opts: { inputCache, interactive } — InputBox の質問制御（▶実行時のみ interactive）
-function buildSteps(workspace, initialCells, opts) {
-  const interp = new Interpreter(initialCells, opts);
-  let limitHit = false;
-  try {
-    const topBlocks = workspace.getTopBlocks(true);
-    for (const block of topBlocks) {
-      // 出力ブロック（値ブロック単体）は実行対象外。文ブロックの先頭のみ実行
-      if (block.outputConnection) continue;
-      interp.run(block);
-    }
-  } catch (e) {
-    if (e && e.code === "STEP_LIMIT") {
-      limitHit = true; // それまでのステップは保持
-    } else {
-      throw e;
-    }
-  }
-  return { steps: interp.steps, limitHit };
 }

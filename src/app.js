@@ -19,9 +19,28 @@
   const savedInitial = {}; // taskId -> 仮想Excelの初期データ
   const solved = new Set();
 
+  // ----- 実行エンジン（src/vba/）まわり -----
+  let session = null; // いま画面に出している実行（VbaSession.Session）
+  let runActive = false; // ▶実行・1コマで始めた実行の途中か（false なら編集中のプレビュー）
+  let lineMap = {}; // コードの行番号 → ブロックID（ブロックから作ったコードのとき）
+  // 実行するプログラムの元。"blocks" = ブロックから作ったコード / "code" = VBAコードタブで書いたコード
+  let codeOwner = "blocks";
+  let blocksMatchCode = true; // codeOwner が "code" のとき、ブロックがコードと同じ内容か
+  let blocksMismatchReason = ""; // ブロックにできなかった理由
+  let previewTimer = null;
+  let codeSaveTimer = null;
+  let execLine = null; // 実行中として光らせているコードの行（0始まり）
+  let errorMarkLine = null; // エラーとして光らせているコードの行（0始まり）
+  let zenkakuMarks = []; // 全角文字の波線
+  const savedCode = {}; // taskId -> { text, match, reason }（VBAコードタブで書いたコード）
+  const LOAD_GROUP = "umb-code-to-blocks"; // コード→ブロック変換で起きたブロックの変化の目印
+  // 状態を変える step（これが1つも無ければ「プログラムを実行した結果」とはみなさない）
+  const STATE_SCOPES = new Set(["cell", "array", "control", "sheet", "file", "msg", "var"]);
+
   const LS_BLOCKS = "umb_blocks";
   const LS_SOLVED = "umb_solved";
   const LS_INITIAL = "umb_initial";
+  const LS_CODE = "umb_code";
   const FREE_MODE_ID = "__free__"; // クエスト未選択時（フリーモード）の保存キー
 
   // ----- テーマ（一度だけ定義: B5）-----
@@ -200,6 +219,7 @@
       localStorage.setItem(LS_BLOCKS, JSON.stringify(savedBlocks));
       localStorage.setItem(LS_SOLVED, JSON.stringify([...solved]));
       localStorage.setItem(LS_INITIAL, JSON.stringify(savedInitial));
+      localStorage.setItem(LS_CODE, JSON.stringify(savedCode));
     } catch (e) {
       console.warn("保存失敗:", e);
     }
@@ -212,18 +232,62 @@
       s.forEach((id) => solved.add(id));
       const ini = JSON.parse(localStorage.getItem(LS_INITIAL) || "{}");
       Object.assign(savedInitial, ini);
+      const code = JSON.parse(localStorage.getItem(LS_CODE) || "{}");
+      Object.assign(savedCode, code);
     } catch (e) {
       console.warn("読み込み失敗:", e);
     }
   }
 
+  function currentKey() {
+    return currentTaskId === null ? FREE_MODE_ID : currentTaskId;
+  }
+
+  // VBAコードタブで書いたコードを保存する（ブロックから作ったコードのときは保存しない）
+  function saveCodeState() {
+    if (sharedViewMode || !codeEditor) return;
+    const key = currentKey();
+    if (codeOwner === "code") {
+      savedCode[key] = { text: codeEditor.getValue(), match: blocksMatchCode, reason: blocksMismatchReason };
+    } else {
+      delete savedCode[key];
+    }
+    persist();
+  }
+
+  // 課題を切り替えたとき：保存しておいたコードがあれば戻す
+  function restoreCodeState(key) {
+    const sc = savedCode[key];
+    codeDirty = false;
+    if (sc && typeof sc.text === "string") {
+      codeOwner = "code";
+      blocksMatchCode = !!sc.match;
+      blocksMismatchReason = sc.reason || "";
+      setEditorCode(sc.text);
+    } else {
+      codeOwner = "blocks";
+      blocksMatchCode = true;
+      blocksMismatchReason = "";
+    }
+    updateCodeSyncStatus();
+    updateCodeOwnerOverlay();
+  }
+
+  function setEditorCode(text) {
+    if (!codeEditor) return;
+    if (codeEditor.getValue() === text) return;
+    suppressCodeChange = true;
+    codeEditor.setValue(text);
+    suppressCodeChange = false;
+  }
+
   // ----- 仮想Excelのセル編集時（F: 直接入力）-----
   function onCellEdited() {
-    const key = currentTaskId === null ? FREE_MODE_ID : currentTaskId;
-    savedInitial[key] = view.getInitialCells();
+    savedInitial[currentKey()] = view.getInitialCells();
     persist();
-    // 初期データが変わったのでステップを作り直す
-    onWorkspaceChange();
+    // 初期データが変わったので実行し直す
+    runPreview();
+    updateBaselineLabel();
   }
 
   // ----- 実行タイムライン（スライダー・カウンタ）の同期 -----
@@ -259,7 +323,7 @@
 
   // ----- 「＋ 変数を作る」ボタンの新規変数名プロンプト（ひらがな・予約名を検証） -----
   function promptNewVariableName(ws) {
-    const raw = window.prompt("新しい変数の名前を入力してください（ひらがな不可、i / arr は予約語）", "");
+    const raw = window.prompt("新しい変数の名前を入力してください（例: Tanka、Suu、Kin。ひらがな不可、i・j・k・arr は使えません）", "");
     if (raw === null) return; // キャンセル
     const name = raw.trim();
     if (!name) return;
@@ -464,99 +528,357 @@
     cm.replaceRange(desired + keyword, { line: lineNo, ch: 0 }, { line: lineNo, ch: cur.length + keyword.length });
   }
 
-  // ----- コード編集済み状態の表示更新 -----
+  // ----- コードの状態の表示（コードタブの見出しの横） -----
   function updateCodeSyncStatus() {
     const el = document.getElementById("code-sync-status");
     if (!el) return;
-    if (codeDirty) {
-      el.textContent = "✏️ 未反映（ブロックタブに戻すと反映）";
-      el.hidden = false;
-    } else {
-      el.hidden = true;
+    let text = "";
+    if (codeDirty) text = "✏️ 入力中…（打ち終わると自動で確かめます）";
+    else if (codeOwner === "code" && blocksMatchCode) text = "🤖 このコードで実行中（ブロックにも反映ずみ）";
+    else if (codeOwner === "code") text = "🤖 このコードで実行中（ブロックでは表せない書き方があります）";
+    el.textContent = text;
+    el.hidden = !text;
+  }
+
+  // ブロックタブの上にかぶせる案内（VBAコードタブで書いたコードを実行しているとき）
+  function updateCodeOwnerOverlay() {
+    const ov = document.getElementById("code-owner-overlay");
+    if (!ov) return;
+    if (codeOwner !== "code") {
+      ov.hidden = true;
+      return;
     }
+    const text = document.getElementById("code-owner-text");
+    const toBlocks = document.getElementById("code-owner-to-blocks");
+    if (blocksMatchCode) {
+      text.textContent =
+        "ブロックは、VBAコードと同じ内容になっています。ブロックで続けると、VBAコードはブロックから作り直されます（Dim の書き方などが変わることがあります）。";
+      toBlocks.textContent = "🧩 ブロックで続ける";
+      toBlocks.classList.remove("danger");
+    } else {
+      text.textContent =
+        "VBAコードに、ブロックでは表せない書き方があるため、ブロックは前のままです" +
+        (blocksMismatchReason ? `（${blocksMismatchReason}）` : "") +
+        "。いまは VBAコードのまま実行しています。";
+      toBlocks.textContent = "🧩 ブロックから作り直す（VBAコードの変更は消えます）";
+      toBlocks.classList.add("danger");
+    }
+    ov.hidden = false;
+  }
+
+  // ----- コード → ブロック 変換 -----
+  // タブ切替時 / エディタからのフォーカス離脱時に呼ばれる。
+  // 書いたコードは書き換えない（実行はコードのまま）。ブロックで表せる形なら、ブロックにも並べる
+  function applyCodeToBlocks() {
+    if (!codeEditor || !workspace) return;
+    if (!codeDirty) return;
+    codeDirty = false;
+    const text = codeEditor.getValue();
+    hideCodeError();
+
+    let result = null;
+    try {
+      result = window.VbaParser.parseVBA(text);
+    } catch (e) {
+      blocksMatchCode = false;
+      blocksMismatchReason = e.line ? `${e.line}行目: ${e.message}` : e.message;
+    }
+    if (result) {
+      // この変化はコード→ブロック変換によるもの。onWorkspaceChange でコードを作り直さないよう目印を付ける
+      Blockly.Events.setGroup(LOAD_GROUP);
+      try {
+        workspace.clear();
+        if (result.root) {
+          window.VbaParser.resolveVariables(result.root, workspace);
+          const json = window.VbaParser.toWorkspaceJson(result.root);
+          Blockly.serialization.workspaces.load(json, workspace);
+          workspace.cleanUp();
+        }
+        blocksMatchCode = true;
+        blocksMismatchReason = "";
+      } catch (e) {
+        console.warn("ブロック構築に失敗:", e);
+        blocksMatchCode = false;
+        blocksMismatchReason = "ブロックを組み立てられませんでした";
+      } finally {
+        Blockly.Events.setGroup(false);
+      }
+    }
+    lineMap = {};
+    saveCodeState();
+    updateCodeSyncStatus();
+    updateCodeOwnerOverlay();
+  }
+
+  // 書いたコードはいつも保存しているので、課題の切り替えなどで消えることはない
+  function confirmDiscardDirtyCode() {
+    if (codeDirty) applyCodeToBlocks();
+    clearTimeout(codeSaveTimer);
+    saveCodeState();
+    return true;
+  }
+
+  // ブロックからコードを作り直す前の確認（VBAコードタブで書いたコードが消えるとき）
+  function confirmReplaceCode() {
+    if (codeOwner !== "code") return true;
+    return confirm("VBAコードタブで書いたプログラムは、ブロックから作ったコードに置きかわります。続けますか？");
+  }
+
+  // ブロックを正にする（コードはブロックから作り直す）
+  function switchToBlocksOwner() {
+    codeOwner = "blocks";
+    codeDirty = false;
+    blocksMatchCode = true;
+    blocksMismatchReason = "";
+    saveCodeState();
+    updateCodeSyncStatus();
+    updateCodeOwnerOverlay();
+    onWorkspaceChange();
   }
 
   function hideCodeError() {
     const banner = document.getElementById("code-error-banner");
     if (banner) banner.hidden = true;
-    if (codeEditor) {
-      for (let i = 0; i < codeEditor.lineCount(); i++) {
-        codeEditor.removeLineClass(i, "background", "code-error-line");
-      }
+  }
+
+  // ===== プログラムのまちがいの表示（やさしい説明つき） =====
+  let shownError = null;
+  function errorTitle(err, preview) {
+    const at = err.line ? `${err.line}行目` : "";
+    if (err.kind === "zenkaku") return `⚠️ 全角の文字があります（${at}）`;
+    if (err.kind === "syntax" || err.kind === "compile") return `⚠️ 書き方のまちがい（${at || "コンパイル エラー"}）`;
+    if (err.kind === "limit") return `⚠️ 処理が止まりませんでした${at ? `（${at}）` : ""}`;
+    return preview ? `⚠️ このまま実行すると ${at} でエラーになります` : `⚠️ 実行時エラー（${at}）`;
+  }
+
+  function showProgramError(err, preview) {
+    shownError = err;
+    const panel = document.getElementById("program-error");
+    if (!panel) return;
+    document.getElementById("program-error-title").textContent = errorTitle(err, preview);
+    document.getElementById("program-error-friendly").textContent = err.friendly || err.message || "";
+    const hint = document.getElementById("program-error-hint");
+    hint.textContent = err.hint ? `💡 ${err.hint}` : "";
+    hint.hidden = !err.hint;
+    const vba = document.getElementById("program-error-vba");
+    const vbaText = err.kind === "zenkaku" ? "" : String(err.message || "").replace(/\n/g, " ");
+    vba.textContent = vbaText ? `Excel の表示: ${vbaText}` : "";
+    vba.hidden = !vbaText;
+    document.getElementById("program-error-goto").hidden = !err.line;
+    document.getElementById("program-error-fix").hidden = err.kind !== "zenkaku";
+    panel.classList.toggle("preview", !!preview && err.kind !== "zenkaku" && err.kind !== "syntax" && err.kind !== "compile");
+    panel.hidden = false;
+    markErrorInCode(err);
+  }
+
+  function hideProgramError() {
+    shownError = null;
+    const panel = document.getElementById("program-error");
+    if (panel) panel.hidden = true;
+    clearErrorMarks();
+  }
+
+  function clearErrorMarks() {
+    if (!codeEditor) return;
+    if (errorMarkLine !== null) codeEditor.removeLineClass(errorMarkLine, "background", "code-error-line");
+    errorMarkLine = null;
+    zenkakuMarks.forEach((m) => m.clear());
+    zenkakuMarks = [];
+  }
+
+  function markErrorInCode(err) {
+    clearErrorMarks();
+    if (!codeEditor) return;
+    if (err.kind === "zenkaku" && err.zenkaku) {
+      err.zenkaku.forEach((z) => {
+        zenkakuMarks.push(codeEditor.markText({ line: z.line - 1, ch: z.col - 1 }, { line: z.line - 1, ch: z.col }, { className: "cm-zenkaku", title: `全角の「${z.ch}」→ 半角の「${z.fix}」に` }));
+      });
+    }
+    if (err.line && err.line <= codeEditor.lineCount()) {
+      errorMarkLine = err.line - 1;
+      codeEditor.addLineClass(errorMarkLine, "background", "code-error-line");
     }
   }
 
-  function showCodeError(err) {
-    const banner = document.getElementById("code-error-banner");
-    if (banner) {
-      const lineText = err.line ? `${err.line}行目: ` : "";
-      banner.textContent = `⚠️ ${lineText}${err.message}`;
-      banner.hidden = false;
-    }
-    if (codeEditor && err.line) {
-      codeEditor.addLineClass(err.line - 1, "background", "code-error-line");
-      codeEditor.scrollIntoView({ line: err.line - 1, ch: 0 }, 60);
+  // ===== 実行（src/vba/session.js） =====
+  // 実行するプログラム：いつも VBAコードタブの中身（ブロックのときはブロックから作ったコードが入っている）
+  function currentSource() {
+    return codeEditor ? codeEditor.getValue() : generateVBA(workspace);
+  }
+
+  function createSession() {
+    try {
+      return { s: new VbaSession.Session(currentSource(), { initialCells: view.getInitialCells(), seed: 20261022 }) };
+    } catch (e) {
+      if (e && e.kind) return { error: e };
+      throw e;
     }
   }
 
-  // ----- コード → ブロック 変換の実行 -----
-  // タブ切替時 / エディタからのフォーカス離脱時に呼ばれる。
-  // 解析に失敗した場合はブロックを一切変更せず、エラー表示のみ行う（要件4.2）
-  function applyCodeToBlocks() {
-    if (!codeEditor || !workspace) return;
-    if (!codeDirty) return;
-    const text = codeEditor.getValue();
-    hideCodeError();
+  // ▶実行で最初に動かす手続き
+  function pickEntry(s) {
+    const macros = s.macroNames();
+    return macros.length ? macros[0] : null;
+  }
 
-    let result;
-    try {
-      result = window.VbaParser.parseVBA(text);
-    } catch (e) {
-      showCodeError(e);
-      return; // ブロックは変更しない。codeDirty も維持（コードは消さない）
+  function schedulePreview(ms) {
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(runPreview, ms === undefined ? 150 : ms);
+  }
+
+  // 編集中のプレビュー：MsgBox はそのまま OK、InputBox は前に答えた値があれば使い、無ければそこで止まる
+  function runPreview() {
+    clearTimeout(previewTimer);
+    if (!view) return;
+    if (runActive && (view.playing || (window.VbaDialog && VbaDialog.isOpen()))) {
+      showToast("プログラムが変わったので、実行を止めました");
     }
-
-    suppressSave = true;
-    try {
-      workspace.clear();
-      if (result.root) {
-        window.VbaParser.resolveVariables(result.root, workspace);
-        const json = window.VbaParser.toWorkspaceJson(result.root);
-        Blockly.serialization.workspaces.load(json, workspace);
-        workspace.cleanUp();
-      }
-    } catch (e) {
-      suppressSave = false;
-      console.warn("ブロック構築に失敗:", e);
-      showCodeError({ message: "ブロックを組み立てられませんでした（" + e.message + "）", line: null });
+    runActive = false;
+    view.stop();
+    const { s, error } = createSession();
+    if (error) {
+      session = null;
+      view.loadSession(null, "⚠️ プログラムにまちがいがあります（下の説明を見てね）");
+      showProgramError(error, true);
+      checkQuestClear();
       return;
     }
-    suppressSave = false;
-
-    codeDirty = false;
-    updateCodeSyncStatus();
-    onWorkspaceChange(); // ブロックから正規化されたコードで表示を更新
+    session = s;
+    const entry = pickEntry(s);
+    let status = null;
+    if (entry) {
+      let res = s.start(entry);
+      res = autoAnswer(res);
+      if (res.status === "waiting") status = "⌨️ InputBox の答え待ちのところまで準備しました（▶ 実行すると質問が出ます）";
+    } else if (s.procNames().length) {
+      status = "ℹ️ ▶ 実行で動かせる Sub がありません（ボタンを押したときに動く命令は、フォームから動かします）";
+    }
+    view.loadSession(s, status);
+    if (s.status === "error") showProgramError(s.error, true);
+    else hideProgramError();
+    checkQuestClear();
   }
 
-  // ----- コード編集中の内容を、課題切替・全消去などの前に守る -----
-  // 戻り値: true = 続行してよい（反映できた or 生徒が破棄に同意した）
-  //         false = 中止すべき（生徒が「戻る」を選んだ）
-  // codeDirty のまま呼び出し元で workspace.clear() 等を続けると、
-  // 手打ちしたコードが無警告で失われてしまうため、必ずこれを通す
-  function confirmDiscardDirtyCode() {
-    if (!codeDirty) return true;
-    applyCodeToBlocks(); // まず反映を試みる（成功すれば codeDirty は false になる）
-    if (!codeDirty) return true;
-    const ok = confirm(
-      "VBAコードタブに、まだブロックへ反映されていない変更があります。\n" +
-        "このまま進めると、その変更は失われます。続けますか？"
-    );
-    if (ok) {
-      codeDirty = false;
-      hideCodeError();
-      updateCodeSyncStatus(); // 「✏️ 未反映」バッジを消す
+  function autoAnswer(res) {
+    while (res.status === "waiting") {
+      const q = res.request;
+      if (q.type === "msgbox") res = session.resume(undefined);
+      else if (Object.prototype.hasOwnProperty.call(inputCache, q.key)) res = session.resume(inputCache[q.key]);
+      else break;
     }
-    return ok;
+    return res;
+  }
+
+  // ▶実行・1コマ：新しく実行を始める（InputBox は毎回たずね直す）
+  function startRun(play) {
+    Object.keys(inputCache).forEach((k) => delete inputCache[k]);
+    const { s, error } = createSession();
+    if (error) {
+      showProgramError(error, false);
+      return false;
+    }
+    const entry = pickEntry(s);
+    if (!entry) {
+      document.getElementById("step-status").textContent = "ℹ️ ▶ 実行で動かせる Sub がありません";
+      return false;
+    }
+    session = s;
+    runActive = true;
+    hideProgramError();
+    s.start(entry);
+    view.loadSession(s, "▶ 実行中…");
+    if (play) view.play(true);
+    return true;
+  }
+
+  // InputBox / MsgBox の答えをダイアログで聞く
+  function askRequest(req) {
+    if (req.type === "inputbox") {
+      return VbaDialog.inputBox({ prompt: req.prompt, title: req.title, default: req.default }).then((ans) => {
+        inputCache[req.key] = ans;
+        return ans;
+      });
+    }
+    return VbaDialog.msgBox({ prompt: req.prompt, title: req.title, buttons: req.buttons });
+  }
+
+  // 再生で記録の最後まで来た：答え待ちならダイアログを出し、答えのあと続きを再生する
+  function onReachEnd(resume) {
+    if (!session || session.status !== "waiting") {
+      finishRun();
+      return false;
+    }
+    askRequest(session.request).then((ans) => {
+      session.resume(ans);
+      resume();
+    });
+    return true;
+  }
+
+  // 再生中・1コマで MsgBox の step に来た：ダイアログを出し、OK のあと続ける
+  function onMsgStep(step, done) {
+    VbaDialog.msgBox({ prompt: step.key, title: step.title, buttons: step.buttons }).then((result) => {
+      const live = session && session.status === "waiting" && session.request && session.request.type === "msgbox" && view.cursor === session.steps.length;
+      if (live) {
+        session.resume(result);
+        view.stepsAppended();
+      }
+      done();
+    });
+  }
+
+  // 1コマ進める。最初なら実行を始める。記録の最後で答え待ちなら、質問を出してから進める
+  function stepOnce() {
+    if (window.VbaDialog && VbaDialog.isOpen()) return;
+    view.stop();
+    if (!runActive && view.cursor === 0) {
+      if (!startRun(false)) return;
+    }
+    runActive = true;
+    const atEnd = () => view.cursor >= view.steps.length;
+    if (!atEnd()) {
+      view.stepForward(true, () => {});
+      if (atEnd() && session && session.status !== "waiting") finishRun();
+      return;
+    }
+    if (session && session.status === "waiting") {
+      askRequest(session.request).then((ans) => {
+        session.resume(ans);
+        view.stepsAppended();
+        if (!atEnd()) view.stepForward(true, () => {});
+        if (atEnd() && session.status !== "waiting") finishRun();
+      });
+    }
+  }
+
+  // 実行が最後まで終わったとき
+  function finishRun() {
+    if (!session) return;
+    if (session.status === "error") showProgramError(session.error, false);
+    checkQuestClear();
+  }
+
+  // 実行中の行・ブロックを光らせる
+  function onStepApplied(step) {
+    if (codeEditor) {
+      if (execLine !== null) codeEditor.removeLineClass(execLine, "background", "code-exec-line");
+      execLine = null;
+      if (step && step.line && step.line <= codeEditor.lineCount()) {
+        execLine = step.line - 1;
+        codeEditor.addLineClass(execLine, "background", "code-exec-line");
+        if (document.getElementById("tab-code-panel").classList.contains("active")) {
+          codeEditor.scrollIntoView({ line: execLine, ch: 0 }, 80);
+        }
+      }
+    }
+    if (workspace) {
+      const id = step && step.line && codeOwner === "blocks" ? lineMap[step.line] : null;
+      try {
+        workspace.highlightBlock(id && workspace.getBlockById(id) ? id : null);
+      } catch (e) {
+        /* ハイライトできなくても実行には影響しない */
+      }
+    }
   }
 
   // ----- 初期化 -----
@@ -617,12 +939,12 @@
         btn.textContent = playing ? "⏸ 一時停止" : "▶ 実行";
       },
       onStepChange: updateTimeline, // タイムラインのスライダー・カウンタを同期
+      onStepApplied, // 実行中の行・ブロックを光らせる
+      onMsgStep, // 再生中・1コマで MsgBox に来たらダイアログを出す
+      onReachEnd, // 記録の最後まで来たら、InputBox などの答えを聞いて続ける
     });
 
-    // 変数パネルを常時更新（VAR_CREATE/DELETE/RENAME 時）
-    view.bindWorkspace(workspace);
-
-    // ブロック変更 → コード再生成 + ステップ再構築
+    // ブロック変更 → コード再生成 + 実行し直し
     workspace.addChangeListener(onWorkspaceChange);
 
     // ----- VBAコードエディタ（CodeMirror）初期化 -----
@@ -650,9 +972,15 @@
     });
     codeEditor.on("change", (cm, changeObj) => {
       if (suppressCodeChange) return;
+      // 生徒がコードを書いた：これからはこのコードを実行する（ブロックからは作り直さない）
       codeDirty = true;
+      codeOwner = "code";
       updateCodeSyncStatus();
-      hideCodeError(); // 直前のエラーは打ち直している間は消しておく
+      hideCodeError();
+      clearErrorMarks();
+      schedulePreview(700); // 打ち終わって少ししたら、動きを確かめ直す
+      clearTimeout(codeSaveTimer);
+      codeSaveTimer = setTimeout(saveCodeState, 800);
       if (changeObj.origin !== "setValue") {
         const lineNo = changeObj.to.line;
         // 同じ行に対して前回分の保留中デデントがあれば上書き（二重発火でのインデント
@@ -698,7 +1026,7 @@
   // クリア済みフラグは合算（減らさない）、ブロック/初期データは
   // 「今このタブで編集中でない課題」だけ取り込む（作業中のものを壊さないため）
   function onOtherTabStorageChange(e) {
-    if (![LS_BLOCKS, LS_SOLVED, LS_INITIAL].includes(e.key)) return;
+    if (![LS_BLOCKS, LS_SOLVED, LS_INITIAL, LS_CODE].includes(e.key)) return;
     try {
       const otherSolved = JSON.parse(localStorage.getItem(LS_SOLVED) || "[]");
       let newlySolvedCount = 0;
@@ -724,6 +1052,13 @@
       });
       Object.keys(otherInitial).forEach((k) => {
         if (k !== activeKey) savedInitial[k] = otherInitial[k];
+      });
+      const otherCode = JSON.parse(localStorage.getItem(LS_CODE) || "{}");
+      Object.keys(savedCode).forEach((k) => {
+        if (k !== activeKey && !otherCode[k]) delete savedCode[k];
+      });
+      Object.keys(otherCode).forEach((k) => {
+        if (k !== activeKey) savedCode[k] = otherCode[k];
       });
 
       if (newlySolvedCount > 0 || updatedTaskCount > 0) {
@@ -824,6 +1159,7 @@
       }
     }
     suppressSave = false;
+    restoreCodeState(taskId);
 
     updateCurrentQuestDisplay();
     onWorkspaceChange();
@@ -865,6 +1201,7 @@
       }
     }
     suppressSave = false;
+    restoreCodeState(FREE_MODE_ID);
 
     updateCurrentQuestDisplay();
     onWorkspaceChange();
@@ -926,39 +1263,27 @@
   function onWorkspaceChange(event) {
     if (event && event.isUiEvent) return;
 
-    // VBA コード生成 → コードエディタへ反映
-    // ただしコード側が編集済み（codeDirty）のときは上書きしない
-    // （手打ち中のコードを消さないため。ブロックタブに戻った時に反映される）
-    const code = generateVBA(workspace);
-    if (codeEditor && !codeDirty) {
-      // codeDirty=false のときは生徒はコード欄を編集していないので、
-      // カーソル位置を気にせずまるごと置き換えてよい
-      suppressCodeChange = true;
-      codeEditor.setValue(code);
-      suppressCodeChange = false;
+    // コード→ブロック変換で並べたブロックの変化：コードは生徒が書いたまま（作り直さない）
+    if (event && event.group === LOAD_GROUP) {
+      saveCurrentBlocks();
+      updateCanvasGuide();
+      return;
+    }
+
+    // ブロックが正のときだけ、ブロックから VBA コードを作ってコードエディタに入れる
+    // （VBAコードタブで書いたコードを実行しているときは、書いたコードを消さない）
+    if (codeOwner === "blocks") {
+      const g = generateVBAWithMap(workspace);
+      lineMap = g.lineMap;
+      setEditorCode(g.code);
     }
 
     // エラーチェック（未接続の値ブロックなど簡易検出）
     checkErrors();
-
-    // ステップ再構築（仮想Excelの初期データを土台にする）
-    // 編集中は interactive を付けない＝InputBox はダイアログを出さず仮値で動く
-    try {
-      const result = buildSteps(workspace, view.getInitialCells(), { inputCache });
-      view.load(result.steps, result.limitHit);
-      checkQuestClear();
-    } catch (e) {
-      console.warn("ステップ生成エラー:", e);
-    }
-
     saveCurrentBlocks();
 
-    // 変数パネルを現在のステップの値で更新（常時表示）
-    // step は { scope, key, model, desc } なので値は model.vars にある
-    const curStep = view.steps[view.cursor - 1];
-    const curVars = curStep && curStep.model ? curStep.model.vars || {} : {};
-    const marker = curStep ? { scope: curStep.scope, key: curStep.key } : null;
-    view.renderVars(curVars, marker);
+    // 実行し直す（ドラッグ中の細かい変化はまとめる）
+    schedulePreview(120);
 
     updateBaselineLabel();
     updateCanvasGuide();
@@ -975,7 +1300,7 @@
   // 先に保証する。新しい判定条件（例: 特定ブロックの使用を必須にする等）を
   // 追加したくなったら、この関数に足せば全課題に一括で効く。
   function hasExecutableProgram() {
-    return view.steps.length > 0;
+    return !!session && session.status !== "error" && session.steps.some((st) => STATE_SCOPES.has(st.scope) && !st.declare);
   }
 
   function checkQuestClear() {
@@ -1274,7 +1599,9 @@
 
       // 模範解答のブロック配置をワークスペースに読み込む（コードだけでなく組み方も見せる）。
       // コードタブに未反映の変更があれば先に確認する（中止なら文字コードの表示だけで終わる）
-      if (task.answerBlocks && confirmDiscardDirtyCode()) {
+      if (task.answerBlocks && confirmReplaceCode()) {
+        codeOwner = "blocks";
+        codeDirty = false;
         suppressSave = true;
         try {
           workspace.clear();
@@ -1286,40 +1613,32 @@
           console.warn("模範解答ブロックの読み込み失敗:", e);
         }
         suppressSave = false;
-        onWorkspaceChange();
-        document.getElementById("step-status").textContent =
-          "📖 模範解答のブロックを表示しました。▶ 実行で動きを確かめよう";
+        switchToBlocksOwner();
+        showToast("📖 模範解答のブロックを表示しました。▶ 実行で動きを確かめよう");
       }
     });
 
     // 実行コントロール
-    // 実行中クリックで一時停止。InputBox があれば最初からの実行時にだけ質問する
+    // ▶実行：最初から実行して再生する（InputBox は毎回たずねる）。再生中に押すと一時停止、もう一度で続きから
     document.getElementById("run-btn").addEventListener("click", () => {
+      if (window.VbaDialog && VbaDialog.isOpen()) return;
       if (view.playing) {
         view.stop(); // 一時停止（カーソル位置は保持）
         return;
       }
-      const fresh = view.cursor === 0 || view.cursor >= view.steps.length;
-      const hasInput = workspace.getAllBlocks(false).some((b) => b.type === "io_inputbox");
-      if (hasInput && fresh) {
-        Object.keys(inputCache).forEach((k) => delete inputCache[k]); // 毎回聞き直す
-        try {
-          const result = buildSteps(workspace, view.getInitialCells(), {
-            inputCache,
-            interactive: true,
-          });
-          view.load(result.steps, result.limitHit);
-        } catch (e) {
-          console.warn("ステップ生成エラー:", e);
-        }
+      const midRun = runActive && view.cursor > 0 && (view.cursor < view.steps.length || (session && session.status === "waiting"));
+      if (midRun) {
+        view.play(false); // 一時停止したところから続ける
+        return;
       }
-      view.play();
+      startRun(true);
     });
-    document.getElementById("step-btn").addEventListener("click", () => {
-      view.stop();
-      view.stepForward();
+    // 1コマ：1つずつ進める。答え待ちのところでは質問を出す
+    document.getElementById("step-btn").addEventListener("click", () => stepOnce());
+    document.getElementById("reset-btn").addEventListener("click", () => {
+      view.reset();
+      if (session && session.status === "error") hideProgramError();
     });
-    document.getElementById("reset-btn").addEventListener("click", () => view.reset());
 
     // ----- 実行タイムライン：好きな時点へ自由に移動 -----
     const tlSlider = document.getElementById("tl-slider");
@@ -1332,11 +1651,42 @@
     };
     tlBind("tl-first", () => view.goToStep(0));
     tlBind("tl-prev", () => view.stepBackward());
-    tlBind("tl-next", () => {
-      view.stop();
-      view.stepForward();
+    tlBind("tl-next", () => stepOnce());
+    tlBind("tl-last", () => {
+      view.goToEnd();
+      if (session && session.status === "error" && view.cursor === view.steps.length) showProgramError(session.error, !runActive);
     });
-    tlBind("tl-last", () => view.goToEnd());
+
+    // ----- プログラムのまちがいパネル -----
+    document.getElementById("program-error-close").addEventListener("click", () => {
+      const panel = document.getElementById("program-error");
+      if (panel) panel.hidden = true;
+    });
+    document.getElementById("program-error-goto").addEventListener("click", () => {
+      if (!shownError || !shownError.line) return;
+      document.getElementById("tab-code").click();
+      setTimeout(() => {
+        codeEditor.refresh();
+        codeEditor.focus();
+        codeEditor.setCursor({ line: shownError.line - 1, ch: Math.max(0, (shownError.col || 1) - 1) });
+        codeEditor.scrollIntoView({ line: shownError.line - 1, ch: 0 }, 80);
+      }, 80);
+    });
+    document.getElementById("program-error-fix").addEventListener("click", () => {
+      if (!codeEditor) return;
+      const fixed = VbaLexer.fixZenkaku(codeEditor.getValue());
+      codeEditor.setValue(fixed); // 生徒が直したのと同じ扱い（change イベントで実行し直す）
+      showToast("🔧 全角の文字を半角に直しました");
+    });
+
+    // ----- VBAコードで実行しているときのブロックタブの案内 -----
+    document.getElementById("code-owner-to-code").addEventListener("click", () => {
+      document.getElementById("tab-code").click();
+    });
+    document.getElementById("code-owner-to-blocks").addEventListener("click", () => {
+      if (!blocksMatchCode && !confirm("VBAコードタブで書いた変更は消えて、いまのブロックからコードを作り直します。よいですか？")) return;
+      switchToBlocksOwner();
+    });
 
     // ----- 実行の出発点（初期データ）の管理 -----
     const bakeBtn = document.getElementById("bake-btn");
@@ -1399,12 +1749,9 @@
       tab.addEventListener("click", () => {
         const target = tab.dataset.tab;
         const leavingCodeTab = document.getElementById("tab-code-panel").classList.contains("active");
-        // コードタブを離れるときは、手打ちしたコードをブロックへ反映する。
-        // 解析エラーで反映できなかった場合は、エラーが見えるようコードタブに留まる
-        if (leavingCodeTab && target !== "code" && codeDirty) {
-          applyCodeToBlocks();
-          if (codeDirty) return; // まだ未反映＝エラー中。タブは切り替えない
-        }
+        // コードタブを離れるときは、書いたコードをブロックにも並べてみる（コードはそのまま実行する）
+        if (leavingCodeTab && target !== "code" && codeDirty) applyCodeToBlocks();
+        updateCodeOwnerOverlay();
         document.querySelectorAll(".editor-tab").forEach((t) => t.classList.remove("active"));
         document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
         tab.classList.add("active");
@@ -1431,11 +1778,13 @@
 
     // 全部消す（F2）
     document.getElementById("clear-all-btn").addEventListener("click", () => {
-      if (workspace.getTopBlocks(false).length === 0) return;
-      if (!confirm("組み立てたブロックを全部消しますか？")) return;
-      if (!confirmDiscardDirtyCode()) return; // コード未反映があれば先に確認
+      if (workspace.getTopBlocks(false).length === 0 && codeOwner === "blocks") return;
+      const msg = codeOwner === "code"
+        ? "組み立てたブロックと、VBAコードタブで書いたプログラムを全部消しますか？"
+        : "組み立てたブロックを全部消しますか？";
+      if (!confirm(msg)) return;
       workspace.clear();
-      onWorkspaceChange();
+      switchToBlocksOwner();
     });
 
     // 次のクエストへ（F4）
@@ -1449,7 +1798,11 @@
         try {
           const dom = Blockly.Xml.workspaceToDom(workspace);
           const xml = Blockly.Xml.domToText(dom);
-          const encoded = encodeURIComponent(btoa(unescape(encodeURIComponent(xml))));
+          // v2：ブロック・VBAコードタブで書いたコード・仮想Excelの初期データをまとめて送る
+          const payload = { v: 2, xml, initial: view.getInitialCells() };
+          if (codeOwner === "code") payload.code = { text: codeEditor.getValue(), match: blocksMatchCode, reason: blocksMismatchReason };
+          const json = JSON.stringify(payload);
+          const encoded = encodeURIComponent(btoa(unescape(encodeURIComponent(json))));
           const url = `${location.origin}${location.pathname}#share=${encoded}`;
           if (!navigator.clipboard || !navigator.clipboard.writeText) {
             // 自動コピーできない環境では、URLを選んでコピーできるダイアログで代替
@@ -1478,13 +1831,27 @@
     if (!m) return false;
     if (!confirmDiscardDirtyCode()) return false; // コード未反映があれば先に確認
     try {
-      const xml = decodeURIComponent(escape(atob(decodeURIComponent(m[1]))));
+      const text = decodeURIComponent(escape(atob(decodeURIComponent(m[1]))));
+      let payload;
+      if (text.trim().startsWith("{")) payload = JSON.parse(text);
+      else payload = { v: 1, xml: text }; // 古い形式（ブロックだけ）
       suppressSave = true;
       workspace.clear();
-      const dom = Blockly.utils.xml.textToDom(xml);
+      const dom = Blockly.utils.xml.textToDom(payload.xml);
       Blockly.Xml.domToWorkspace(dom, workspace);
       suppressSave = false;
       sharedViewMode = true; // 閲覧モード：課題スロットを上書きしない
+      if (payload.initial) view.setInitialCells(payload.initial);
+      if (payload.code && typeof payload.code.text === "string") {
+        codeOwner = "code";
+        blocksMatchCode = !!payload.code.match;
+        blocksMismatchReason = payload.code.reason || "";
+        setEditorCode(payload.code.text);
+      } else {
+        codeOwner = "blocks";
+      }
+      updateCodeSyncStatus();
+      updateCodeOwnerOverlay();
       history.replaceState(null, "", location.pathname); // ハッシュ消去
       onWorkspaceChange();
       return true;

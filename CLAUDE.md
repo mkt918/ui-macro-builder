@@ -31,7 +31,8 @@
 - `src/blockly-setup.js` — カスタムブロック定義 + ツールボックス
 - `src/vba-generator.js` — ブロック → VBA コード生成
 - `src/vba-parser.js` — VBA コード → ブロック 変換（手打ちコードの解析）
-- `src/excel-preview.js` — ブロックを解釈実行して仮想 Excel をアニメーション（M0 で `src/vba/` に置き換え予定）
+- `src/excel-preview.js` — 実行の記録（step）を再生して仮想 Excel・変数の箱・配列の箱を描く（`ExcelView`）
+- `src/vba-dialog.js` — InputBox / MsgBox のダイアログ（Windows の標準ダイアログと同じ見た目）
 - `src/tasks/tasks.js` — 課題データ（`TASKS` 配列）
 - `src/app.js` — 全体の結線
 
@@ -42,8 +43,9 @@
 実装状況は [docs/vba-code-editing-tasks.md](docs/vba-code-editing-tasks.md) を参照。
 
 - **ブロック → コード**: ブロック変更のたびにリアルタイム反映
-- **コード → ブロック**: タブ切替 / エディタからのフォーカス離脱時に `src/vba-parser.js` で解析し反映。
-  対応外の構文（`Select Case` 等、現行ブロック語彙に無いもの）はエラー表示のみでブロックは維持
+- **コード → ブロック**: タブ切替 / エディタからのフォーカス離脱時に `src/vba-parser.js` で解析し、ブロックにも並べる。
+  書いたコードは書き換えない（実行はコードのまま）。対応外の構文（`Select Case` 等）を含むときは、
+  ブロックタブに「ブロックでは表せない書き方がある」案内を出し、コードのまま実行する
 - 対応するVBA構文は現行ブロック語彙に厳密に限定（新しいブロックを追加したら
   `src/vba-parser.js` の `SIMPLE_RULES` / `ExprParser` にも対応するパースルールを追加すること）
 
@@ -87,10 +89,18 @@ Claude に以下の形式で頼めば `src/tasks/tasks.js` の `TASKS` 配列に
 ## ブロックを追加するとき
 
 1. `src/blockly-setup.js` にブロック定義とツールボックス登録
-2. `src/vba-generator.js` に VBA 生成関数（`vbaGenerator.forBlock["型名"]`）
-3. `src/excel-preview.js` の `Interpreter.execBlock` / `evalValue` に実行ロジック
-4. `src/vba-parser.js` に対応するパースルールを追加（コード直打ちからも
+2. `src/vba-generator.js` に VBA 生成関数（`vbaGenerator.forBlock["型名"]`）。
+   くり返しのカウンタは `loopBody()` / `currentCounter()` を使う（入れ子で i→j→k）。文字列は `vbaStr()` で囲む
+3. `src/vba-parser.js` に対応するパースルールを追加（コード直打ちからも
    同じブロックを作れるようにする。文なら `SIMPLE_RULES` に正規表現ルールを、
    値を返す式なら `ExprParser.parseIdentChain` に分岐を足す）
 
-この4箇所をそろえると、プレビュー・コード生成・コード直打ちの全てが動きます。
+実行は生成した VBA コードを `src/vba/`（新エンジン）がそのまま動かすので、ブロックごとの実行ロジックは不要。
+生成したコードの書き方を新エンジンがまだ知らない場合だけ、`src/vba/runtime.js` に足してテストを書く。
+
+### 実行の流れ（app.js）
+
+- 実行するのは常に VBAコードタブの中身（`currentSource()`）。ブロックが正（`codeOwner === "blocks"`）のときは
+  ブロックから作ったコードが入る。生徒がコードを打つと `codeOwner = "code"` になり、書いたコードは書き換えない
+- 編集中は `runPreview()`（MsgBox は自動で OK、InputBox は前の答えがあれば使う）。▶実行・1コマは `startRun()` →
+  再生しながら、記録の最後で答え待ちなら `VbaDialog`（src/vba-dialog.js）で聞いて `session.resume()`

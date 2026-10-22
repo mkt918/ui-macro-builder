@@ -30,15 +30,47 @@ vbaGenerator.scrub_ = function (block, code, thisOnly) {
   return code + nextCode;
 };
 
+// どこにもつながっていない値ブロックは、コードに出さない（出すと文として読めずエラーになる）
+vbaGenerator.scrubNakedValue = function () {
+  return "";
+};
+
+// 文字列リテラル（" は "" にする）
+function vbaStr(s) {
+  return '"' + String(s === undefined || s === null ? "" : s).replace(/"/g, '""') + '"';
+}
+
+// ----- くり返しのカウンタ -----
+// 入れ子の深さに応じて i → j → k … を使う（内側のくり返しが外側の i を書き換えないように）。
+// 「カウンタ」ブロックとセル番地の {i} は、一番内側のくり返しのカウンタを指す
+const LOOP_COUNTERS = ["i", "j", "k", "l", "m"];
+vbaGenerator._loopDepth = 0;
+vbaGenerator._usedCounters = new Set();
+function currentCounter() {
+  const name = LOOP_COUNTERS[Math.max(0, vbaGenerator._loopDepth - 1)] || "i";
+  vbaGenerator._usedCounters.add(name);
+  return name;
+}
+// くり返しの中身を1段深いカウンタで生成する。戻り値: [カウンタ名, 中身のコード]
+function loopBody(block, inputName) {
+  vbaGenerator._loopDepth++;
+  try {
+    const name = currentCounter();
+    return [name, vbaGenerator.statementToCode(block, inputName)];
+  } finally {
+    vbaGenerator._loopDepth--;
+  }
+}
+
 // ----- セルアドレスを VBA の Range(...) 式に -----
 // "A1"   -> Range("A1")
-// "A{i}" -> Range("A" & i)   (動的な行番号)
+// "A{i}" -> Range("A" & i)   (動的な行番号。入れ子なら一番内側のカウンタ)
 function rangeExpr(addr) {
   if (/\{i\}/.test(addr)) {
     const col = addr.replace(/\{i\}/g, "");
-    return `Range("${col}" & i)`;
+    return `Range(${vbaStr(col)} & ${currentCounter()})`;
   }
-  return `Range("${addr}")`;
+  return `Range(${vbaStr(addr)})`;
 }
 
 // ===== セル操作 =====
@@ -74,23 +106,23 @@ vbaGenerator.forBlock["cell_clear_row"] = function (block) {
 
 vbaGenerator.forBlock["loop_repeat"] = function (block) {
   const times = vbaGenerator.valueToCode(block, "TIMES", vbaGenerator.ORDER_NONE) || "1";
-  const body = vbaGenerator.statementToCode(block, "DO");
-  return `For i = 1 To ${times}\n${body}\nNext i`;
+  const [c, body] = loopBody(block, "DO");
+  return `For ${c} = 1 To ${times}\n${body}\nNext ${c}`;
 };
 
 vbaGenerator.forBlock["loop_range"] = function (block) {
   const start = vbaGenerator.valueToCode(block, "START", vbaGenerator.ORDER_NONE) || "1";
   const end = vbaGenerator.valueToCode(block, "END", vbaGenerator.ORDER_NONE) || "1";
-  const body = vbaGenerator.statementToCode(block, "DO");
-  return `For i = ${start} To ${end}\n${body}\nNext i`;
+  const [c, body] = loopBody(block, "DO");
+  return `For ${c} = ${start} To ${end}\n${body}\nNext ${c}`;
 };
 
 vbaGenerator.forBlock["loop_for_step"] = function (block) {
   const start = vbaGenerator.valueToCode(block, "START", vbaGenerator.ORDER_NONE) || "1";
   const end = vbaGenerator.valueToCode(block, "END", vbaGenerator.ORDER_NONE) || "1";
   const step = vbaGenerator.valueToCode(block, "STEP", vbaGenerator.ORDER_NONE) || "1";
-  const body = vbaGenerator.statementToCode(block, "DO");
-  return `For i = ${start} To ${end} Step ${step}\n${body}\nNext i`;
+  const [c, body] = loopBody(block, "DO");
+  return `For ${c} = ${start} To ${end} Step ${step}\n${body}\nNext ${c}`;
 };
 
 vbaGenerator.forBlock["loop_while"] = function (block) {
@@ -100,7 +132,7 @@ vbaGenerator.forBlock["loop_while"] = function (block) {
 };
 
 vbaGenerator.forBlock["loop_index"] = function () {
-  return ["i", vbaGenerator.ORDER_ATOMIC];
+  return [currentCounter(), vbaGenerator.ORDER_ATOMIC];
 };
 
 // ===== 条件分岐 =====
@@ -202,7 +234,7 @@ vbaGenerator.forBlock["range_select"] = function (block) {
 
 vbaGenerator.forBlock["io_inputbox"] = function (block) {
   const prompt = block.getFieldValue("PROMPT");
-  return [`InputBox("${prompt}")`, vbaGenerator.ORDER_ATOMIC];
+  return [`InputBox(${vbaStr(prompt)})`, vbaGenerator.ORDER_ATOMIC];
 };
 
 vbaGenerator.forBlock["io_msgbox"] = function (block) {
@@ -273,12 +305,12 @@ vbaGenerator.forBlock["array_get"] = function (block) {
 
 vbaGenerator.forBlock["sheet_add"] = function (block) {
   const name = block.getFieldValue("NAME");
-  return `Worksheets.Add.Name = "${name}"`;
+  return `Worksheets.Add.Name = ${vbaStr(name)}`;
 };
 
 vbaGenerator.forBlock["sheet_select"] = function (block) {
   const name = block.getFieldValue("NAME");
-  return `Worksheets("${name}").Select`;
+  return `Worksheets(${vbaStr(name)}).Select`;
 };
 
 // ===== 値ブロック =====
@@ -289,7 +321,7 @@ vbaGenerator.forBlock["value_number"] = function (block) {
 
 vbaGenerator.forBlock["value_text"] = function (block) {
   const text = block.getFieldValue("TEXT");
-  return [`"${text}"`, vbaGenerator.ORDER_ATOMIC];
+  return [vbaStr(text), vbaGenerator.ORDER_ATOMIC];
 };
 
 vbaGenerator.forBlock["value_math"] = function (block) {
@@ -313,34 +345,87 @@ function collectVarNames(workspace) {
   return names;
 }
 
-function generateVBA(workspace) {
-  let body = vbaGenerator.workspaceToCode(workspace);
-  if (!body.trim()) {
-    return "Sub MyMacro()\n    ' ブロックを組み立てるとここにコードが表示されます\nEnd Sub";
+// 生成コードの各行がどのブロックから作られたかを調べるための目印。
+// STATEMENT_PREFIX で文ブロックの前に「'@@'ブロックID'」という行を入れ、あとで取り除く
+const LINE_MARK_RE = /^\s*'@@'(.*)'\s*$/;
+
+// 戻り値: { code, lineMap }。lineMap は「コードの行番号（1始まり）→ ブロックID」
+function generateVBAWithMap(workspace) {
+  vbaGenerator._loopDepth = 0;
+  vbaGenerator._usedCounters = new Set();
+  vbaGenerator.STATEMENT_PREFIX = "'@@%1\n";
+  let raw;
+  try {
+    raw = vbaGenerator.workspaceToCode(workspace);
+  } finally {
+    vbaGenerator.STATEMENT_PREFIX = null;
   }
-  const usesI = /\bi\b/.test(body);
+
+  const bodyLines = [];
+  const bodyIds = [];
+  let pendingId = null;
+  raw.split("\n").forEach((line) => {
+    const m = line.match(LINE_MARK_RE);
+    if (m) {
+      pendingId = m[1];
+      return;
+    }
+    bodyLines.push(line);
+    if (line.trim()) {
+      bodyIds.push(pendingId);
+      pendingId = null;
+    } else {
+      bodyIds.push(null);
+    }
+  });
+  // Next / End If / Else / Loop の行は、同じ深さで直前に始まったブロックのものとする
+  for (let k = 0; k < bodyLines.length; k++) {
+    if (bodyIds[k] || !bodyLines[k].trim()) continue;
+    const indent = bodyLines[k].match(/^\s*/)[0].length;
+    for (let p = k - 1; p >= 0; p--) {
+      if (!bodyLines[p].trim()) continue;
+      const pi = bodyLines[p].match(/^\s*/)[0].length;
+      if (pi === indent && bodyIds[p]) {
+        bodyIds[k] = bodyIds[p];
+        break;
+      }
+      if (pi < indent) break;
+    }
+  }
+
+  if (!bodyLines.some((l) => l.trim())) {
+    return { code: "Sub MyMacro()\n    ' ブロックを組み立てるとここにコードが表示されます\nEnd Sub", lineMap: {} };
+  }
+  const body = bodyLines.join("\n");
   const usesArr = /\barr\(/.test(body);
   const varNames = collectVarNames(workspace);
-  const indented = body
-    .split("\n")
-    .map((line) => (line.trim() ? "    " + line : line))
-    .join("\n");
-  let header = "Sub MyMacro()\n";
-  // 予約名（ループカウンタ i / 配列 arr）と同じ名前の変数があっても
-  // Dim を二重に出力しない（実Excelでの「重複する宣言」コンパイルエラー対策）
+  const header = ["Sub MyMacro()"];
+  // 予約名（くり返しのカウンタ i・j・k / 配列 arr）と同じ名前の変数があっても
+  // Dim を二重に出力しない（「同じ適用範囲内で宣言が重複しています」エラー対策）
   const declared = new Set();
-  if (usesI) {
-    header += "    Dim i As Integer\n";
-    declared.add("i");
-  }
+  LOOP_COUNTERS.forEach((c) => {
+    if (vbaGenerator._usedCounters.has(c)) {
+      header.push(`    Dim ${c} As Integer`);
+      declared.add(c);
+    }
+  });
   if (usesArr) {
-    header += "    Dim arr(1 To 100) As Variant\n";
+    header.push("    Dim arr(1 To 100) As Variant");
     declared.add("arr");
   }
   varNames.forEach((n) => {
     if (declared.has(n)) return;
-    header += `    Dim ${n} As Variant\n`;
+    header.push(`    Dim ${n} As Variant`);
     declared.add(n);
   });
-  return header + indented + "\nEnd Sub";
+  const lines = header.concat(bodyLines.map((line) => (line.trim() ? "    " + line : line)), ["End Sub"]);
+  const lineMap = {};
+  bodyIds.forEach((id, k) => {
+    if (id) lineMap[header.length + k + 1] = id;
+  });
+  return { code: lines.join("\n"), lineMap };
+}
+
+function generateVBA(workspace) {
+  return generateVBAWithMap(workspace).code;
 }

@@ -521,7 +521,7 @@ Blockly.Blocks["range_select"] = {
 
 // 予約名（ループカウンタ i / 配列 arr と同じ名前だと、VBAコード生成時に
 // Dim の二重宣言でコンパイルエラーになる）。大文字小文字は区別しない。
-const RESERVED_VAR_NAMES = new Set(["i", "arr"]);
+const RESERVED_VAR_NAMES = new Set(["i", "j", "k", "arr"]);
 
 // 変数名として使えるかチェックする。OKなら null、NGなら理由（日本語メッセージ）を返す。
 // FieldVariable のフィールド検証（doClassValidation_）と、
@@ -530,7 +530,7 @@ function validateVarNameMessage(name) {
   if (!name || !name.trim()) return "変数名を入力してください";
   if (/[぀-ゟ]/.test(name)) return `変数名にひらがなは使えません: ${name}`;
   if (RESERVED_VAR_NAMES.has(name.toLowerCase())) {
-    return `「${name}」はループのカウンタ(i)や配列(arr)と同じ名前のため使えません`;
+    return `「${name}」はくり返しのカウンタ(i・j・k)や配列(arr)と同じ名前のため使えません`;
   }
   return null;
 }

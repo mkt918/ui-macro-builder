@@ -141,6 +141,17 @@
             <div class="canvas-guide-sub">まずは <b>📝 セル操作</b> の「セルに値を入れる」から試してみよう</div>
           </div>
         </div>
+        <!-- VBAコードタブで書いたコードを実行しているときの案内（ブロックの上にかぶせる） -->
+        <div class="code-owner-overlay" id="code-owner-overlay" hidden>
+          <div class="code-owner-card">
+            <div class="code-owner-title" id="code-owner-title">🤖 VBAコードで書いたプログラムを実行しています</div>
+            <div class="code-owner-text" id="code-owner-text"></div>
+            <div class="code-owner-actions">
+              <button class="code-owner-btn primary" id="code-owner-to-code">🤖 VBAコードに戻る</button>
+              <button class="code-owner-btn" id="code-owner-to-blocks">🧩 ブロックで続ける</button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- VBAコードパネル（直接編集できるエディタ） -->
@@ -165,9 +176,22 @@
           <div class="code-error-banner" id="code-error-banner" hidden></div>
           <div class="code-hint-bar">
             💡 <code>for</code> <code>while</code> <code>until</code> <code>if</code> <code>ifelse</code> と打って
-            <kbd>Tab</kbd> で骨組みを入力できます。ブロックタブに戻ると自動でブロックに反映されます
+            <kbd>Tab</kbd> で骨組みを入力できます。打ち終わると少しして自動で動きを確かめます
           </div>
         </div>
+      </div>
+
+      <!-- プログラムのまちがい（文法エラー・実行時エラー・全角文字）をやさしく説明するパネル -->
+      <div class="program-error" id="program-error" hidden>
+        <div class="program-error-head">
+          <span class="program-error-title" id="program-error-title"></span>
+          <button class="program-error-btn" id="program-error-goto" hidden>👀 その行を見る</button>
+          <button class="program-error-btn fix" id="program-error-fix" hidden>🔧 半角に直す</button>
+          <button class="program-error-close" id="program-error-close" title="閉じる">✕</button>
+        </div>
+        <div class="program-error-friendly" id="program-error-friendly"></div>
+        <div class="program-error-hint" id="program-error-hint"></div>
+        <div class="program-error-vba" id="program-error-vba"></div>
       </div>
 
       <div class="error-banner" id="error-banner"></div>
@@ -363,6 +387,12 @@
   <script src="src/blockly-setup.js"></script>
   <script src="src/vba-generator.js"></script>
   <script src="src/vba-parser.js"></script>
+  <!-- 実行エンジン（VBA のコードをそのまま実行する） -->
+  <script src="src/vba/lexer.js"></script>
+  <script src="src/vba/ast-parser.js"></script>
+  <script src="src/vba/runtime.js"></script>
+  <script src="src/vba/session.js"></script>
+  <script src="src/vba-dialog.js"></script>
   <script src="src/excel-preview.js"></script>
   <script src="src/tasks/tasks.js"></script>
   <script src="src/app.js"></script>

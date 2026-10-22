@@ -633,7 +633,7 @@
           this.pendingDesc = null;
           yield* this.assign(s.target, value, s);
           const d = this.pendingDesc || { scope: "var", key: "", desc: `${this.text(s)}` };
-          this.record(d.scope, d.key, d.desc, s);
+          this.record(d.scope, d.key, d.desc, s, d.extra);
           return;
         }
         case "CallStmt": {
@@ -641,7 +641,7 @@
           yield* this.callStatement(s);
           if (this.pending.length || this.pendingDesc) {
             const d = this.pendingDesc || { scope: "call", key: "", desc: this.text(s) };
-            this.record(d.scope, d.key, d.desc, s);
+            this.record(d.scope, d.key, d.desc, s, d.extra);
           }
           return;
         }
@@ -815,7 +815,8 @@
             for (const a of target.args) idx.push(yield* this.evalValue(a));
             const key = this.arrIndexKey(real, idx, target);
             const v = this.arrSet(real, key, value, stmt);
-            this.pendingDesc = { scope: "array", key: `${real.name}(${key})`, arrayName: real.name, index: key, desc: `「${real.name}(${key})」に ${dispVal(v)} を入れた` };
+            const shown = this.aliasesOf(real)[0] || real.name;
+            this.pendingDesc = { scope: "array", key: `${shown}(${key})`, desc: `「${shown}(${key})」に ${dispVal(v)} を入れた`, extra: { arrayName: shown, index: key } };
             return;
           }
           if (real && !real.isArray && real.type !== "Variant") {
@@ -1638,14 +1639,16 @@
       const h = this.fileHandle(yield* this.evalValue(s.fileNum), s);
       if (h.mode !== "Input") throw rtError(54, s);
       const got = [];
+      const names = [];
       this.pendingDesc = null;
       for (const t of s.targets) {
         if (atEOF(h)) throw rtError(62, s);
         const field = readField(h);
         yield* this.assign(t, field, s);
         got.push(`${this.text(t)} ← ${dispVal(field)}`);
+        if (t.type === "Ident") names.push((this.lookupVar(t.name) || { name: t.name }).name);
       }
-      this.record("file", h.name, `📄 ${h.name} から読みこむ: ${got.join("、")}`, s);
+      this.record("file", h.name, `📄 ${h.name} から読みこむ: ${got.join("、")}`, s, { names });
     }
 
     *execLineInput(s) {
