@@ -159,6 +159,64 @@ Blockly.Blocks["loop_while"] = {
   },
 };
 
+// カウンタに好きな名前を付けられる For
+Blockly.Blocks["loop_for"] = {
+  init: function () {
+    this.appendValueInput("START")
+      .setCheck("Number")
+      .appendField("🔁 For カウンタ")
+      .appendField(new FieldVariableNoHiragana("Kazu"), "VAR")
+      .appendField("を");
+    this.appendValueInput("END").setCheck("Number").appendField("から");
+    this.appendValueInput("STEP").setCheck("Number").appendField("まで　ふやす数");
+    this.appendDummyInput().appendField("でくりかえす");
+    this.appendStatementInput("DO").appendField("↓ やること");
+    this.setInputsInline(true);
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(CAT_COLORS.loop);
+    this.setTooltip("カウンタ（変数）に好きな名前を付けて、始まりの数から終わりの数まで、ふやしながらくり返します（VBA の For ～ Next）。二重ループは、カウンタの名前を変えて組もう");
+  },
+};
+
+// 後判定の Do ... Loop While / Until
+Blockly.Blocks["loop_do_post"] = {
+  init: function () {
+    this.appendStatementInput("DO").appendField("🔁 まず やってから（Do）");
+    this.appendValueInput("CONDITION")
+      .appendField(
+        new Blockly.FieldDropdown([
+          ["この条件の間くりかえす（Loop While）", "While"],
+          ["この条件になるまでくりかえす（Loop Until）", "Until"],
+        ]),
+        "KIND"
+      );
+    this.setInputsInline(false);
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(CAT_COLORS.loop);
+    this.setTooltip("中の命令を1回やってから、条件を調べます。条件が合っている間（While）か、合うようになるまで（Until）くり返します");
+  },
+};
+
+Blockly.Blocks["loop_exit"] = {
+  init: function () {
+    this.appendDummyInput()
+      .appendField("🚪 くり返しをぬける")
+      .appendField(
+        new Blockly.FieldDropdown([
+          ["For（Exit For）", "For"],
+          ["Do（Exit Do）", "Do"],
+        ]),
+        "WHAT"
+      );
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(CAT_COLORS.loop);
+    this.setTooltip("くり返しの途中で、そこからぬけ出します。もし〜なら の中でよく使います");
+  },
+};
+
 Blockly.Blocks["loop_index"] = {
   init: function () {
     this.appendDummyInput().appendField("🔢 かうんた（今何回目？）");
@@ -1090,6 +1148,11 @@ const TOOLBOX = {
       name: "🔁 くりかえし",
       colour: CAT_COLORS.loop,
       contents: [
+        {
+          kind: "block",
+          type: "loop_for",
+          inputs: { START: numShadow(1), END: numShadow(10), STEP: numShadow(1) },
+        },
         { kind: "block", type: "loop_repeat", inputs: { TIMES: numShadow(3) } },
         {
           kind: "block",
@@ -1103,6 +1166,8 @@ const TOOLBOX = {
         },
         { kind: "block", type: "loop_while" },
         { kind: "block", type: "loop_do_until" },
+        { kind: "block", type: "loop_do_post" },
+        { kind: "block", type: "loop_exit" },
         { kind: "block", type: "loop_index" },
       ],
     },

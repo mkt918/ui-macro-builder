@@ -44,22 +44,29 @@ function vbaStr(s) {
 // 入れ子の深さに応じて i → j → k … を使う（内側のくり返しが外側の i を書き換えないように）。
 // 「カウンタ」ブロックとセル番地の {i} は、一番内側のくり返しのカウンタを指す
 const LOOP_COUNTERS = ["i", "j", "k", "l", "m"];
-vbaGenerator._loopDepth = 0;
+vbaGenerator._loopStack = []; // いま開いているくり返しのカウンタ名（内側ほど後ろ）
 vbaGenerator._usedCounters = new Set();
 function currentCounter() {
-  const name = LOOP_COUNTERS[Math.max(0, vbaGenerator._loopDepth - 1)] || "i";
-  vbaGenerator._usedCounters.add(name);
+  const stack = vbaGenerator._loopStack;
+  const name = stack.length ? stack[stack.length - 1] : "i";
+  if (LOOP_COUNTERS.includes(name)) vbaGenerator._usedCounters.add(name);
   return name;
 }
-// くり返しの中身を1段深いカウンタで生成する。戻り値: [カウンタ名, 中身のコード]
-function loopBody(block, inputName) {
-  vbaGenerator._loopDepth++;
+// 名前を決めて使う側（For ブロック）：本体の間だけ、その名前が「一番内側のカウンタ」になる
+function withCounter(name, fn) {
+  vbaGenerator._loopStack.push(name);
   try {
-    const name = currentCounter();
-    return [name, vbaGenerator.statementToCode(block, inputName)];
+    return fn();
   } finally {
-    vbaGenerator._loopDepth--;
+    vbaGenerator._loopStack.pop();
   }
+}
+// くり返しの中身を、自動で決めたカウンタ（i→j→k）で生成する。戻り値: [カウンタ名, 中身のコード]
+function loopBody(block, inputName) {
+  const open = vbaGenerator._loopStack.filter((n) => LOOP_COUNTERS.includes(n)).length;
+  const name = LOOP_COUNTERS[open] || "i";
+  vbaGenerator._usedCounters.add(name);
+  return [name, withCounter(name, () => vbaGenerator.statementToCode(block, inputName))];
 }
 
 // ----- セルアドレスを VBA の Range(...) 式に -----
@@ -123,6 +130,27 @@ vbaGenerator.forBlock["loop_for_step"] = function (block) {
   const step = vbaGenerator.valueToCode(block, "STEP", vbaGenerator.ORDER_NONE) || "1";
   const [c, body] = loopBody(block, "DO");
   return `For ${c} = ${start} To ${end} Step ${step}\n${body}\nNext ${c}`;
+};
+
+// カウンタに好きな名前を付ける For（教科書：For Kazu = 1 To 10 … Next Kazu）
+vbaGenerator.forBlock["loop_for"] = function (block) {
+  const v = varName(block);
+  const start = vbaGenerator.valueToCode(block, "START", vbaGenerator.ORDER_NONE) || "1";
+  const end = vbaGenerator.valueToCode(block, "END", vbaGenerator.ORDER_NONE) || "1";
+  const step = vbaGenerator.valueToCode(block, "STEP", vbaGenerator.ORDER_NONE) || "1";
+  const body = withCounter(v, () => vbaGenerator.statementToCode(block, "DO"));
+  return `For ${v} = ${start} To ${end}${step === "1" ? "" : " Step " + step}\n${body}\nNext ${v}`;
+};
+
+// 後判定（まずやってから、条件を調べる）：Do ... Loop While / Loop Until
+vbaGenerator.forBlock["loop_do_post"] = function (block) {
+  const cond = vbaGenerator.valueToCode(block, "CONDITION", vbaGenerator.ORDER_NONE) || "False";
+  const body = vbaGenerator.statementToCode(block, "DO");
+  return `Do\n${body}\nLoop ${block.getFieldValue("KIND")} ${cond}`;
+};
+
+vbaGenerator.forBlock["loop_exit"] = function (block) {
+  return `Exit ${block.getFieldValue("WHAT")}`;
 };
 
 vbaGenerator.forBlock["loop_while"] = function (block) {
@@ -433,7 +461,7 @@ vbaGenerator.forBlock["value_math"] = function (block) {
 function collectVarNames(blocks) {
   const names = new Set();
   blocks.forEach((b) => {
-    if (b.type === "var_set" || b.type === "var_get" || b.type === "var_change") {
+    if (b.type === "var_set" || b.type === "var_get" || b.type === "var_change" || b.type === "loop_for") {
       const f = b.getField("VAR");
       if (f) names.add(f.getText());
     }
@@ -487,7 +515,7 @@ function splitMarkedCode(raw) {
 
 // 1つの手続き分のコードを作る。stacks: 本体にするブロック（つながりの先頭）の配列
 function buildProc(header, stacks, ownerBlock, descendants) {
-  vbaGenerator._loopDepth = 0;
+  vbaGenerator._loopStack = [];
   vbaGenerator._usedCounters = new Set();
   let raw = "";
   if (ownerBlock) {

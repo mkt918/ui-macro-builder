@@ -420,6 +420,8 @@ class ExprParser {
     if (this.peek() && this.peek().type === "OP" && this.peek().value === "&") {
       this.next();
       const idTok = this.next();
+      const innermost = counterStack.length ? counterStack[counterStack.length - 1] : null;
+      if (idTok && idTok.type === "IDENT" && innermost && idTok.value === innermost) return t.value + "{i}";
       if (!idTok || idTok.type !== "IDENT" || !COUNTER_NAMES.includes(idTok.value)) {
         throw new VbaParseError('動的なセル番地は "A" & i の形だけ対応しています', this.line);
       }
@@ -444,8 +446,11 @@ function parseRangeAddrArg(rawInner, line) {
   const t = rawInner.trim();
   let m = t.match(/^"([^"]*)"$/);
   if (m) return m[1];
-  m = t.match(/^"([A-Za-z]+)"\s*&\s*([ijk])$/);
-  if (m) {
+  m = t.match(/^"([A-Za-z]+)"\s*&\s*([A-Za-z_]\w*)$/);
+  if (m && counterStack.length && counterStack[counterStack.length - 1] === m[2]) {
+    return m[1] + "{i}"; // 一番内側のくり返しのカウンタ
+  }
+  if (m && COUNTER_NAMES.includes(m[2])) {
     checkCounterRef(m[2], line);
     return m[1] + "{i}";
   }
@@ -492,7 +497,7 @@ class LineCursor {
 
 const STMT_STARTERS = {
   FOR: /^For\s+/i,
-  DO: /^Do\s+/i,
+  DO: /^Do(\s+|$)/i,
   IF: /^If\s+/i,
   MSGBOX: /^MsgBox(\s+|\s*\()/i,
 };
@@ -547,14 +552,16 @@ function checkCounterRef(name, line) {
 
 function parseFor(cursor) {
   const { text, line } = cursor.next();
-  const m = text.match(/^For\s+([ijk])\s*=\s*(.+?)\s+To\s+(.+?)(?:\s+Step\s+(.+))?$/i);
+  const m = text.match(/^For\s+([A-Za-z_]\w*)\s*=\s*(.+?)\s+To\s+(.+?)(?:\s+Step\s+(.+))?$/i);
   if (!m) {
     throw new VbaParseError(
-      '"For i = 開始 To 終わり" の形にしてください（例: For i = 1 To 5）',
+      '"For カウンタ = 開始 To 終わり" の形にしてください（例: For i = 1 To 5）',
       line
     );
   }
-  const counter = m[1].toLowerCase();
+  const counter = m[1];
+  const isAuto = COUNTER_NAMES.includes(counter);
+  if (!isAuto) checkVarNameAssignable(counter, line);
   const start = parseExprString(m[2], line);
   const end = parseExprString(m[3], line);
   const step = m[4] ? parseExprString(m[4], line) : null;
@@ -567,12 +574,17 @@ function parseFor(cursor) {
   }
   if (cursor.atEnd()) throw new VbaParseError('"Next" が見つかりません（For に対応する終わり）', line);
   const closer = cursor.next();
-  const nm = closer.text.match(/^Next(?:\s+([ijk]))?$/i);
-  if (!nm || (nm[1] && nm[1].toLowerCase() !== counter)) {
+  const nm = closer.text.match(/^Next(?:\s+([A-Za-z_]\w*))?$/i);
+  if (!nm || (nm[1] && nm[1] !== counter)) {
     throw new VbaParseError('"Next" の書き方が違います', closer.line);
   }
   const inputs = { START: { block: start }, END: { block: end } };
   if (body) inputs.DO = { block: body };
+  if (!isAuto) {
+    // カウンタに好きな名前を付けた For
+    inputs.STEP = step ? { block: step } : { shadow: { type: "value_number", fields: { NUM: 1 } } };
+    return { type: "loop_for", fields: { VAR: { __var: counter } }, inputs };
+  }
   if (step) {
     inputs.STEP = { block: step };
     return { type: "loop_for_step", inputs };
@@ -580,11 +592,26 @@ function parseFor(cursor) {
   return { type: "loop_range", inputs };
 }
 
+// Do ... Loop While/Until（後判定）
+function parseDoPost(cursor, line) {
+  const body = parseStatements(cursor, ["Loop"]);
+  if (cursor.atEnd()) throw new VbaParseError('"Loop" が見つかりません（Do に対応する終わり）', line);
+  const closer = cursor.next();
+  const m = closer.text.match(/^Loop\s+(While|Until)\s+(.+)$/i);
+  if (!m) throw new VbaParseError('後判定は "Loop While 条件" か "Loop Until 条件" の形にしてください', closer.line);
+  const cond = parseConditionString(m[2], closer.line);
+  const inputs = { CONDITION: { block: cond } };
+  if (body) inputs.DO = { block: body };
+  const kind = /^while$/i.test(m[1]) ? "While" : "Until";
+  return { type: "loop_do_post", fields: { KIND: kind }, inputs };
+}
+
 function parseDo(cursor) {
   const { text, line } = cursor.next();
+  if (/^Do$/i.test(text)) return parseDoPost(cursor, line);
   const m = text.match(/^Do\s+(While|Until)\s+(.+)$/i);
   if (!m) {
-    throw new VbaParseError('"Do While 条件" か "Do Until 条件" の形にしてください', line);
+    throw new VbaParseError('"Do While 条件" か "Do Until 条件"（または、後判定の "Do" ... "Loop While 条件"）の形にしてください', line);
   }
   const cond = parseConditionString(m[2], line);
   const body = parseStatements(cursor, ["Loop"]);
@@ -688,6 +715,7 @@ const SIMPLE_RULES = [
   [/^Unload\s+Me$/i, () => ({ type: "form_unload" })],
   [/^End$/i, () => ({ type: "prog_end" })],
   [/^Exit\s+Sub$/i, () => ({ type: "prog_exit_sub" })],
+  [/^Exit\s+(For|Do)$/i, (m) => ({ type: "loop_exit", fields: { WHAT: /^for$/i.test(m[1]) ? "For" : "Do" } })],
   // 命令のまとまり（Sub）の呼び出し
   [/^Call\s+([A-Za-z_]\w*)(\s*\(\s*\))?$/i, (m) => ({ type: "proc_call", fields: { NAME: m[1] } })],
   // 箱を用意する（Dim 名前 As 型）

@@ -185,3 +185,50 @@ End Sub`);
   assert.ok(b.inputs.ELSE);
   assert.throws(() => P.parseVBA("Sub MyMacro()\n Select Case x\n Case 1\n y = 1\nEnd Sub"), /End Select/);
 });
+
+// ---------- M4：くり返し ----------
+test("For のカウンタに好きな名前を付けられる（九九の二重ループ）", () => {
+  const r = P.parseVBA(`Sub Kuku()
+    Dim Dan As Integer
+    Dim Bai As Integer
+    For Dan = 1 To 9
+        For Bai = 1 To 9
+            Range("A" & Bai).Value = Dan * Bai
+        Next Bai
+    Next Dan
+End Sub`);
+  assert.equal(r.roots[0].type, "proc_sub");
+  // 型付きの Dim は「箱を用意する」ブロックになるので、つながりの中から For を探す
+  let outer = r.roots[0].inputs.DO.block;
+  while (outer && outer.type !== "loop_for") outer = outer.next && outer.next.block;
+  assert.equal(outer.type, "loop_for");
+  assert.equal(outer.fields.VAR.__var, "Dan");
+  assert.ok(outer.inputs.STEP.shadow, "Step が無いときは 1 の影ブロック");
+  const inner = outer.inputs.DO.block;
+  assert.equal(inner.type, "loop_for");
+  assert.equal(inner.fields.VAR.__var, "Bai");
+  // Range("A" & Bai) は、一番内側のカウンタ（Bai）＝セル番地の {i}
+  assert.equal(inner.inputs.DO.block.fields.CELL, "A{i}");
+});
+
+test("Step 付きの For と、Next のカウンタ名がちがうときのエラー", () => {
+  const r = P.parseVBA("Sub MyMacro()\n For Kazu = 10 To 1 Step -1\n  x = Kazu\n Next Kazu\nEnd Sub");
+  assert.equal(r.roots[0].inputs.STEP.block.type, "value_number");
+  assert.throws(() => P.parseVBA("Sub MyMacro()\n For Kazu = 1 To 3\n  x = 1\n Next Goukei\nEnd Sub"), /Next/);
+});
+
+test("後判定の Do ... Loop While / Until と、Exit For / Exit Do", () => {
+  const r = P.parseVBA(`Sub MyMacro()
+    Do
+        n = n + 1
+        If n > 5 Then Exit Do
+    Loop While n < 10
+End Sub`.replace("If n > 5 Then Exit Do", "If n > 5 Then\n            Exit Do\n        End If"));
+  const b = r.roots[0];
+  assert.equal(b.type, "loop_do_post");
+  assert.equal(b.fields.KIND, "While");
+  assert.ok(flat(b).includes("loop_exit"));
+  const u = P.parseVBA("Sub MyMacro()\n Do\n  n = n + 1\n Loop Until n = 3\nEnd Sub");
+  assert.equal(u.roots[0].fields.KIND, "Until");
+  assert.throws(() => P.parseVBA("Sub MyMacro()\n Do\n  n = 1\n Loop\nEnd Sub"), /Loop While/);
+});

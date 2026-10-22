@@ -1718,8 +1718,10 @@
     "loop_repeat",
     "loop_range",
     "loop_for_step",
+    "loop_for",
     "loop_while",
     "loop_do_until",
+    "loop_do_post",
   ]);
   function isInsideLoop(block) {
     let p = block.getSurroundParent();
