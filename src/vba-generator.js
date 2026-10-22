@@ -313,6 +313,39 @@ vbaGenerator.forBlock["sheet_select"] = function (block) {
   return `Worksheets(${vbaStr(name)}).Select`;
 };
 
+// ===== ユーザーフォーム =====
+// 手続き（Sub）を作るブロックは、本体のコードだけを返す。
+// Sub の見出し・Dim・End Sub は generateVBAWithMap がまとめて付ける
+const PROC_BLOCK_TYPES = new Set(["form_button_click", "form_initialize"]);
+function procHeaderOf(block) {
+  if (block.type === "form_initialize") return "Private Sub UserForm_Initialize()";
+  return `Private Sub ${block.getFieldValue("CONTROL")}_Click()`;
+}
+vbaGenerator.forBlock["form_button_click"] = function (block) {
+  return vbaGenerator.statementToCode(block, "DO");
+};
+vbaGenerator.forBlock["form_initialize"] = function (block) {
+  return vbaGenerator.statementToCode(block, "DO");
+};
+
+vbaGenerator.forBlock["ctl_set_prop"] = function (block) {
+  const val = vbaGenerator.valueToCode(block, "VALUE", vbaGenerator.ORDER_NONE) || '""';
+  return `${block.getFieldValue("CONTROL")}.${block.getFieldValue("PROP")} = ${val}`;
+};
+vbaGenerator.forBlock["ctl_get_prop"] = function (block) {
+  return [`${block.getFieldValue("CONTROL")}.${block.getFieldValue("PROP")}`, vbaGenerator.ORDER_ATOMIC];
+};
+vbaGenerator.forBlock["form_unload"] = function () {
+  return "Unload Me";
+};
+vbaGenerator.forBlock["prog_end"] = function () {
+  return "End";
+};
+vbaGenerator.forBlock["math_val"] = function (block) {
+  const v = vbaGenerator.valueToCode(block, "VALUE", vbaGenerator.ORDER_NONE) || '""';
+  return [`Val(${v})`, vbaGenerator.ORDER_ATOMIC];
+};
+
 // ===== 値ブロック =====
 
 vbaGenerator.forBlock["value_number"] = function (block) {
@@ -332,11 +365,11 @@ vbaGenerator.forBlock["value_math"] = function (block) {
   return [`(${a} ${vbaOp} ${b})`, vbaGenerator.ORDER_ATOMIC];
 };
 
-// ===== ワークスペース全体 → Sub MyMacro() でラップ =====
+// ===== ワークスペース全体 → 手続き（Sub）ごとにまとめる =====
 // 実際にブロックで使われている変数だけ収集（未使用変数はDimしない）
-function collectVarNames(workspace) {
+function collectVarNames(blocks) {
   const names = new Set();
-  workspace.getAllBlocks(false).forEach((b) => {
+  blocks.forEach((b) => {
     if (b.type === "var_set" || b.type === "var_get" || b.type === "var_change") {
       const f = b.getField("VAR");
       if (f) names.add(f.getText());
@@ -349,20 +382,10 @@ function collectVarNames(workspace) {
 // STATEMENT_PREFIX で文ブロックの前に「'@@'ブロックID'」という行を入れ、あとで取り除く
 const LINE_MARK_RE = /^\s*'@@'(.*)'\s*$/;
 
-// 戻り値: { code, lineMap }。lineMap は「コードの行番号（1始まり）→ ブロックID」
-function generateVBAWithMap(workspace) {
-  vbaGenerator._loopDepth = 0;
-  vbaGenerator._usedCounters = new Set();
-  vbaGenerator.STATEMENT_PREFIX = "'@@%1\n";
-  let raw;
-  try {
-    raw = vbaGenerator.workspaceToCode(workspace);
-  } finally {
-    vbaGenerator.STATEMENT_PREFIX = null;
-  }
-
-  const bodyLines = [];
-  const bodyIds = [];
+// 目印の行を取り除き、各行がどのブロックのものかを調べる。戻り値: { lines, ids }
+function splitMarkedCode(raw) {
+  const lines = [];
+  const ids = [];
   let pendingId = null;
   raw.split("\n").forEach((line) => {
     const m = line.match(LINE_MARK_RE);
@@ -370,58 +393,122 @@ function generateVBAWithMap(workspace) {
       pendingId = m[1];
       return;
     }
-    bodyLines.push(line);
+    lines.push(line);
     if (line.trim()) {
-      bodyIds.push(pendingId);
+      ids.push(pendingId);
       pendingId = null;
     } else {
-      bodyIds.push(null);
+      ids.push(null);
     }
   });
   // Next / End If / Else / Loop の行は、同じ深さで直前に始まったブロックのものとする
-  for (let k = 0; k < bodyLines.length; k++) {
-    if (bodyIds[k] || !bodyLines[k].trim()) continue;
-    const indent = bodyLines[k].match(/^\s*/)[0].length;
+  for (let k = 0; k < lines.length; k++) {
+    if (ids[k] || !lines[k].trim()) continue;
+    const indent = lines[k].match(/^\s*/)[0].length;
     for (let p = k - 1; p >= 0; p--) {
-      if (!bodyLines[p].trim()) continue;
-      const pi = bodyLines[p].match(/^\s*/)[0].length;
-      if (pi === indent && bodyIds[p]) {
-        bodyIds[k] = bodyIds[p];
+      if (!lines[p].trim()) continue;
+      const pi = lines[p].match(/^\s*/)[0].length;
+      if (pi === indent && ids[p]) {
+        ids[k] = ids[p];
         break;
       }
       if (pi < indent) break;
     }
   }
-
-  if (!bodyLines.some((l) => l.trim())) {
-    return { code: "Sub MyMacro()\n    ' ブロックを組み立てるとここにコードが表示されます\nEnd Sub", lineMap: {} };
+  while (lines.length && !lines[lines.length - 1].trim()) {
+    lines.pop();
+    ids.pop();
   }
+  return { lines, ids };
+}
+
+// 1つの手続き分のコードを作る。stacks: 本体にするブロック（つながりの先頭）の配列
+function buildProc(header, stacks, ownerBlock, descendants) {
+  vbaGenerator._loopDepth = 0;
+  vbaGenerator._usedCounters = new Set();
+  let raw = "";
+  if (ownerBlock) {
+    raw = vbaGenerator.blockToCode(ownerBlock);
+    if (Array.isArray(raw)) raw = raw[0];
+    // 手続きブロック自身の目印（見出しの行用）を取り出す
+    const first = raw.split("\n")[0].match(LINE_MARK_RE);
+    if (first) raw = raw.split("\n").slice(1).join("\n");
+    // 本体は statementToCode で1段字下げされているので、そのまま使う
+    var headerId = first ? first[1] : ownerBlock.id;
+  } else {
+    raw = stacks
+      .map((b) => {
+        const c = vbaGenerator.blockToCode(b);
+        return Array.isArray(c) ? "" : c;
+      })
+      .filter((c) => c.trim())
+      .map((c) => c.split("\n").map((l) => (l.trim() && !LINE_MARK_RE.test(l) ? "    " + l : l)).join("\n"))
+      .join("\n");
+  }
+  const { lines: bodyLines, ids: bodyIds } = splitMarkedCode(raw);
   const body = bodyLines.join("\n");
-  const usesArr = /\barr\(/.test(body);
-  const varNames = collectVarNames(workspace);
-  const header = ["Sub MyMacro()"];
+  const head = [header];
   // 予約名（くり返しのカウンタ i・j・k / 配列 arr）と同じ名前の変数があっても
   // Dim を二重に出力しない（「同じ適用範囲内で宣言が重複しています」エラー対策）
   const declared = new Set();
   LOOP_COUNTERS.forEach((c) => {
     if (vbaGenerator._usedCounters.has(c)) {
-      header.push(`    Dim ${c} As Integer`);
+      head.push(`    Dim ${c} As Integer`);
       declared.add(c);
     }
   });
-  if (usesArr) {
-    header.push("    Dim arr(1 To 100) As Variant");
+  if (/\barr\(/.test(body)) {
+    head.push("    Dim arr(1 To 100) As Variant");
     declared.add("arr");
   }
-  varNames.forEach((n) => {
+  collectVarNames(descendants).forEach((n) => {
     if (declared.has(n)) return;
-    header.push(`    Dim ${n} As Variant`);
+    head.push(`    Dim ${n} As Variant`);
     declared.add(n);
   });
-  const lines = header.concat(bodyLines.map((line) => (line.trim() ? "    " + line : line)), ["End Sub"]);
+  const lines = head.concat(bodyLines.length ? bodyLines : [], ["End Sub"]);
+  const ids = head.map((_, k) => (k === 0 && ownerBlock ? headerId : null)).concat(bodyIds, [ownerBlock ? headerId : null]);
+  return { lines, ids };
+}
+
+// 戻り値: { code, lineMap }。lineMap は「コードの行番号（1始まり）→ ブロックID」
+// ・「〇〇をクリックしたとき」などの手続きブロック → Private Sub 〇〇_Click() 〜 End Sub
+// ・どの手続きブロックにも入っていないブロック → Sub MyMacro() 〜 End Sub
+function generateVBAWithMap(workspace) {
+  vbaGenerator.init(workspace);
+  vbaGenerator.STATEMENT_PREFIX = "'@@%1\n";
+  const parts = [];
+  try {
+    const tops = workspace.getTopBlocks(true);
+    const procBlocks = tops.filter((b) => PROC_BLOCK_TYPES.has(b.type));
+    const loose = tops.filter((b) => !PROC_BLOCK_TYPES.has(b.type) && !b.outputConnection);
+    if (loose.length) {
+      const desc = [];
+      loose.forEach((b) => desc.push(...b.getDescendants(false)));
+      parts.push(buildProc("Sub MyMacro()", loose, null, desc));
+    }
+    procBlocks.forEach((b) => parts.push(buildProc(procHeaderOf(b), null, b, b.getDescendants(false))));
+  } finally {
+    vbaGenerator.STATEMENT_PREFIX = null;
+  }
+  if (!parts.length) {
+    return { code: "Sub MyMacro()\n    ' ブロックを組み立てるとここにコードが表示されます\nEnd Sub", lineMap: {} };
+  }
+  // フォームの手続きがあるときは、教科書と同じく先頭に Option Explicit を書く
+  const hasForm = parts.length > 1 || workspace.getTopBlocks(false).some((b) => PROC_BLOCK_TYPES.has(b.type));
+  const lines = hasForm ? ["Option Explicit"] : [];
+  const ids = hasForm ? [null] : [];
+  parts.forEach((p, k) => {
+    if (k > 0 || hasForm) {
+      lines.push("");
+      ids.push(null);
+    }
+    lines.push(...p.lines);
+    ids.push(...p.ids);
+  });
   const lineMap = {};
-  bodyIds.forEach((id, k) => {
-    if (id) lineMap[header.length + k + 1] = id;
+  ids.forEach((id, k) => {
+    if (id) lineMap[k + 1] = id;
   });
   return { code: lines.join("\n"), lineMap };
 }

@@ -58,7 +58,15 @@ function tokenize(str, line) {
     if (c === '"') {
       let j = i + 1;
       let out = "";
-      while (j < n && str[j] !== '"') {
+      while (j < n) {
+        if (str[j] === '"') {
+          if (str[j + 1] === '"') {
+            out += '"'; // "" は文字列の中の " 1文字
+            j += 2;
+            continue;
+          }
+          break;
+        }
         out += str[j];
         j++;
       }
@@ -223,6 +231,26 @@ class ExprParser {
   parseIdentChain() {
     const name = this.next().value;
 
+    // Me.Label1.Caption の Me. は読み飛ばす
+    if (name === "Me" && this.peek() && this.peek().type === "OP" && this.peek().value === ".") {
+      this.next();
+      return this.parseIdentChain();
+    }
+    if (name === "Val") {
+      this.expectOp("(");
+      const v = this.parseConcat();
+      this.expectOp(")");
+      return { type: "math_val", inputs: { VALUE: { block: v } } };
+    }
+    // フォームの部品のプロパティ（TextBox1.Text / Label1.Caption）
+    const dot = this.peek();
+    const prop = this.tokens[this.pos + 1];
+    if (dot && dot.type === "OP" && dot.value === "." && prop && prop.type === "IDENT" && /^(Caption|Text|Value)$/.test(prop.value)) {
+      this.next();
+      this.next();
+      return { type: "ctl_get_prop", fields: { CONTROL: name, PROP: prop.value === "Caption" ? "Caption" : "Text" } };
+    }
+
     if (name === "Range") {
       this.expectOp("(");
       const addr = this.parseAddrArg();
@@ -361,15 +389,6 @@ function preprocessLines(source) {
   return out;
 }
 
-// Sub ヘッダー・End Sub・Dim 行を取り除く
-function stripWrapper(lines) {
-  let out = lines.slice();
-  if (out.length && /^Sub\s+\w+\s*\(\s*\)\s*$/i.test(out[0].text)) out = out.slice(1);
-  if (out.length && /^End\s+Sub$/i.test(out[out.length - 1].text)) out = out.slice(0, -1);
-  out = out.filter((l) => !/^Dim\s+\S+/i.test(l.text));
-  return out;
-}
-
 // ===== 文のパーサー本体（行を消費するカーソル） =====
 class LineCursor {
   constructor(lines) {
@@ -391,7 +410,7 @@ const STMT_STARTERS = {
   FOR: /^For\s+/i,
   DO: /^Do\s+/i,
   IF: /^If\s+/i,
-  MSGBOX: /^MsgBox\s+/i,
+  MSGBOX: /^MsgBox(\s+|\s*\()/i,
 };
 
 function normalizeKeywordLine(text) {
@@ -522,13 +541,25 @@ function parseIf(cursor) {
 
 function parseMsgBox(cursor) {
   const { text, line } = cursor.next();
-  const m = text.match(/^MsgBox\s+(.+)$/i);
+  const m = text.match(/^MsgBox\s*(.+)$/i);
   const msg = parseExprString(m[1], line);
   return { type: "io_msgbox", inputs: { MSG: { block: msg } } };
 }
 
 // 「簡単な1行の文」たち：代入／メソッド呼び出し系
 const SIMPLE_RULES = [
+  // フォーム
+  [/^Unload\s+Me$/i, () => ({ type: "form_unload" })],
+  [/^End$/i, () => ({ type: "prog_end" })],
+  [
+    /^(?:Me\.)?([A-Za-z_]\w*)\.(Caption|Text|Value|Visible|Enabled)\s*=\s*(.+)$/,
+    (m, line) => ({
+      type: "ctl_set_prop",
+      fields: { CONTROL: m[1], PROP: m[2] === "Value" ? "Text" : m[2] },
+      inputs: { VALUE: { block: parseExprString(m[3], line) } },
+    }),
+  ],
+
   // シート
   [/^Worksheets\.Add\.Name\s*=\s*"([^"]*)"$/i, (m) => ({ type: "sheet_add", fields: { NAME: m[1] } })],
   [/^Worksheets\("([^"]*)"\)\.Select$/i, (m) => ({ type: "sheet_select", fields: { NAME: m[1] } })],
@@ -683,18 +714,84 @@ function parseSimpleStatement(cursor) {
 
 // source: エディタの全文（Sub〜End Subの外側込みでも中身だけでもOK）
 // 戻り値: { root: <先頭ブロック spec or null>, variableNames: string[] }
-function parseVBA(source) {
+// 手続き（Sub 〜 End Sub）ごとに行を分ける
+function splitProcedures(lines) {
+  const procs = [];
+  const outside = [];
+  let cur = null;
+  for (const l of lines) {
+    const t = l.text;
+    if (/^Option\s+Explicit$/i.test(t)) continue;
+    const m = t.match(/^(?:(?:Private|Public)\s+)?Sub\s+([A-Za-z_]\w*)\s*\(\s*\)$/i);
+    if (m) {
+      if (cur) throw new VbaParseError(`「${cur.name}」の End Sub が見つかりません`, cur.line);
+      cur = { name: m[1], line: l.line, body: [] };
+      continue;
+    }
+    if (/^End\s+Sub$/i.test(t)) {
+      if (!cur) throw new VbaParseError("End Sub に対応する Sub がありません", l.line);
+      procs.push(cur);
+      cur = null;
+      continue;
+    }
+    if (cur) cur.body.push(l);
+    else outside.push(l);
+  }
+  if (cur) throw new VbaParseError(`「${cur.name}」の End Sub が見つかりません`, cur.line);
+  return { procs, outside };
+}
+
+function parseBody(lines) {
   counterStack = [];
-  const lines = stripWrapper(preprocessLines(source));
-  const cursor = new LineCursor(lines);
+  const body = lines.filter((l) => !/^Dim\s+\S+/i.test(l.text));
+  const cursor = new LineCursor(body);
   const root = parseStatements(cursor, []);
   if (!cursor.atEnd()) {
     const { text, line } = cursor.peek();
     throw new VbaParseError(`ここでの書き方が読み取れません: "${text}"`, line);
   }
+  return root;
+}
+
+// 戻り値: { root, roots, variableNames }
+// roots はワークスペースに並べるブロック（手続きごとに1つ）。root は従来どおり先頭の1つ
+function parseVBA(source) {
+  counterStack = [];
+  const lines = preprocessLines(source);
+  const { procs, outside } = splitProcedures(lines);
+  const roots = [];
+  if (!procs.length) {
+    // Sub の中身だけが書かれている
+    const root = parseBody(outside);
+    if (root) roots.push(root);
+  } else {
+    const stray = outside.find((l) => !/^Dim\s+\S+/i.test(l.text));
+    if (stray) throw new VbaParseError(`Sub の外に命令があります: "${stray.text}"`, stray.line);
+    if (outside.length) throw new VbaParseError("Sub の外の Dim（モジュールの変数）は、ブロックでは表せません", outside[0].line);
+    let macroCount = 0;
+    for (const p of procs) {
+      const body = parseBody(p.body);
+      const DO = body ? { DO: { block: body } } : undefined;
+      if (/^UserForm_Initialize$/i.test(p.name)) {
+        roots.push({ type: "form_initialize", inputs: DO });
+        continue;
+      }
+      const click = p.name.match(/^([A-Za-z_]\w*)_Click$/i);
+      if (click && !/^UserForm$/i.test(click[1])) {
+        roots.push({ type: "form_button_click", fields: { CONTROL: click[1] }, inputs: DO });
+        continue;
+      }
+      // ふつうの Sub は1つだけブロックで表せる（ブロックの「MyMacro」になる）
+      macroCount++;
+      if (macroCount > 1 || !/^MyMacro$/i.test(p.name)) {
+        throw new VbaParseError(`「Sub ${p.name}」はブロックでは表せません（ブロックで表せるのは、ボタン・フォームの手続きと MyMacro です）`, p.line);
+      }
+      if (body) roots.push(body);
+    }
+  }
   const variableNames = new Set();
-  if (root) collectVariables(root, variableNames);
-  return { root, variableNames: [...variableNames] };
+  roots.forEach((r) => collectVariables(r, variableNames));
+  return { root: roots[0] || null, roots, variableNames: [...variableNames] };
 }
 
 function collectVariables(block, set) {
@@ -721,9 +818,10 @@ function resolveVariables(block, workspace) {
   if (block.next) resolveVariables(block.next.block, workspace);
 }
 
-// root ブロック（先頭の1つ）を Blockly.serialization.workspaces.load 用のJSONに包む
-function toWorkspaceJson(root) {
-  return { blocks: { languageVersion: 0, blocks: root ? [root] : [] } };
+// ブロック（1つ、または配列）を Blockly.serialization.workspaces.load 用のJSONに包む
+function toWorkspaceJson(rootOrRoots) {
+  const list = Array.isArray(rootOrRoots) ? rootOrRoots : rootOrRoots ? [rootOrRoots] : [];
+  return { blocks: { languageVersion: 0, blocks: list } };
 }
 
 // Node / ブラウザ両対応のエクスポート

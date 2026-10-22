@@ -70,7 +70,14 @@
     </nav>
     <div class="header-center">
       <div class="app-title">⚡ UI Macro Builder</div>
-      <div class="app-subtitle">Excel VBA ビジュアルプログラミング</div>
+      <!-- やることの順番（いまどこかを光らせる） -->
+      <div class="step-guide" id="step-guide">
+        <button class="step-chip" data-step="1" title="右の「🪟 ユーザーフォーム」に部品を置こう">① 🪟 フォームを作る</button>
+        <span class="step-arrow">→</span>
+        <button class="step-chip" data-step="2" title="「🧩 ブロック」か「🤖 VBAコード」で、ボタンを押したときの命令を組もう">② 🧩 命令を組む</button>
+        <span class="step-arrow">→</span>
+        <button class="step-chip" data-step="3" title="▶ 実行 を押して、フォームのボタンを押してみよう">③ ▶ 実行</button>
+      </div>
     </div>
     <div class="header-actions">
       <span id="task-progress" class="task-progress"></span>
@@ -121,6 +128,7 @@
           <label class="speed-label" title="実行速度">
             🐢<input type="range" id="speed-slider" min="100" max="1500" value="500" step="100" />🐇
           </label>
+          <select class="run-target" id="run-target" title="▶ 実行で動かすもの" hidden></select>
           <button class="step-btn run-btn-main" id="run-btn">▶ 実行</button>
           <button class="step-btn" id="step-btn" title="1ステップだけ進む">⏭ 1コマ</button>
           <button class="step-btn" id="reset-btn" title="実行前の状態に戻す">↺ 最初へ</button>
@@ -200,15 +208,37 @@
     <!-- ドラッグで仮想Excel表示エリアの幅を調整するハンドル -->
     <div class="pane-resizer" id="pane-resizer" title="ドラッグして仮想Excelの表示幅を調整"></div>
 
-    <!-- 右: 仮想Excelプレビュー / VBA逆引きリファレンス（タブ切替） -->
-    <aside class="right-pane">
+    <!-- 右: ユーザーフォーム / 仮想Excel / VBA逆引きリファレンス（タブ切替）＋ 共通の「変数・タイムライン」 -->
+    <aside class="right-pane" id="right-pane">
       <div class="right-pane-tabs">
-        <button class="right-tab active" id="right-tab-excel" data-right-tab="excel">📊 仮想Excel</button>
+        <button class="right-tab active" id="right-tab-form" data-right-tab="form">🪟 ユーザーフォーム</button>
+        <button class="right-tab" id="right-tab-excel" data-right-tab="excel">📊 仮想Excel</button>
         <button class="right-tab" id="right-tab-reference" data-right-tab="reference">📖 リファレンス</button>
       </div>
       <div class="right-pane-body">
 
-      <div class="excel-panel right-tab-panel active" id="right-panel-excel">
+      <!-- ユーザーフォーム（デザイン中は部品を置く・実行中は操作する） -->
+      <div class="form-panel right-tab-panel active" id="right-panel-form">
+        <div class="form-toolbar" id="form-toolbar">
+          <span class="form-toolbar-label">部品を置く：</span>
+          <button class="form-add-btn" data-add="Label" title="文字を表示する部品">🏷 ラベル</button>
+          <button class="form-add-btn" data-add="TextBox" title="文字を入力してもらう部品">⌨ テキストボックス</button>
+          <button class="form-add-btn" data-add="CommandButton" title="押すと命令が動くボタン">🔘 ボタン</button>
+          <span class="toolbar-spacer"></span>
+          <label class="form-names-toggle" title="教科書の「画面設計」の図のように、部品の名前を表示します">
+            <input type="checkbox" id="form-show-names" /> 名前を表示
+          </label>
+          <button class="form-tool-btn" id="form-undo" title="ひとつ前に戻す（Ctrl+Z）">↶ 元に戻す</button>
+        </div>
+        <div class="form-run-bar" id="form-run-bar" hidden>
+          <span class="form-run-text" id="form-run-text">▶ 実行中</span>
+          <button class="form-tool-btn danger" id="form-stop" title="実行をやめて、デザインにもどる">■ 止める</button>
+        </div>
+        <div class="form-stage" id="form-stage"></div>
+        <div class="form-props" id="form-props"></div>
+      </div>
+
+      <div class="excel-panel right-tab-panel" id="right-panel-excel">
         <div class="excel-header">
           <span>📊 仮想 Excel</span>
           <span class="excel-hint">クリックして選択 → そのまま入力 / 矢印キーで移動</span>
@@ -226,20 +256,6 @@
         <div class="excel-grid-wrap">
           <table class="excel-table" id="excel-table"></table>
         </div>
-        <div class="var-viz" id="var-viz"></div>
-        <div class="array-viz" id="array-viz"></div>
-
-        <!-- 実行タイムライン：どの時点でも自由に行き来できる -->
-        <div class="excel-timeline" id="excel-timeline">
-          <span class="tl-label" title="プログラムのどの時点でも見返せます">⏱</span>
-          <button class="tl-btn" id="tl-first" title="実行前の状態に戻る">⏮</button>
-          <button class="tl-btn" id="tl-prev" title="1ステップ戻る">◀</button>
-          <input type="range" id="tl-slider" min="0" max="0" value="0" step="1"
-                 title="ドラッグで好きな時点へ移動" />
-          <button class="tl-btn" id="tl-next" title="1ステップ進む">▶</button>
-          <button class="tl-btn tl-result" id="tl-last" title="最後まで進めて実行結果を見る">⏭ 結果</button>
-          <span class="tl-count" id="tl-count">0 / 0</span>
-        </div>
 
         <!-- 実行の出発点（初期データ）の管理 -->
         <div class="excel-baseline" id="excel-baseline">
@@ -247,21 +263,8 @@
           <button class="baseline-btn" id="bake-btn" title="いま表示している内容を、次から実行を始める状態として保存します">今の表示を出発点にする</button>
           <button class="baseline-btn danger" id="clear-initial-btn" title="出発点のデータを全部消します">クリア</button>
         </div>
-        <!-- MsgBox 風オーバーレイ（📢表示するブロックの実行時） -->
-        <div class="msgbox-overlay" id="msgbox-overlay" hidden>
-          <div class="msgbox">
-            <div class="msgbox-title">Microsoft Excel</div>
-            <div class="msgbox-body" id="msgbox-body"></div>
-            <button class="msgbox-ok" id="msgbox-ok">OK</button>
-          </div>
-        </div>
         <div class="excel-tabs" id="excel-tabs">
           <div class="sheet-tab active">Sheet1</div>
-        </div>
-        <div class="step-status" id="step-status">準備完了</div>
-        <div class="clear-banner" id="clear-banner">
-          🎉 クエストクリア！おめでとう！
-          <button class="next-quest-btn" id="next-quest-btn" hidden>次のクエストへ ▶</button>
         </div>
       </div>
 
@@ -282,6 +285,36 @@
         </div>
       </div>
 
+        <!-- MsgBox（タイムラインで見返すとき用。再生中・1コマのときは画面の真ん中にダイアログを出す） -->
+        <div class="msgbox-overlay" id="msgbox-overlay" hidden>
+          <div class="msgbox">
+            <div class="msgbox-title">Microsoft Excel</div>
+            <div class="msgbox-body" id="msgbox-body"></div>
+            <button class="msgbox-ok" id="msgbox-ok">OK</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ユーザーフォームと仮想Excelで共通：変数の箱・配列の箱・タイムライン・いまの状態 -->
+      <div class="run-dock" id="run-dock">
+        <div class="var-viz" id="var-viz"></div>
+        <div class="array-viz" id="array-viz"></div>
+        <!-- 実行タイムライン：どの時点でも自由に行き来できる -->
+        <div class="excel-timeline" id="excel-timeline">
+          <span class="tl-label" title="プログラムのどの時点でも見返せます">⏱</span>
+          <button class="tl-btn" id="tl-first" title="実行前の状態に戻る">⏮</button>
+          <button class="tl-btn" id="tl-prev" title="1ステップ戻る">◀</button>
+          <input type="range" id="tl-slider" min="0" max="0" value="0" step="1"
+                 title="ドラッグで好きな時点へ移動" />
+          <button class="tl-btn" id="tl-next" title="1ステップ進む">▶</button>
+          <button class="tl-btn tl-result" id="tl-last" title="最後まで進めて実行結果を見る">⏭ 結果</button>
+          <span class="tl-count" id="tl-count">0 / 0</span>
+        </div>
+        <div class="step-status" id="step-status">準備完了</div>
+        <div class="clear-banner" id="clear-banner">
+          🎉 クエストクリア！おめでとう！
+          <button class="next-quest-btn" id="next-quest-btn" hidden>次のクエストへ ▶</button>
+        </div>
       </div>
     </aside>
 
@@ -393,6 +426,7 @@
   <script src="src/vba/runtime.js"></script>
   <script src="src/vba/session.js"></script>
   <script src="src/vba-dialog.js"></script>
+  <script src="src/userform.js"></script>
   <script src="src/excel-preview.js"></script>
   <script src="src/tasks/tasks.js"></script>
   <script src="src/app.js"></script>

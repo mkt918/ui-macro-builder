@@ -153,6 +153,15 @@
       return { status: "idle" };
     }
 
+    // 生徒がフォームの × を押した
+    closeForm() {
+      if (this.busy()) return { status: this.status };
+      this.rt.set(["form", "visible"], false);
+      this.rt.record("form", this.rt.formName, "🪟 × でフォームを閉じた", { line: null }, { userAction: true });
+      this.status = "ended";
+      return { status: this.status };
+    }
+
     // 生徒が TextBox に文字を入力した
     setText(ctlName, text) {
       const name = this.rt.findControl(ctlName);

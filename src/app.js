@@ -33,6 +33,11 @@
   let errorMarkLine = null; // エラーとして光らせているコードの行（0始まり）
   let zenkakuMarks = []; // 全角文字の波線
   const savedCode = {}; // taskId -> { text, match, reason }（VBAコードタブで書いたコード）
+  const savedForms = {}; // taskId -> フォームのデータ（userform.js の form）
+  let formPanel = null; // 🪟 ユーザーフォームのデザイナー兼実行画面
+  let lastArea = "form"; // 3ステップ表示用：最後にさわった場所（"form" / "program"）
+  let runTarget = null; // ▶実行で動かすもの："form"（フォームを開く）/ "macro:名前"
+  const LS_FORMS = "umb_forms";
   const LOAD_GROUP = "umb-code-to-blocks"; // コード→ブロック変換で起きたブロックの変化の目印
   // 状態を変える step（これが1つも無ければ「プログラムを実行した結果」とはみなさない）
   const STATE_SCOPES = new Set(["cell", "array", "control", "sheet", "file", "msg", "var"]);
@@ -220,6 +225,7 @@
       localStorage.setItem(LS_SOLVED, JSON.stringify([...solved]));
       localStorage.setItem(LS_INITIAL, JSON.stringify(savedInitial));
       localStorage.setItem(LS_CODE, JSON.stringify(savedCode));
+      localStorage.setItem(LS_FORMS, JSON.stringify(savedForms));
     } catch (e) {
       console.warn("保存失敗:", e);
     }
@@ -234,6 +240,8 @@
       Object.assign(savedInitial, ini);
       const code = JSON.parse(localStorage.getItem(LS_CODE) || "{}");
       Object.assign(savedCode, code);
+      const forms = JSON.parse(localStorage.getItem(LS_FORMS) || "{}");
+      Object.assign(savedForms, forms);
     } catch (e) {
       console.warn("読み込み失敗:", e);
     }
@@ -588,9 +596,9 @@
       Blockly.Events.setGroup(LOAD_GROUP);
       try {
         workspace.clear();
-        if (result.root) {
-          window.VbaParser.resolveVariables(result.root, workspace);
-          const json = window.VbaParser.toWorkspaceJson(result.root);
+        if (result.roots.length) {
+          result.roots.forEach((r) => window.VbaParser.resolveVariables(r, workspace));
+          const json = window.VbaParser.toWorkspaceJson(result.roots);
           Blockly.serialization.workspaces.load(json, workspace);
           workspace.cleanUp();
         }
@@ -708,17 +716,43 @@
 
   function createSession() {
     try {
-      return { s: new VbaSession.Session(currentSource(), { initialCells: view.getInitialCells(), seed: 20261022 }) };
+      const form = formPanel ? formPanel.runtimeForm() : null;
+      return { s: new VbaSession.Session(currentSource(), { initialCells: view.getInitialCells(), form, seed: 20261022 }) };
     } catch (e) {
       if (e && e.kind) return { error: e };
       throw e;
     }
   }
 
-  // ▶実行で最初に動かす手続き
-  function pickEntry(s) {
-    const macros = s.macroNames();
-    return macros.length ? macros[0] : null;
+  // フォームで動かすプログラムか（ボタンの _Click や UserForm_Initialize がある）
+  function formModeAvailable(s) {
+    const names = formPanel ? formPanel.controlNames().map((c) => c.name.toLowerCase()) : [];
+    return s.procNames().some((p) => {
+      const k = p.toLowerCase();
+      return k === "userform_initialize" || names.some((n) => k.startsWith(n + "_"));
+    });
+  }
+
+  // ▶実行で動かすものの一覧を作り直す（フォームを開く / 引数の無い Sub）
+  function updateRunTargets(s) {
+    const sel = document.getElementById("run-target");
+    const opts = [];
+    if (s && formModeAvailable(s)) opts.push(["form", "🪟 フォームを開く"]);
+    if (s) s.macroNames().forEach((m) => opts.push(["macro:" + m, `📜 Sub ${m}`]));
+    const values = opts.map((o) => o[0]);
+    if (!values.includes(runTarget)) runTarget = values[0] || null;
+    if (sel) {
+      sel.innerHTML = opts.map(([v, l]) => `<option value="${escapeHtml(v)}">${escapeHtml(l)}</option>`).join("");
+      if (runTarget) sel.value = runTarget;
+      sel.hidden = opts.length <= 1;
+    }
+  }
+
+  // 選んだもので実行を始める（フォームなら Initialize まで、Sub なら最初の答え待ちまで）
+  function startTarget(s) {
+    if (runTarget === "form") return s.showForm();
+    if (runTarget && runTarget.startsWith("macro:")) return s.start(runTarget.slice(6));
+    return null;
   }
 
   function schedulePreview(ms) {
@@ -744,19 +778,23 @@
       return;
     }
     session = s;
-    const entry = pickEntry(s);
+    view.liveForm = false;
+    updateRunTargets(s);
     let status = null;
-    if (entry) {
-      let res = s.start(entry);
+    let res = startTarget(s);
+    if (res) {
       res = autoAnswer(res);
       if (res.status === "waiting") status = "⌨️ InputBox の答え待ちのところまで準備しました（▶ 実行すると質問が出ます）";
+      else if (runTarget === "form") status = "🪟 ▶ 実行 を押すとフォームが開きます。フォームのボタンを押して動かそう";
     } else if (s.procNames().length) {
-      status = "ℹ️ ▶ 実行で動かせる Sub がありません（ボタンを押したときに動く命令は、フォームから動かします）";
+      status = "ℹ️ ▶ 実行で動かせるものがありません（ボタンの命令は、フォームにそのボタンを置くと動かせます）";
     }
     view.loadSession(s, status);
     if (s.status === "error") showProgramError(s.error, true);
     else hideProgramError();
     checkQuestClear();
+    updateFormPanel();
+    updateStepGuide();
   }
 
   function autoAnswer(res) {
@@ -777,18 +815,170 @@
       showProgramError(error, false);
       return false;
     }
-    const entry = pickEntry(s);
-    if (!entry) {
-      document.getElementById("step-status").textContent = "ℹ️ ▶ 実行で動かせる Sub がありません";
+    updateRunTargets(s);
+    if (!runTarget) {
+      document.getElementById("step-status").textContent = "ℹ️ ▶ 実行で動かせるものがありません（ボタンの命令は、フォームにそのボタンを置くと動かせます）";
       return false;
     }
     session = s;
     runActive = true;
     hideProgramError();
-    s.start(entry);
+    startTarget(s);
+    view.liveForm = runTarget === "form";
     view.loadSession(s, "▶ 実行中…");
+    if (runTarget === "form") switchRightTab("form");
     if (play) view.play(true);
+    updateFormPanel();
+    updateStepGuide();
     return true;
+  }
+
+  // ===== ユーザーフォーム =====
+  // フォームで実行中か
+  function formRunning() {
+    return !!session && runActive && runTarget === "form";
+  }
+
+  // フォームの表示を、いまの実行の状態に合わせる
+  function updateFormPanel() {
+    if (!formPanel) return;
+    const toolbar = document.getElementById("form-toolbar");
+    const runBar = document.getElementById("form-run-bar");
+    if (!formRunning()) {
+      if (formPanel.mode !== "design") formPanel.setDesign();
+      toolbar.hidden = false;
+      runBar.hidden = true;
+      return;
+    }
+    const m = view.currentModel();
+    const atLatest = view.cursor >= view.steps.length;
+    const dialogOpen = window.VbaDialog && VbaDialog.isOpen();
+    const interactive = atLatest && !view.playing && !dialogOpen && session.status === "idle";
+    let info = "";
+    if (session.status === "ended") info = "フォームは閉じられました。▶ 実行 でもう一度開けます";
+    else if (interactive) info = "🖱 ボタンを押してみよう（テキストボックスには文字を入力できます）";
+    else if (view.playing || dialogOpen) info = "⏳ 命令が動いています…";
+    else if (!atLatest) info = "⏱ 前の時点を見ています（⏭ 結果 で最新にもどると、また操作できます）";
+    formPanel.setRun(m.controls || {}, m.form || {}, interactive, info);
+    toolbar.hidden = true;
+    runBar.hidden = false;
+    document.getElementById("form-run-text").textContent = session.status === "ended" ? "■ 終わりました" : "▶ 実行中";
+  }
+
+  // 実行中のフォームでボタンが押された
+  function onFormButton(name, texts) {
+    if (!formRunning() || session.busy() || view.playing) return;
+    Object.keys(texts).forEach((n) => session.setText(n, texts[n]));
+    const res = session.click(name);
+    view.stepsAppended();
+    if (res.noHandler) {
+      showToast(`「${name}」を押したときの命令（${name}_Click）がまだありません。🧩 ブロックの「🖱 ${name} をクリックしたとき」を使おう`, 5000);
+      view.goToEnd();
+      updateFormPanel();
+      return;
+    }
+    view.play(false); // 押したところから続きを再生する
+  }
+
+  // 実行中のフォームの × が押された
+  function onFormClose() {
+    if (!formRunning()) return;
+    session.closeForm();
+    view.stepsAppended();
+    view.goToEnd();
+    updateFormPanel();
+  }
+
+  // ■ 止める：実行をやめてデザインにもどる
+  function stopRun() {
+    runActive = false;
+    view.liveForm = false;
+    runPreview();
+  }
+
+  // フォームのデザインが変わった
+  function onFormChanged(form, info) {
+    if (!sharedViewMode) {
+      savedForms[currentKey()] = form;
+      persist();
+    }
+    if (info.renamed) renameControlEverywhere(info.renamed.from, info.renamed.to);
+    if (runActive) stopRun();
+    else schedulePreview(150);
+    updateStepGuide();
+  }
+
+  // 部品の名前を変えたら、ブロックとコードの中の名前も変える
+  function renameControlEverywhere(from, to) {
+    let n = 0;
+    workspace.getAllBlocks(false).forEach((b) => {
+      if (b.getField("CONTROL") && b.getFieldValue("CONTROL") === from) {
+        b.setFieldValue(to, "CONTROL");
+        n++;
+      }
+    });
+    if (codeOwner === "code" && codeEditor) {
+      const re = new RegExp(`\\b${from}(?=[._])`, "g");
+      const text = codeEditor.getValue();
+      const next = text.replace(re, to);
+      if (next !== text) {
+        setEditorCode(next);
+        saveCodeState();
+        n++;
+      }
+    }
+    if (n) showToast(`プログラムの中の「${from}」も「${to}」に変えました`);
+  }
+
+  // 部品をダブルクリック：その部品を押したときの命令を書く場所を用意する
+  function onEditHandler(name) {
+    const ctl = formPanel.controlNames().find((c) => c.name === name);
+    if (!ctl) return;
+    if (ctl.type !== "CommandButton") {
+      showToast("ダブルクリックで命令を書けるのは、ボタン（CommandButton）です");
+      return;
+    }
+    if (codeOwner === "code") {
+      const text = codeEditor.getValue();
+      const re = new RegExp(`Sub\\s+${name}_Click\\s*\\(`, "i");
+      if (!re.test(text)) {
+        const add = `${text.trim() ? "\n\n" : ""}Private Sub ${name}_Click()\n    \nEnd Sub`;
+        codeEditor.replaceRange(add, { line: codeEditor.lastLine() });
+      }
+      document.getElementById("tab-code").click();
+      setTimeout(() => {
+        const lines = codeEditor.getValue().split("\n");
+        const idx = lines.findIndex((l) => re.test(l));
+        codeEditor.focus();
+        if (idx >= 0) codeEditor.setCursor({ line: idx + 1, ch: (lines[idx + 1] || "").length });
+      }, 80);
+      return;
+    }
+    let block = workspace.getTopBlocks(false).find((b) => b.type === "form_button_click" && b.getFieldValue("CONTROL") === name);
+    if (!block) {
+      block = workspace.newBlock("form_button_click");
+      block.setFieldValue(name, "CONTROL");
+      block.initSvg();
+      block.render();
+      const others = workspace.getTopBlocks(false).filter((b) => b !== block);
+      const bottom = others.reduce((y, b) => Math.max(y, b.getBoundingRectangle().bottom), 0);
+      block.moveBy(40, bottom + 40);
+    }
+    document.getElementById("tab-blocks").click();
+    setTimeout(() => {
+      workspace.centerOnBlock(block.id);
+      block.select();
+    }, 80);
+    showToast(`「🖱 ${name} をクリックしたとき」の中に、命令のブロックを入れよう`);
+  }
+
+  // ① フォームを作る → ② 命令を組む → ③ ▶ 実行 の、いまの場所を光らせる
+  function updateStepGuide() {
+    const chips = document.querySelectorAll(".step-chip");
+    if (!chips.length) return;
+    let cur = lastArea === "form" ? 1 : 2;
+    if (runActive) cur = 3;
+    chips.forEach((c) => c.classList.toggle("current", Number(c.dataset.step) === cur));
   }
 
   // InputBox / MsgBox の答えをダイアログで聞く
@@ -851,11 +1041,17 @@
     }
   }
 
-  // 実行が最後まで終わったとき
+  // 実行が最後まで終わったとき（フォームのときは、ボタンを押すのを待つ状態）
   function finishRun() {
     if (!session) return;
     if (session.status === "error") showProgramError(session.error, false);
+    else if (formRunning() && session.status === "idle") {
+      document.getElementById("step-status").textContent = "🖱 フォームのボタンを押してみよう（全 " + session.steps.length + " ステップ）";
+    } else if (formRunning() && session.status === "ended") {
+      document.getElementById("step-status").textContent = "■ フォームが閉じて、プログラムが終わりました";
+    }
     checkQuestClear();
+    updateFormPanel();
   }
 
   // 実行中の行・ブロックを光らせる
@@ -879,6 +1075,7 @@
         /* ハイライトできなくても実行には影響しない */
       }
     }
+    if (formRunning()) updateFormPanel();
   }
 
   // ----- 初期化 -----
@@ -937,12 +1134,26 @@
         // 実行中は ▶ → ⏸ にトグル
         const btn = document.getElementById("run-btn");
         btn.textContent = playing ? "⏸ 一時停止" : "▶ 実行";
+        updateFormPanel();
+        updateStepGuide();
       },
       onStepChange: updateTimeline, // タイムラインのスライダー・カウンタを同期
       onStepApplied, // 実行中の行・ブロックを光らせる
       onMsgStep, // 再生中・1コマで MsgBox に来たらダイアログを出す
       onReachEnd, // 記録の最後まで来たら、InputBox などの答えを聞いて続ける
     });
+
+    // 🪟 ユーザーフォーム（デザイナー兼実行画面）
+    formPanel = new UserFormPanel({
+      stage: document.getElementById("form-stage"),
+      props: document.getElementById("form-props"),
+      onChange: onFormChanged,
+      onEditHandler,
+      onRunClick: onFormButton,
+      onRunClose: onFormClose,
+    });
+    // ブロックの「部品の名前」の選択肢は、いまのフォームの部品から作る
+    window.UMB_formControls = () => (formPanel ? formPanel.controlNames() : []);
 
     // ブロック変更 → コード再生成 + 実行し直し
     workspace.addChangeListener(onWorkspaceChange);
@@ -1026,7 +1237,7 @@
   // クリア済みフラグは合算（減らさない）、ブロック/初期データは
   // 「今このタブで編集中でない課題」だけ取り込む（作業中のものを壊さないため）
   function onOtherTabStorageChange(e) {
-    if (![LS_BLOCKS, LS_SOLVED, LS_INITIAL, LS_CODE].includes(e.key)) return;
+    if (![LS_BLOCKS, LS_SOLVED, LS_INITIAL, LS_CODE, LS_FORMS].includes(e.key)) return;
     try {
       const otherSolved = JSON.parse(localStorage.getItem(LS_SOLVED) || "[]");
       let newlySolvedCount = 0;
@@ -1059,6 +1270,10 @@
       });
       Object.keys(otherCode).forEach((k) => {
         if (k !== activeKey) savedCode[k] = otherCode[k];
+      });
+      const otherForms = JSON.parse(localStorage.getItem(LS_FORMS) || "{}");
+      Object.keys(otherForms).forEach((k) => {
+        if (k !== activeKey) savedForms[k] = otherForms[k];
       });
 
       if (newlySolvedCount > 0 || updatedTaskCount > 0) {
@@ -1160,6 +1375,8 @@
     }
     suppressSave = false;
     restoreCodeState(taskId);
+    runActive = false;
+    formPanel.setForm(savedForms[taskId] || (task.form ? task.form : UserFormUtil.defaultForm()));
 
     updateCurrentQuestDisplay();
     onWorkspaceChange();
@@ -1202,6 +1419,16 @@
     }
     suppressSave = false;
     restoreCodeState(FREE_MODE_ID);
+    runActive = false;
+    formPanel.setForm(savedForms[FREE_MODE_ID] || UserFormUtil.defaultForm());
+    // 初めて開いたとき：教科書の最初の形（ボタンを押したときの命令の入れ物）を置いておく
+    if (!xml && !savedCode[FREE_MODE_ID] && workspace.getTopBlocks(false).length === 0) {
+      const hat = workspace.newBlock("form_button_click");
+      hat.setFieldValue("CommandButton1", "CONTROL");
+      hat.initSvg();
+      hat.render();
+      hat.moveBy(40, 40);
+    }
 
     updateCurrentQuestDisplay();
     onWorkspaceChange();
@@ -1467,6 +1694,11 @@
     document.querySelectorAll(".right-tab-panel").forEach((p) => p.classList.remove("active"));
     const panel = document.getElementById(`right-panel-${target}`);
     if (panel) panel.classList.add("active");
+    // リファレンスを見ている間は、変数の箱・タイムラインを隠して広く使う
+    const rp = document.getElementById("right-pane");
+    if (rp) rp.classList.toggle("reference-active", target === "reference");
+    if (target === "form") updateFormPanel();
+    updateStepGuide();
 
     if (target === "reference") {
       const iframe = document.getElementById("reference-iframe");
@@ -1657,6 +1889,49 @@
       if (session && session.status === "error" && view.cursor === view.steps.length) showProgramError(session.error, !runActive);
     });
 
+    // ----- 🪟 ユーザーフォームの道具 -----
+    document.querySelectorAll(".form-add-btn").forEach((b) => {
+      b.addEventListener("click", () => {
+        formPanel.addControl(b.dataset.add);
+        lastArea = "form";
+        updateStepGuide();
+      });
+    });
+    document.getElementById("form-show-names").addEventListener("change", (e) => formPanel.setShowNames(e.target.checked));
+    document.getElementById("form-undo").addEventListener("click", () => formPanel.undo());
+    document.getElementById("form-stop").addEventListener("click", () => stopRun());
+    document.getElementById("run-target").addEventListener("change", (e) => {
+      runTarget = e.target.value;
+      runActive = false;
+      runPreview();
+    });
+
+    // ----- ① フォームを作る → ② 命令を組む → ③ ▶ 実行 -----
+    document.querySelectorAll(".step-chip").forEach((chip) => {
+      chip.addEventListener("click", () => {
+        const step = Number(chip.dataset.step);
+        if (step === 1) {
+          lastArea = "form";
+          switchRightTab("form");
+        } else if (step === 2) {
+          lastArea = "program";
+          if (codeOwner === "code") document.getElementById("tab-code").click();
+          else document.getElementById("tab-blocks").click();
+        } else {
+          document.getElementById("run-btn").click();
+        }
+        updateStepGuide();
+      });
+    });
+    document.getElementById("right-panel-form").addEventListener("pointerdown", () => {
+      if (!runActive) lastArea = "form";
+      updateStepGuide();
+    });
+    document.querySelector(".editor-pane").addEventListener("pointerdown", () => {
+      lastArea = "program";
+      updateStepGuide();
+    });
+
     // ----- プログラムのまちがいパネル -----
     document.getElementById("program-error-close").addEventListener("click", () => {
       const panel = document.getElementById("program-error");
@@ -1799,7 +2074,7 @@
           const dom = Blockly.Xml.workspaceToDom(workspace);
           const xml = Blockly.Xml.domToText(dom);
           // v2：ブロック・VBAコードタブで書いたコード・仮想Excelの初期データをまとめて送る
-          const payload = { v: 2, xml, initial: view.getInitialCells() };
+          const payload = { v: 2, xml, initial: view.getInitialCells(), form: formPanel.getForm() };
           if (codeOwner === "code") payload.code = { text: codeEditor.getValue(), match: blocksMatchCode, reason: blocksMismatchReason };
           const json = JSON.stringify(payload);
           const encoded = encodeURIComponent(btoa(unescape(encodeURIComponent(json))));
@@ -1842,6 +2117,7 @@
       suppressSave = false;
       sharedViewMode = true; // 閲覧モード：課題スロットを上書きしない
       if (payload.initial) view.setInitialCells(payload.initial);
+      if (payload.form) formPanel.setForm(payload.form);
       if (payload.code && typeof payload.code.text === "string") {
         codeOwner = "code";
         blocksMatchCode = !!payload.code.match;

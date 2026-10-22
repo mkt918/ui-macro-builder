@@ -643,11 +643,150 @@ Blockly.Blocks["value_math"] = {
   },
 };
 
+// ===== ユーザーフォーム =====
+CAT_COLORS.form = "#2c7be5";
+
+// フォームの部品の名前を選ぶドロップダウン。
+// 選べるのはフォームにある部品（app.js が window.UMB_formControls で渡す）だが、
+// 一覧に無い名前（コードから戻したとき・部品の名前を変えたとき）も消さずに受け付ける
+class FieldControlDropdown extends Blockly.FieldDropdown {
+  constructor(typeFilter, fallback) {
+    const self = { filter: typeFilter, fallback };
+    super(function () {
+      const list = (window.UMB_formControls ? window.UMB_formControls() : [])
+        .filter((c) => !self.filter || self.filter.includes(c.type))
+        .map((c) => [c.name, c.name]);
+      const cur = this && typeof this.getValue === "function" ? this.getValue() : null;
+      if (cur && !list.some((o) => o[1] === cur)) list.push([cur, cur]);
+      if (!list.length) list.push([self.fallback, self.fallback]);
+      return list;
+    });
+  }
+  doClassValidation_(newValue) {
+    return typeof newValue === "string" && newValue ? newValue : null;
+  }
+}
+
+// ボタンをクリックしたとき（Private Sub CommandButton1_Click() 〜 End Sub）
+Blockly.Blocks["form_button_click"] = {
+  init: function () {
+    this.appendDummyInput()
+      .appendField("🖱")
+      .appendField(new FieldControlDropdown(["CommandButton"], "CommandButton1"), "CONTROL")
+      .appendField("をクリックしたとき");
+    this.appendStatementInput("DO").appendField("↓ やること");
+    this.appendDummyInput().appendField("（ここまで）");
+    this.setColour(CAT_COLORS.form);
+    this.setTooltip("フォームのボタンを押したときに動く命令です（VBA では Private Sub ボタン名_Click()）。中にブロックを入れよう");
+  },
+};
+
+// フォームが開いたとき（Private Sub UserForm_Initialize()）
+Blockly.Blocks["form_initialize"] = {
+  init: function () {
+    this.appendDummyInput().appendField("🪟 フォームが開いたとき");
+    this.appendStatementInput("DO").appendField("↓ やること");
+    this.appendDummyInput().appendField("（ここまで）");
+    this.setColour(CAT_COLORS.form);
+    this.setTooltip("フォームが開いたときに1回だけ動く命令です（VBA では Private Sub UserForm_Initialize()）。最初の準備に使います");
+  },
+};
+
+const CONTROL_PROP_OPTIONS = [
+  ["表示する文字（Caption）", "Caption"],
+  ["入力された文字（Text）", "Text"],
+  ["見える（Visible）", "Visible"],
+  ["使える（Enabled）", "Enabled"],
+];
+
+// 部品のプロパティを変える（Label1.Caption = …）
+Blockly.Blocks["ctl_set_prop"] = {
+  init: function () {
+    this.appendValueInput("VALUE")
+      .appendField("🏷")
+      .appendField(new FieldControlDropdown(null, "Label1"), "CONTROL")
+      .appendField("の")
+      .appendField(new Blockly.FieldDropdown(CONTROL_PROP_OPTIONS), "PROP")
+      .appendField("を");
+    this.appendDummyInput().appendField("にする");
+    this.setInputsInline(true);
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(CAT_COLORS.form);
+    this.setTooltip("フォームの部品の表示を変えます。ラベルに文字を出すときは「表示する文字（Caption）」を使おう");
+  },
+};
+
+// 部品のプロパティを読む（TextBox1.Text など）
+Blockly.Blocks["ctl_get_prop"] = {
+  init: function () {
+    this.appendDummyInput()
+      .appendField("🏷")
+      .appendField(new FieldControlDropdown(null, "TextBox1"), "CONTROL")
+      .appendField("の")
+      .appendField(new Blockly.FieldDropdown([CONTROL_PROP_OPTIONS[1], CONTROL_PROP_OPTIONS[0]]), "PROP");
+    this.setOutput(true, null);
+    this.setColour(CAT_COLORS.form);
+    this.setTooltip("フォームの部品の中身を取り出します。テキストボックスに入力された文字は「入力された文字（Text）」です");
+  },
+};
+
+Blockly.Blocks["form_unload"] = {
+  init: function () {
+    this.appendDummyInput().appendField("🪟 フォームを閉じる（Unload Me）");
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(CAT_COLORS.form);
+    this.setTooltip("フォームを閉じます。「終了」ボタンでよく使います");
+  },
+};
+
+Blockly.Blocks["prog_end"] = {
+  init: function () {
+    this.appendDummyInput().appendField("⏹ プログラムを終わる（End）");
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(CAT_COLORS.form);
+    this.setTooltip("プログラムをそこで終わりにします（フォームも閉じます）");
+  },
+};
+
+// 文字を数にする（Val）
+Blockly.Blocks["math_val"] = {
+  init: function () {
+    this.appendValueInput("VALUE").appendField("🔢 数にする Val(");
+    this.appendDummyInput().appendField(")");
+    this.setInputsInline(true);
+    this.setOutput(true, "Number");
+    this.setColour(CAT_COLORS.value);
+    this.setTooltip("文字を数に変えます。InputBox やテキストボックスに入力された文字で計算するときに使います（数でない文字は 0 になります）");
+  },
+};
+
 // ===== ツールボックス定義 =====
 // 数値シャドウ（普段は数字を直接入力、変数や計算ブロックで差し替え可能）
 function numShadow(n) {
   return { shadow: { type: "value_number", fields: { NUM: n } } };
 }
+
+// カテゴリは教科書の順（フォーム → 入出力 → 変数 → 計算 → 条件 → くり返し → セル…）に並べる
+const TOOLBOX_FORM = {
+  kind: "category",
+  name: "🪟 フォーム",
+  colour: CAT_COLORS.form,
+  contents: [
+    { kind: "block", type: "form_button_click" },
+    { kind: "block", type: "form_initialize" },
+    {
+      kind: "block",
+      type: "ctl_set_prop",
+      inputs: { VALUE: { shadow: { type: "value_text", fields: { TEXT: "こんにちは" } } } },
+    },
+    { kind: "block", type: "ctl_get_prop" },
+    { kind: "block", type: "form_unload" },
+    { kind: "block", type: "prog_end" },
+  ],
+};
 
 const TOOLBOX = {
   kind: "categoryToolbox",
@@ -784,7 +923,19 @@ const TOOLBOX = {
         { kind: "block", type: "value_number" },
         { kind: "block", type: "value_text" },
         { kind: "block", type: "value_math" },
+        { kind: "block", type: "math_val" },
       ],
     },
   ],
 };
+
+// 教科書の順に並べ替える（名前で探すので、上の定義の順番は気にしなくてよい）
+(function reorderToolbox() {
+  const order = ["🪟 フォーム", "💬 入出力", "📦 変数", "🔢 数・文字", "❓ もし〜なら", "🔁 くりかえし", "📝 セル操作", "🎨 色・文字デザイン", "📦 リスト（配列）", "📑 シート操作"];
+  const all = [TOOLBOX_FORM].concat(TOOLBOX.contents);
+  TOOLBOX.contents = order.map((n) => all.find((c) => c.name === n)).filter(Boolean);
+  // 「💬 入出力」の MsgBox には、最初から「こんにちは」の文字を入れておく
+  const io = TOOLBOX.contents.find((c) => c.name === "💬 入出力");
+  const msg = io && io.contents.find((b) => b.type === "io_msgbox");
+  if (msg) msg.inputs = { MSG: { shadow: { type: "value_text", fields: { TEXT: "こんにちは" } } } };
+})();

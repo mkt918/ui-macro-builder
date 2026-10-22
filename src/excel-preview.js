@@ -535,6 +535,8 @@ class ExcelView {
   // 実行がすべて終わっていて、最後の step を表示しているか
   isFinished(idx) {
     const s = this.session;
+    // フォームで実行中は、命令が終わってもボタンを押すのを待っているので「おわり」ではない
+    if (this.liveForm && s && s.status === "idle") return false;
     const done = !s || (s.status !== "waiting" && s.status !== "running");
     return done && idx === this.steps.length - 1;
   }
@@ -579,9 +581,12 @@ class ExcelView {
       this.refEl.textContent = step.proc || model.sheet || "";
       this.formulaEl.textContent = "";
     }
+    const waitingClick = this.liveForm && this.session && this.session.status === "idle" && idx === this.steps.length - 1;
     if (isLast) {
       this.statusEl.textContent =
         `✅ 実行おわり（全 ${this.steps.length} ステップ）｜ ${diffSet.size} 個のセルが変化 — ${step.desc}`;
+    } else if (waitingClick) {
+      this.statusEl.textContent = `🖱 フォームのボタンを押してみよう（全 ${this.steps.length} ステップ）— ${step.desc}`;
     } else {
       this.statusEl.textContent = `ステップ ${idx + 1} / ${this.steps.length}: ${step.desc}`;
     }
