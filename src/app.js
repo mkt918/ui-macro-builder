@@ -1390,18 +1390,25 @@
     list.innerHTML = "";
     let lastGroup = null;
     TASKS.forEach((quest) => {
-      const group = quest.kind ? "textbook" : "cell";
+      const isOriginal = quest.kind === "guide" || quest.kind === "challenge";
+      const group = isOriginal ? "original" : quest.kind ? "textbook" : "cell";
       if (group !== lastGroup) {
         lastGroup = group;
         const head = document.createElement("div");
         head.className = "quest-group-head";
-        head.textContent = group === "textbook" ? "📘 教科書の例題・実習問題（第4章）" : "📊 おまけ：セルを使った練習";
+        head.textContent =
+          group === "textbook"
+            ? "📘 教科書の例題・実習問題（第4章）"
+            : group === "original"
+            ? `🍕 ${quest.series}`
+            : "📊 おまけ：セルを使った練習";
         list.appendChild(head);
       }
       const item = document.createElement("div");
       item.className = "quest-item";
       if (solved.has(quest.id)) item.classList.add("solved");
-      const badge = quest.kind ? `<span class="quest-kind ${quest.kind}">${quest.kind === "example" ? "例題" : "実習"}</span>` : "";
+      const KIND_LABEL = { example: "例題", practice: "実習", guide: "解説", challenge: "挑戦" };
+      const badge = quest.kind ? `<span class="quest-kind ${quest.kind}">${KIND_LABEL[quest.kind] || ""}</span>` : "";
       item.innerHTML = `
         <div class="quest-item-left">
           <div class="quest-item-title">${badge}${escapeHtml(quest.kind ? quest.title.replace(/^(例題|実習問題)\s*/, "") : quest.title)}</div>
@@ -1628,9 +1635,24 @@
     }
     const s = task.spec;
     const kind = task.kind === "example" ? "例題" : "実習問題";
+    const meta =
+      task.kind === "guide" || task.kind === "challenge"
+        ? `🍕 ${escapeHtml(task.series)}　${escapeHtml(task.step)}（${task.kind === "guide" ? "解説つき" : "自分で考えよう"}）`
+        : `📘 ${kind} ${escapeHtml(task.code)}（教科書 p.${task.page}）`;
+    // 解説・考え方（読みもの）。見出し h・本文 p・コード例 code は、どれも省略できる
+    const lesson = (task.lesson || [])
+      .map(
+        (b) =>
+          `<div class="lesson-block">${b.h ? `<div class="lesson-h">${escapeHtml(b.h)}</div>` : ""}` +
+          (b.p ? `<div class="lesson-p">${escapeHtml(b.p)}</div>` : "") +
+          (b.code ? `<pre class="lesson-code">${escapeHtml(b.code)}</pre>` : "") +
+          `</div>`
+      )
+      .join("");
     el.hidden = false;
     el.innerHTML = `
-      <div class="spec-meta">📘 ${kind} ${escapeHtml(task.code)}（教科書 p.${task.page}）</div>
+      <div class="spec-meta">${meta}</div>
+      ${lesson ? `<div class="spec-box lesson"><span class="spec-tag lesson-tag">${task.kind === "guide" ? "📖 まず読もう" : "💡 考え方"}</span>${lesson}</div>` : ""}
       <div class="spec-grid">
         <div class="spec-box"><span class="spec-tag in">入力データ</span><div>${escapeHtml(s.input)}</div></div>
         <div class="spec-box"><span class="spec-tag out">出力データ</span><div>${escapeHtml(s.output)}</div></div>

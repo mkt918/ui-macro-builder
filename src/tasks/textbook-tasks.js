@@ -366,6 +366,250 @@ End Sub`,
   },
 ];
 
+/* ===== オリジナル課題：割り勘アプリをつくろう =====
+ * 教科書の 4-2（変数・計算・InputBox / MsgBox）と 4-3 の演算子（¥ と Mod）を使う発展課題。
+ *   kind "guide"     … 解説つき。lesson（読みもの）を読みながら、そのとおりに作る
+ *   kind "challenge" … 自分で考えて作る。lesson は「考え方」だけ
+ * lesson: [{ h: 見出し, p: 本文, code: コード例 }]（どれも省略できる）
+ * 教科書の課題ではないので code / page は無く、series / step を表示に使う。
+ */
+const WARIKAN_SERIES = "割り勘アプリをつくろう";
+
+// 結果を Label3・Label4 に出す課題（ステップ3・発展）のフォーム
+const warikanLabelForm = (cap1, cap2) =>
+  ufForm(300, 210, [
+    ufLabel("Label1", 24, 20, 110, 26, cap1, { FontSize: 14 }),
+    ufLabel("Label2", 24, 70, 110, 26, cap2, { FontSize: 14 }),
+    ufLabel("Label3", 144, 16, 120, 34, "", { SpecialEffect: 2, TextAlign: 1, FontSize: 16 }),
+    ufLabel("Label4", 144, 66, 120, 34, "", { SpecialEffect: 2, TextAlign: 1, FontSize: 16 }),
+    ufButton("CommandButton1", 90, 130, 120, 36, "計算する"),
+  ]);
+
+const ORIGINAL_TASKS = [
+  {
+    id: "warikan1",
+    kind: "guide",
+    series: WARIKAN_SERIES,
+    step: "ステップ1",
+    title: "割り勘アプリ ステップ1　1人あたりの金額を出そう",
+    difficulty: 1,
+    goal: "文化祭の打ち上げで、ジュース・ピザ・ケーキを注文した。3つの値段と人数を入力すると、合計と1人あたりの金額を表示するプログラムを作ろう。",
+    lesson: [
+      { p: "打ち上げの会計をするアプリを、少しずつ作っていきます。まずは「みんなの注文をたして、人数でわる」ところから。下の解説を読みながら、順番に打ってみよう。" },
+      {
+        h: "① 値段を聞いて、変数にしまう",
+        p: "InputBox で聞いた答えは「文字」です。Val( ) をつけると「数」になります。数を入れる箱は Dim で用意します（Long は大きめの整数が入る型です）。",
+        code: 'Dim Juice As Long\nJuice = Val(InputBox("ジュースの値段を入力してください"))',
+      },
+      { h: "② たし算をして、合計を出す", p: "たし算は「+」です。答えは変数 Gokei（合計）にしまいます。", code: 'Gokei = Juice + Pizza + Cake\nMsgBox ("合計は" & Gokei & "円です")' },
+      { h: "③ 人数でわり算をする", p: "わり算は「/」です。", code: 'Hitori = Gokei / Ninzu\nMsgBox ("1人" & Hitori & "円です")' },
+      { h: "考えてみよう", p: "1000円を3人でわったら、いくらになるかな？ 割り切れないときの分け方は、次のステップで考えます。" },
+    ],
+    spec: {
+      input: "ジュース・ピザ・ケーキの値段、人数　300、1200、900、3",
+      output: "合計は2400円です／1人800円です",
+      conditions: [
+        "値段は変数 Juice・Pizza・Cake に、人数は変数 Ninzu に入れる（型は Long）。",
+        "InputBox 関数で、「ジュースの値段を入力してください」「ピザの値段を入力してください」「ケーキの値段を入力してください」「人数を入力してください」の順にたずねる。",
+        "3つの値段をたした合計を、変数 Gokei に入れ、MsgBox で「合計は Gokei 円です」と表示する。",
+        "Gokei を Ninzu でわった金額を、変数 Hitori に入れ、MsgBox で「1人 Hitori 円です」と表示する。",
+      ],
+      inputExample: "InputBox に「300」「1200」「900」「3」の順に入力する",
+      outputExample: "MsgBox に「合計は2400円です」、続けて「1人800円です」と表示される",
+    },
+    form: ufForm(300, 150, [ufButton("CommandButton1", 80, 50, 140, 36, "計算する")]),
+    hints: [
+      "ボタンを押したときの命令の中に、①値段を3つと人数を聞く ②たし算で合計を出して表示 ③わり算で1人あたりを出して表示、の順で組もう。",
+      "変数は6つ：Juice・Pizza・Cake・Ninzu・Gokei・Hitori（Long型）。InputBox の答えは Val( ) で数にします。合計は「+」、1人あたりは「/」で計算。",
+      'Gokei = Juice + Pizza + Cake ／ MsgBox ("合計は" & Gokei & "円です") ／ Hitori = Gokei / Ninzu ／ MsgBox ("1人" & Hitori & "円です")',
+    ],
+    answer: `Option Explicit
+Private Sub CommandButton1_Click()
+    Dim Juice As Long
+    Dim Pizza As Long
+    Dim Cake As Long
+    Dim Ninzu As Long
+    Dim Gokei As Long
+    Dim Hitori As Long
+    Juice = Val(InputBox("ジュースの値段を入力してください"))
+    Pizza = Val(InputBox("ピザの値段を入力してください"))
+    Cake = Val(InputBox("ケーキの値段を入力してください"))
+    Ninzu = Val(InputBox("人数を入力してください"))
+    Gokei = Juice + Pizza + Cake
+    MsgBox ("合計は" & Gokei & "円です")
+    Hitori = Gokei / Ninzu
+    MsgBox ("1人" & Hitori & "円です")
+End Sub`,
+    scenario: [
+      { click: "CommandButton1", inputs: ["300", "1200", "900", "3"], expect: { msgs: ["合計は2400円です", "1人800円です"] } },
+      { click: "CommandButton1", inputs: ["500", "900", "100", "5"], expect: { msgs: ["合計は1500円です", "1人300円です"] } },
+    ],
+  },
+  {
+    id: "warikan2",
+    kind: "guide",
+    series: WARIKAN_SERIES,
+    step: "ステップ2",
+    title: "割り勘アプリ ステップ2　あまりのお金を考えよう",
+    difficulty: 1,
+    goal: "合計金額と人数を入力すると、1人あたりの金額と、あまりのお金を表示するプログラムを作ろう。",
+    lesson: [
+      { h: "割り切れないとき", p: "1000円を3人で分けると、1人333円で、1円あまります。このあまりまで考えるのが「割り勘」です。" },
+      { h: "「¥」で、分けた金額を出す", p: "「¥」は、わり算の答えの整数の部分を出します。", code: "1000 ¥ 3　→　333" },
+      { h: "「Mod」で、あまりを出す", p: "「Mod」は、わり算のあまりを出します。", code: "1000 Mod 3　→　1" },
+      { h: "たしかめ算", p: "333 × 3 + 1 = 1000 になれば、正しく分けられています。" },
+      { h: "プログラムにすると", code: "Hitori = Gokei ¥ Ninzu\nAmari = Gokei Mod Ninzu" },
+      { h: "ちゅうい", p: "「/」と「¥」はちがいます。「/」は小数まで出て、整数の箱に入れると四捨五入されるので、合計とずれることがあります。割り勘では「¥」を使いましょう。" },
+    ],
+    spec: {
+      input: "合計金額、人数　1000、3",
+      output: "1人333円です／あまりは1円です",
+      conditions: [
+        "合計金額は変数 Gokei に、人数は変数 Ninzu に入れる（型は Long）。",
+        "InputBox 関数で、「合計金額を入力してください」「人数を入力してください」の順にたずねる。",
+        "「¥」で求めた1人あたりの金額を変数 Hitori に入れ、MsgBox で「1人 Hitori 円です」と表示する。",
+        "「Mod」で求めたあまりを変数 Amari に入れ、MsgBox で「あまりは Amari 円です」と表示する。",
+      ],
+      inputExample: "InputBox に「1000」「3」の順に入力する",
+      outputExample: "MsgBox に「1人333円です」、続けて「あまりは1円です」と表示される",
+    },
+    form: ufForm(300, 150, [ufButton("CommandButton1", 80, 50, 140, 36, "計算する")]),
+    hints: [
+      "ステップ1のプログラムが土台です。①合計金額と人数を聞く ②「¥」で1人あたり ③「Mod」であまり ④MsgBox で2回表示、の順で組もう。",
+      "変数は4つ：Gokei・Ninzu・Hitori・Amari（Long型）。わり算は「/」ではなく「¥」を使います。",
+      'Hitori = Gokei ¥ Ninzu ／ Amari = Gokei Mod Ninzu ／ MsgBox ("1人" & Hitori & "円です") ／ MsgBox ("あまりは" & Amari & "円です")',
+    ],
+    answer: `Option Explicit
+Private Sub CommandButton1_Click()
+    Dim Gokei As Long
+    Dim Ninzu As Long
+    Dim Hitori As Long
+    Dim Amari As Long
+    Gokei = Val(InputBox("合計金額を入力してください"))
+    Ninzu = Val(InputBox("人数を入力してください"))
+    Hitori = Gokei ¥ Ninzu
+    Amari = Gokei Mod Ninzu
+    MsgBox ("1人" & Hitori & "円です")
+    MsgBox ("あまりは" & Amari & "円です")
+End Sub`,
+    scenario: [
+      { click: "CommandButton1", inputs: ["1000", "3"], expect: { msgs: ["1人333円です", "あまりは1円です"] } },
+      { click: "CommandButton1", inputs: ["3000", "3"], expect: { msgs: ["1人1000円です", "あまりは0円です"] } },
+      { click: "CommandButton1", inputs: ["4580", "6"], expect: { msgs: ["1人763円です", "あまりは2円です"] } },
+      // 1100÷3＝366.67…：「/」だと四捨五入で 367 になってしまう
+      { click: "CommandButton1", inputs: ["1100", "3"], expect: { msgs: ["1人366円です", "あまりは2円です"] } },
+    ],
+  },
+  {
+    id: "warikan3",
+    kind: "challenge",
+    series: WARIKAN_SERIES,
+    step: "ステップ3",
+    title: "割り勘アプリ ステップ3　割り勘アプリを完成させよう",
+    difficulty: 2,
+    goal: "合計金額と人数を入力すると、1人あたりの金額とあまりを、画面の Label に表示する「割り勘アプリ」を完成させよう。",
+    lesson: [
+      {
+        h: "考え方",
+        p: "ステップ2のプログラムが、そのまま土台になります。ちがうのは、答えを MsgBox ではなく Label に表示するところだけ。Label に文字を入れるときは「Label3.Caption = …」と書きます（教科書 4-2-02 と同じ）。",
+      },
+    ],
+    spec: {
+      input: "合計金額、人数　4580、6",
+      output: "1人あたり 763円／あまり 2円",
+      conditions: [
+        "ボタンを押すと、InputBox で「合計金額を入力してください」「人数を入力してください」の順にたずねる。",
+        "合計金額は Gokei、人数は Ninzu、1人あたりは Hitori、あまりは Amari に入れる（型は Long）。",
+        "Hitori と Amari は、ステップ2で使った計算（¥ と Mod）で求める。",
+        "Label3 に1人あたりの金額を、Label4 にあまりを、それぞれ「円」をつけて表示する。MsgBox は使わない。",
+      ],
+      inputExample: "InputBox に「4580」「6」の順に入力する",
+      outputExample: "Label3 に「763円」、Label4 に「2円」と表示される",
+    },
+    form: warikanLabelForm("1人あたり", "あまり"),
+    hints: [
+      "ステップ2のプログラムをもとに、MsgBox の部分を Label への表示に書きかえよう。",
+      'Label3.Caption に Hitori と「円」を、Label4.Caption に Amari と「円」を入れます。「円」は & でつなげます（例：Hitori & "円"）。',
+      'Hitori = Gokei ¥ Ninzu ／ Amari = Gokei Mod Ninzu ／ Label3.Caption = Hitori & "円" ／ Label4.Caption = Amari & "円"',
+    ],
+    answer: `Option Explicit
+Private Sub CommandButton1_Click()
+    Dim Gokei As Long
+    Dim Ninzu As Long
+    Dim Hitori As Long
+    Dim Amari As Long
+    Gokei = Val(InputBox("合計金額を入力してください"))
+    Ninzu = Val(InputBox("人数を入力してください"))
+    Hitori = Gokei ¥ Ninzu
+    Amari = Gokei Mod Ninzu
+    Label3.Caption = Hitori & "円"
+    Label4.Caption = Amari & "円"
+End Sub`,
+    scenario: [
+      { click: "CommandButton1", inputs: ["3000", "3"], expect: { controls: { Label3: { Caption: "1000円" }, Label4: { Caption: "0円" } } } },
+      { click: "CommandButton1", inputs: ["1000", "3"], expect: { controls: { Label3: { Caption: "333円" }, Label4: { Caption: "1円" } } } },
+      { click: "CommandButton1", inputs: ["4580", "6"], expect: { controls: { Label3: { Caption: "763円" }, Label4: { Caption: "2円" } } } },
+      { click: "CommandButton1", inputs: ["500", "7"], expect: { controls: { Label3: { Caption: "71円" }, Label4: { Caption: "3円" } } } },
+      // 1100÷3＝366.67…：「/」だと四捨五入で 367 になってしまう
+      { click: "CommandButton1", inputs: ["1100", "3"], expect: { controls: { Label3: { Caption: "366円" }, Label4: { Caption: "2円" } } } },
+    ],
+  },
+  {
+    id: "warikan4",
+    kind: "challenge",
+    series: WARIKAN_SERIES,
+    step: "発展",
+    title: "割り勘アプリ 発展　幹事があまりを持とう",
+    difficulty: 3,
+    goal: "あまったお金は、幹事（かんじ）が引き受けることにしよう。幹事が出す金額と、ほかの人が出す金額を表示するアプリを作ろう。",
+    lesson: [
+      {
+        h: "考え方",
+        p: "4580円を6人で分けると、1人763円であまりは2円。ほかの5人が763円ずつ出すなら、幹事は 763 + 2 = 765円 出せば、ぴったり4580円になります。\nたしかめ算：765 + 763 × 5 = 4580",
+      },
+    ],
+    spec: {
+      input: "合計金額、人数　4580、6",
+      output: "幹事 765円／ほかの人 763円",
+      conditions: [
+        "ステップ3と同じように、InputBox で合計金額と人数をたずねる。",
+        "「ほかの人」が出す金額は、ステップ3の「1人あたり」と同じ。",
+        "「幹事」が出す金額は、「ほかの人」の金額に、あまりをたした金額にする。変数 Kanji を使う（型は Long）。",
+        "Label3 に幹事の金額を、Label4 にほかの人の金額を、それぞれ「円」をつけて表示する。",
+      ],
+      inputExample: "InputBox に「4580」「6」の順に入力する",
+      outputExample: "Label3 に「765円」、Label4 に「763円」と表示される",
+    },
+    form: warikanLabelForm("幹事", "ほかの人"),
+    hints: [
+      "ステップ3のプログラムに、幹事の金額を入れる変数をもう1つ足そう。幹事の金額 ＝ 1人あたり ＋ あまり。",
+      "Kanji という変数を用意して、Kanji = Hitori + Amari と計算します。Label3 には Kanji を、Label4 には Hitori を表示します。",
+      'Kanji = Hitori + Amari ／ Label3.Caption = Kanji & "円" ／ Label4.Caption = Hitori & "円"',
+    ],
+    answer: `Option Explicit
+Private Sub CommandButton1_Click()
+    Dim Gokei As Long
+    Dim Ninzu As Long
+    Dim Hitori As Long
+    Dim Amari As Long
+    Dim Kanji As Long
+    Gokei = Val(InputBox("合計金額を入力してください"))
+    Ninzu = Val(InputBox("人数を入力してください"))
+    Hitori = Gokei ¥ Ninzu
+    Amari = Gokei Mod Ninzu
+    Kanji = Hitori + Amari
+    Label3.Caption = Kanji & "円"
+    Label4.Caption = Hitori & "円"
+End Sub`,
+    scenario: [
+      { click: "CommandButton1", inputs: ["3000", "3"], expect: { controls: { Label3: { Caption: "1000円" }, Label4: { Caption: "1000円" } } } },
+      { click: "CommandButton1", inputs: ["1000", "3"], expect: { controls: { Label3: { Caption: "334円" }, Label4: { Caption: "333円" } } } },
+      { click: "CommandButton1", inputs: ["4580", "6"], expect: { controls: { Label3: { Caption: "765円" }, Label4: { Caption: "763円" } } } },
+      { click: "CommandButton1", inputs: ["1100", "3"], expect: { controls: { Label3: { Caption: "368円" }, Label4: { Caption: "366円" } } } },
+    ],
+  },
+];
+
 /* ===== 台本（scenario）による自動判定 =====
  *   runTaskScenario(task, source, { form, files, initialCells }) → { passed, failures: [文字], error }
  *   form は src/userform.js の toRuntimeForm() の形。省略すると task.form から作る。
@@ -446,7 +690,7 @@ function runTaskScenario(task, source, opts) {
   return { passed: failures.length === 0, failures };
 }
 
-// 教科書の順に、そのあとにセルを使った練習
-const TASKS = TEXTBOOK_TASKS.concat(typeof CELL_TASKS !== "undefined" ? CELL_TASKS : require("./tasks.js").CELL_TASKS);
+// 教科書の順 → オリジナル課題（割り勘アプリ）→ セルを使った練習
+const TASKS = TEXTBOOK_TASKS.concat(ORIGINAL_TASKS, typeof CELL_TASKS !== "undefined" ? CELL_TASKS : require("./tasks.js").CELL_TASKS);
 
-if (typeof module !== "undefined" && module.exports) module.exports = { TASKS, TEXTBOOK_TASKS, runTaskScenario };
+if (typeof module !== "undefined" && module.exports) module.exports = { TASKS, TEXTBOOK_TASKS, ORIGINAL_TASKS, runTaskScenario };

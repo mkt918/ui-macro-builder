@@ -2122,6 +2122,8 @@ button.uf-button.run:disabled { cursor: default; }
 .quest-kind { display: inline-block; margin-right: 6px; padding: 0 7px; border-radius: 999px; font-size: 11px; font-weight: 700; color: #fff; vertical-align: 1px; }
 .quest-kind.example { background: #2c7be5; }
 .quest-kind.practice { background: #d63384; }
+.quest-kind.guide { background: #f08c00; }
+.quest-kind.challenge { background: #7048e8; }
 .task-spec { margin-top: 8px; font-size: 13px; line-height: 1.6; }
 .spec-meta { font-size: 12px; font-weight: 700; color: var(--accent-blue); margin-bottom: 4px; }
 .spec-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 6px; }
@@ -2139,6 +2141,11 @@ button.uf-button.run:disabled { cursor: default; }
 .spec-tag.out { background: #c0392b; }
 .spec-tag.cond { background: #7f8c8d; }
 .spec-tag.ex { background: #5d6d7e; }
+.spec-tag.lesson-tag { background: #f08c00; }
+.lesson-block { margin-top: 6px; }
+.lesson-h { font-weight: 700; }
+.lesson-p { white-space: pre-wrap; }
+.lesson-code { margin: 3px 0 0; padding: 6px 10px; border-radius: 6px; background: #f1f3f5; font-family: Consolas, "MS Gothic", monospace; font-size: 12.5px; white-space: pre-wrap; }
 .task-check { margin-top: 8px; padding: 8px 10px; border-radius: 6px; font-size: 13px; line-height: 1.6; }
 .task-check[hidden] { display: none; }
 .task-check.pass { background: rgba(46, 204, 113, 0.18); border: 1px solid #2ecc71; color: var(--text); font-weight: 700; }

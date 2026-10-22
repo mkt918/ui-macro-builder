@@ -2,7 +2,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("node:path");
-const { TASKS, TEXTBOOK_TASKS, runTaskScenario } = require(path.join(__dirname, "../src/tasks/textbook-tasks.js"));
+const { TASKS, TEXTBOOK_TASKS, ORIGINAL_TASKS, runTaskScenario } = require(path.join(__dirname, "../src/tasks/textbook-tasks.js"));
 const P = require(path.join(__dirname, "../src/vba-parser.js"));
 
 test("課題の id は重複せず、教科書の課題は必要な欄をそろえている", () => {
@@ -19,7 +19,31 @@ test("課題の id は重複せず、教科書の課題は必要な欄をそろ�
   }
 });
 
-for (const t of TEXTBOOK_TASKS) {
+test("オリジナル課題（割り勘アプリ）は必要な欄をそろえ、解説つき→挑戦の順に並ぶ", () => {
+  assert.deepEqual(ORIGINAL_TASKS.map((t) => t.kind), ["guide", "guide", "challenge", "challenge"]);
+  for (const t of ORIGINAL_TASKS) {
+    assert.ok(t.series && t.step && t.title && t.goal, t.id + " 基本の欄");
+    for (const k of ["input", "output", "inputExample", "outputExample"]) assert.ok(t.spec[k], `${t.id} spec.${k}`);
+    assert.ok(t.spec.conditions.length >= 1, t.id + " 処理条件");
+    assert.equal(t.hints.length, 3, t.id + " ヒントは3段階");
+    assert.ok(t.lesson && t.lesson.length, t.id + " 解説・考え方");
+    assert.ok(t.form && t.form.controls.length, t.id + " フォーム");
+    assert.ok(t.scenario && t.scenario.length, t.id + " scenario");
+  }
+  // 教科書の課題のあと、セルを使った練習の前に入っている
+  const ids = TASKS.map((t) => t.id);
+  assert.ok(ids.indexOf("warikan1") > ids.indexOf("jis4-4-01"));
+  assert.ok(ids.indexOf("warikan4") < ids.indexOf("t01"));
+});
+
+test("割り勘アプリ：「/」で書くとあまりが出ず、不合格になる（¥ と Mod が必要）", () => {
+  const t = ORIGINAL_TASKS.find((x) => x.id === "warikan3");
+  const wrong = t.answer.replace("Gokei ¥ Ninzu", "Gokei / Ninzu");
+  const r = runTaskScenario(t, wrong);
+  assert.equal(r.passed, false);
+});
+
+for (const t of TEXTBOOK_TASKS.concat(ORIGINAL_TASKS)) {
   test(`${t.title}：模範解答は、自分の課題に合格する`, () => {
     const r = runTaskScenario(t, t.answer);
     assert.deepEqual(r.failures, []);

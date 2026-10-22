@@ -27,6 +27,11 @@
  *                  expect:{ msgs:["重量オーバーです"], controls:{Label4:{Caption:"84"}}, closed:true } }, …]
  *               （inputs は InputBox に順に答える値。expect の msgs は、その操作で出た MsgBox の全文）
  *   answer    : 模範解答の VBA コード。answerBlocks が無ければ、ここからブロックを自動で作る
+ *
+ * オリジナル課題（src/tasks/textbook-tasks.js の ORIGINAL_TASKS。教科書の課題ではない）の追加フィールド:
+ *   kind      : "guide"（解説つき）/ "challenge"（自分で考える）。code・page は不要
+ *   series    : シリーズ名（クエスト一覧の見出し）　step: "ステップ1" など
+ *   lesson    : [{ h:見出し, p:本文, code:コード例 }]　guide は「まず読もう」、challenge は「考え方」として表示
  */
 
 // クリア判定用ヘルパー
