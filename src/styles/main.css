@@ -1969,3 +1969,48 @@ button.uf-button.run:disabled { cursor: default; }
 .uf-prop input[type="checkbox"] { width: 18px; height: 18px; }
 .uf-name-error { margin-top: 6px; color: #c0392b; font-weight: 600; }
 .uf-name-error[hidden] { display: none; }
+
+/* ===== はじめてガイド ===== */
+.tour-layer { position: fixed; inset: 0; z-index: 900; pointer-events: none; }
+.tour-ring {
+  position: fixed;
+  border-radius: 10px;
+  box-shadow: 0 0 0 4px #ffcc00, 0 0 0 9999px rgba(0, 0, 0, 0.45);
+  transition: all 0.25s ease;
+}
+.tour-bubble {
+  position: fixed;
+  pointer-events: auto;
+  background: #fffdf5;
+  color: #222;
+  border: 2px solid #ffcc00;
+  border-radius: 12px;
+  padding: 12px 16px 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  font-size: 15px;
+  line-height: 1.7;
+}
+.tour-top { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: #8a7a3a; }
+.tour-skip { border: none; background: none; color: #8a7a3a; cursor: pointer; font-size: 12px; }
+.tour-title { font-weight: 700; font-size: 16px; margin: 2px 0 4px; color: #4a3b00; }
+.tour-actions { display: flex; justify-content: space-between; margin-top: 10px; }
+.tour-prev, .tour-next {
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid #d8c36a;
+  background: #fff;
+  font-size: 14px;
+  cursor: pointer;
+}
+.tour-next { background: #2c7be5; border-color: #2c7be5; color: #fff; font-weight: 700; }
+.tour-prev:disabled { opacity: 0.4; cursor: default; }
+.help-tour-btn {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--accent-blue);
+  background: transparent;
+  color: var(--accent-blue);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}

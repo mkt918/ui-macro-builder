@@ -33,6 +33,10 @@
 - `src/vba-parser.js` — VBA コード → ブロック 変換（手打ちコードの解析）
 - `src/excel-preview.js` — 実行の記録（step）を再生して仮想 Excel・変数の箱・配列の箱を描く（`ExcelView`）
 - `src/vba-dialog.js` — InputBox / MsgBox のダイアログ（Windows の標準ダイアログと同じ見た目）
+- `src/userform.js` — 🪟 ユーザーフォームのデザイナー兼実行画面（`UserFormPanel`）。フォームのデータは `umb_forms` に保存
+- `src/tour.js` — はじめてガイド（初回だけ自動表示。「❓ 使い方」から再表示）
+- 保存：ブラウザ（localStorage の `umb_blocks` / `umb_code` / `umb_forms` / `umb_initial`）に自動保存。
+  「💾 保存」「📂 開く」で `.vbalearn`（JSON）ファイル、「📤 先生に送る」で同じ内容のリンク（`#share=`）
 - `src/tasks/tasks.js` — 課題データ（`TASKS` 配列）
 - `src/app.js` — 全体の結線
 

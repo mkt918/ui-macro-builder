@@ -1225,7 +1225,9 @@
 
     bindControls();
     loadFreeMode(); // 起動時はクエスト未選択＝フリーモード
-    loadFromShareUrl(); // 共有リンクがあればブロック復元（F8）
+    const fromShare = loadFromShareUrl(); // 共有リンクがあれば作品を表示
+    // 初めて開いたときは、はじめてガイドを出す（共有リンクで開いた先生には出さない）
+    if (!fromShare && window.UmbTour) setTimeout(() => UmbTour.start(false), 600);
 
     // 他タブでの更新を取り込む（複数タブを開いたとき、後から persist した方が
     // 一方的に上書きしてしまう事故を防ぐ）
@@ -1748,6 +1750,13 @@
       helpModal.addEventListener("click", (e) => {
         if (e.target === helpModal) helpModal.hidden = true;
       });
+      const tourBtn = document.getElementById("help-tour-btn");
+      if (tourBtn) {
+        tourBtn.addEventListener("click", () => {
+          helpModal.hidden = true;
+          if (window.UmbTour) UmbTour.start(true);
+        });
+      }
     }
 
     // 右ペイン（📊仮想Excel / 📖リファレンス）のタブ切り替え。
@@ -2066,70 +2075,151 @@
     const nextBtn = document.getElementById("next-quest-btn");
     if (nextBtn) nextBtn.addEventListener("click", goNextQuest);
 
-    // 共有リンク（F8）
+    // 📤 先生に送る（作ったものを見られるリンクをコピーする）
     const shareBtn = document.getElementById("share-btn");
     if (shareBtn) {
       shareBtn.addEventListener("click", () => {
         try {
-          const dom = Blockly.Xml.workspaceToDom(workspace);
-          const xml = Blockly.Xml.domToText(dom);
-          // v2：ブロック・VBAコードタブで書いたコード・仮想Excelの初期データをまとめて送る
-          const payload = { v: 2, xml, initial: view.getInitialCells(), form: formPanel.getForm() };
-          if (codeOwner === "code") payload.code = { text: codeEditor.getValue(), match: blocksMatchCode, reason: blocksMismatchReason };
-          const json = JSON.stringify(payload);
+          if (codeDirty) applyCodeToBlocks();
+          const json = JSON.stringify(buildWorkPayload());
           const encoded = encodeURIComponent(btoa(unescape(encodeURIComponent(json))));
           const url = `${location.origin}${location.pathname}#share=${encoded}`;
+          const done = () => showToast("📤 リンクをコピーしました。Classroom や Teams などに貼り付けて、先生に送ろう", 5000);
           if (!navigator.clipboard || !navigator.clipboard.writeText) {
             // 自動コピーできない環境では、URLを選んでコピーできるダイアログで代替
-            prompt("このURLをコピーしてください（この環境では自動コピーが使えません）:", url);
+            prompt("このリンクをコピーして、先生に送ろう（この環境では自動コピーが使えません）:", url);
             return;
           }
           navigator.clipboard
             .writeText(url)
-            .then(() => {
-              shareBtn.textContent = "✅ リンクをコピー";
-              setTimeout(() => (shareBtn.textContent = "🔗 共有"), 1500);
-            })
+            .then(done)
             .catch(() => {
-              prompt("このURLをコピーしてください（自動コピーに失敗しました）:", url);
+              prompt("このリンクをコピーして、先生に送ろう（自動コピーに失敗しました）:", url);
             });
         } catch (e) {
           console.warn("共有リンク生成失敗:", e);
         }
       });
     }
+
+    // 💾 保存 / 📂 開く（PC の再起動でブラウザのデータが消えても、ファイルから戻せるように）
+    document.getElementById("file-save-btn").addEventListener("click", saveWorkToFile);
+    const fileInput = document.getElementById("file-open-input");
+    document.getElementById("file-open-btn").addEventListener("click", () => {
+      fileInput.value = "";
+      fileInput.click();
+    });
+    fileInput.addEventListener("change", () => {
+      const f = fileInput.files && fileInput.files[0];
+      if (f) openWorkFile(f);
+    });
   }
 
-  // 共有 URL からブロックを復元（F8）
+  // ===== 作品のまとめ（ファイル保存・先生に送るリンクで共通） =====
+  function buildWorkPayload() {
+    const dom = Blockly.Xml.workspaceToDom(workspace);
+    const payload = {
+      app: "UIMacroBuilder",
+      v: 2,
+      savedAt: new Date().toISOString(),
+      task: currentTaskId,
+      xml: Blockly.Xml.domToText(dom),
+      initial: view.getInitialCells(),
+      form: formPanel.getForm(),
+    };
+    if (codeOwner === "code") payload.code = { text: codeEditor.getValue(), match: blocksMatchCode, reason: blocksMismatchReason };
+    return payload;
+  }
+
+  // まとめを読み込んで、いまの作業に入れる（shared: 共有リンクで見ているだけ＝保存しない）
+  function applyWorkPayload(payload, shared) {
+    runActive = false;
+    suppressSave = true;
+    workspace.clear();
+    if (payload.xml) {
+      const dom = Blockly.utils.xml.textToDom(payload.xml);
+      Blockly.Xml.domToWorkspace(dom, workspace);
+    }
+    suppressSave = false;
+    sharedViewMode = !!shared;
+    view.setInitialCells(payload.initial || {});
+    formPanel.setForm(payload.form || UserFormUtil.defaultForm());
+    if (payload.code && typeof payload.code.text === "string") {
+      codeOwner = "code";
+      blocksMatchCode = !!payload.code.match;
+      blocksMismatchReason = payload.code.reason || "";
+      setEditorCode(payload.code.text);
+    } else {
+      codeOwner = "blocks";
+      blocksMatchCode = true;
+      blocksMismatchReason = "";
+    }
+    codeDirty = false;
+    if (!shared) {
+      const key = currentKey();
+      savedInitial[key] = view.getInitialCells();
+      savedForms[key] = formPanel.getForm();
+      saveCodeState();
+    }
+    updateCodeSyncStatus();
+    updateCodeOwnerOverlay();
+    onWorkspaceChange();
+  }
+
+  function saveWorkToFile() {
+    if (codeDirty) applyCodeToBlocks();
+    const d = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    const def = `vba_${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}`;
+    const raw = prompt("ファイルの名前を入れてください（例: jis4-2-01）", def);
+    if (raw === null) return;
+    const name = (raw.trim() || def).replace(/[\\/:*?"<>|]/g, "_").replace(/\.vbalearn$/i, "") + ".vbalearn";
+    const blob = new Blob([JSON.stringify(buildWorkPayload(), null, 1)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      URL.revokeObjectURL(a.href);
+      a.remove();
+    }, 1000);
+    showToast(`💾 「${name}」をダウンロードフォルダに保存しました`, 4500);
+  }
+
+  function openWorkFile(file) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      let payload;
+      try {
+        payload = JSON.parse(String(reader.result));
+      } catch (e) {
+        alert("このファイルは開けませんでした（💾 保存 で作ったファイルを選んでね）");
+        return;
+      }
+      if (!payload || (payload.app !== "UIMacroBuilder" && !payload.xml)) {
+        alert("このファイルは開けませんでした（💾 保存 で作ったファイルを選んでね）");
+        return;
+      }
+      if (!confirm(`「${file.name}」を開きますか？\nいま作っているものは、開いたファイルの内容に置きかわります。`)) return;
+      applyWorkPayload(payload, false);
+      showToast(`📂 「${file.name}」を開きました`);
+    };
+    reader.readAsText(file);
+  }
+
+  // 共有 URL から作品を復元（先生が生徒のリンクを開いたとき）
   function loadFromShareUrl() {
     const m = location.hash.match(/share=([^&]+)/);
     if (!m) return false;
-    if (!confirmDiscardDirtyCode()) return false; // コード未反映があれば先に確認
     try {
       const text = decodeURIComponent(escape(atob(decodeURIComponent(m[1]))));
       let payload;
       if (text.trim().startsWith("{")) payload = JSON.parse(text);
       else payload = { v: 1, xml: text }; // 古い形式（ブロックだけ）
-      suppressSave = true;
-      workspace.clear();
-      const dom = Blockly.utils.xml.textToDom(payload.xml);
-      Blockly.Xml.domToWorkspace(dom, workspace);
-      suppressSave = false;
-      sharedViewMode = true; // 閲覧モード：課題スロットを上書きしない
-      if (payload.initial) view.setInitialCells(payload.initial);
-      if (payload.form) formPanel.setForm(payload.form);
-      if (payload.code && typeof payload.code.text === "string") {
-        codeOwner = "code";
-        blocksMatchCode = !!payload.code.match;
-        blocksMismatchReason = payload.code.reason || "";
-        setEditorCode(payload.code.text);
-      } else {
-        codeOwner = "blocks";
-      }
-      updateCodeSyncStatus();
-      updateCodeOwnerOverlay();
       history.replaceState(null, "", location.pathname); // ハッシュ消去
-      onWorkspaceChange();
+      applyWorkPayload(payload, true);
+      showToast("📤 送られてきた作品を表示しています（この画面での変更は保存されません）", 5000);
       return true;
     } catch (e) {
       console.warn("共有リンク復元失敗:", e);
