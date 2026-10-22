@@ -368,9 +368,29 @@ class ExcelView {
     }
   }
 
+  // 配列の箱の、最近の書きかわり：この step で変わった箱（strong）と、直前の2つの step で変わった箱（soft）。
+  // 並べ替えの「交換」（2つの箱の中身が入れかわる）の様子を目で追うために使う
+  recentArrayChanges(idx) {
+    const strong = new Set();
+    const soft = new Set();
+    const collect = (i, into) => {
+      const st = this.steps[i];
+      if (!st) return;
+      for (const [path] of st.ops) {
+        if (path[0] === "arrays" && path[2] === "data" && path[1] !== undefined) into.add(`${path[1]}|${path[3]}`);
+      }
+    };
+    collect(idx, strong);
+    collect(idx - 1, soft);
+    collect(idx - 2, soft);
+    strong.forEach((k) => soft.delete(k));
+    return { strong, soft };
+  }
+
   // モデルを丸ごと描画
   // diffSet: 初期状態から変化したセル（結果表示時にハイライトする）
-  renderModel(model, active, changed, diffSet) {
+  // recent: 配列の箱の最近の書きかわり（recentArrayChanges の結果）
+  renderModel(model, active, changed, diffSet, recent) {
     const cells = model.cells || {};
     const base = this.initialCells || {};
     for (let r = 1; r <= this.rows; r++) {
@@ -397,7 +417,7 @@ class ExcelView {
         td.classList.toggle("selected", addr === this.selected);
       }
     }
-    this.renderArray(model.arrays || {}, active);
+    this.renderArray(model.arrays || {}, active, recent);
     this.renderVars(model.vars || {}, model.varTypes || {}, active);
     this.renderTabs(model.sheets || ["Sheet1"], model.sheet || "Sheet1");
   }
@@ -429,8 +449,9 @@ class ExcelView {
   }
 
   // 配列（教科書の絵と同じく、添字の付いた箱を横に並べる）
-  renderArray(arrays, active) {
+  renderArray(arrays, active, recent) {
     if (!this.arrayEl) return;
+    const rc = recent || { strong: new Set(), soft: new Set() };
     const names = Object.keys(arrays);
     if (names.length === 0) {
       this.arrayEl.classList.remove("show");
@@ -459,6 +480,8 @@ class ExcelView {
           const cls = ["array-cell"];
           if (!has) cls.push("unused");
           if (activeKey === key) cls.push("active-cell");
+          if (rc.strong.has(`${name}|${key}`)) cls.push("changed-now");
+          else if (rc.soft.has(`${name}|${key}`)) cls.push("changed-prev");
           html += `<div class="${cls.join(" ")}">
             <div class="array-val">${has ? escapeHtmlPv(showVal(data[key])) : "&nbsp;"}</div>
             <div class="array-idx">${i}</div>
@@ -480,7 +503,8 @@ class ExcelView {
         for (let c = c0; c <= cLast; c++) {
           const key = `${r},${c}`;
           const has = Object.prototype.hasOwnProperty.call(data, key);
-          html += `<td class="${has ? "" : "unused"} ${activeKey === key ? "active-cell" : ""}">${has ? escapeHtmlPv(showVal(data[key])) : ""}</td>`;
+          const ch = rc.strong.has(`${name}|${key}`) ? "changed-now" : rc.soft.has(`${name}|${key}`) ? "changed-prev" : "";
+          html += `<td class="${has ? "" : "unused"} ${activeKey === key ? "active-cell" : ""} ${ch}">${has ? escapeHtmlPv(showVal(data[key])) : ""}</td>`;
         }
         html += "</tr>";
       }
@@ -550,7 +574,7 @@ class ExcelView {
     // 最後のステップ＝実行結果。初期状態から変わったセルをまとめて光らせる
     const isLast = this.isFinished(idx);
     const diffSet = isLast ? this.diffFromInitial(model) : null;
-    this.renderModel(model, marker, marker, diffSet);
+    this.renderModel(model, marker, marker, diffSet, this.recentArrayChanges(idx));
     if (step.scope === "msg" && !interactive) {
       this.showMsgBox(step.key, step.title);
     } else {

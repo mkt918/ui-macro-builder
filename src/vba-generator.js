@@ -364,6 +364,51 @@ vbaGenerator.forBlock["var_change"] = function (block) {
 
 // ===== 配列 =====
 
+// 名前付き配列
+function dimLine(block) {
+  const dims = String(block.getFieldValue("DIMS") || "").trim();
+  return `Dim ${varName(block)}${dims ? `(${dims})` : ""} As ${block.getFieldValue("TYPE")}`;
+}
+vbaGenerator.forBlock["arr_dim"] = function (block) {
+  return dimLine(block);
+};
+vbaGenerator.forBlock["mod_dim"] = function (block) {
+  return dimLine(block);
+};
+vbaGenerator.forBlock["arr_set_n"] = function (block) {
+  const idx = vbaGenerator.valueToCode(block, "INDEX", vbaGenerator.ORDER_NONE) || "0";
+  const val = vbaGenerator.valueToCode(block, "VALUE", vbaGenerator.ORDER_NONE) || "0";
+  return `${varName(block)}(${idx}) = ${val}`;
+};
+vbaGenerator.forBlock["arr_get_n"] = function (block) {
+  const idx = vbaGenerator.valueToCode(block, "INDEX", vbaGenerator.ORDER_NONE) || "0";
+  return [`${varName(block)}(${idx})`, vbaGenerator.ORDER_ATOMIC];
+};
+vbaGenerator.forBlock["arr_set_2"] = function (block) {
+  const i1 = vbaGenerator.valueToCode(block, "INDEX1", vbaGenerator.ORDER_NONE) || "0";
+  const i2 = vbaGenerator.valueToCode(block, "INDEX2", vbaGenerator.ORDER_NONE) || "0";
+  const val = vbaGenerator.valueToCode(block, "VALUE", vbaGenerator.ORDER_NONE) || "0";
+  return `${varName(block)}(${i1}, ${i2}) = ${val}`;
+};
+vbaGenerator.forBlock["arr_get_2"] = function (block) {
+  const i1 = vbaGenerator.valueToCode(block, "INDEX1", vbaGenerator.ORDER_NONE) || "0";
+  const i2 = vbaGenerator.valueToCode(block, "INDEX2", vbaGenerator.ORDER_NONE) || "0";
+  return [`${varName(block)}(${i1}, ${i2})`, vbaGenerator.ORDER_ATOMIC];
+};
+vbaGenerator.forBlock["arr_bound"] = function (block) {
+  return [`${block.getFieldValue("KIND")}(${varName(block)})`, vbaGenerator.ORDER_ATOMIC];
+};
+vbaGenerator.forBlock["math_rnd"] = function () {
+  return ["Rnd", vbaGenerator.ORDER_ATOMIC];
+};
+vbaGenerator.forBlock["math_int"] = function (block) {
+  const v = vbaGenerator.valueToCode(block, "VALUE", vbaGenerator.ORDER_NONE) || "0";
+  return [`Int(${v})`, vbaGenerator.ORDER_ATOMIC];
+};
+vbaGenerator.forBlock["rand_init"] = function () {
+  return "Randomize";
+};
+
 vbaGenerator.forBlock["array_set"] = function (block) {
   const idx = vbaGenerator.valueToCode(block, "INDEX", vbaGenerator.ORDER_NONE) || "1";
   const val = vbaGenerator.valueToCode(block, "VALUE", vbaGenerator.ORDER_NONE) || "0";
@@ -552,10 +597,11 @@ function buildProc(header, stacks, ownerBlock, descendants) {
     head.push("    Dim arr(1 To 100) As Variant");
     declared.add("arr");
   }
-  // 「📦 箱を用意する（Dim）」ブロックで用意した変数は、自動で Dim しない
+  // 「📦 箱を用意する（Dim）」「配列の箱を用意」で用意した変数や、Sub の外の Dim で用意した変数は、自動で Dim しない
   descendants.forEach((b) => {
-    if (b.type === "var_dim") declared.add(varName(b));
+    if (b.type === "var_dim" || b.type === "arr_dim") declared.add(varName(b));
   });
+  (vbaGenerator._moduleNames || new Set()).forEach((n) => declared.add(n));
   collectVarNames(descendants).forEach((n) => {
     if (declared.has(n)) return;
     head.push(`    Dim ${n} As Variant`);
@@ -573,10 +619,21 @@ function generateVBAWithMap(workspace) {
   vbaGenerator.init(workspace);
   vbaGenerator.STATEMENT_PREFIX = "'@@%1\n";
   const parts = [];
+  const modLines = [];
+  const modIds = [];
+  vbaGenerator._moduleNames = new Set();
   try {
     const tops = workspace.getTopBlocks(true);
+    // Sub の外の Dim（全体で使う箱）は、ファイルの先頭にまとめる
+    tops
+      .filter((b) => b.type === "mod_dim")
+      .forEach((b) => {
+        modLines.push(dimLine(b));
+        modIds.push(b.id);
+        vbaGenerator._moduleNames.add(varName(b));
+      });
     const procBlocks = tops.filter((b) => PROC_BLOCK_TYPES.has(b.type));
-    const loose = tops.filter((b) => !PROC_BLOCK_TYPES.has(b.type) && !b.outputConnection);
+    const loose = tops.filter((b) => !PROC_BLOCK_TYPES.has(b.type) && b.type !== "mod_dim" && !b.outputConnection);
     if (loose.length) {
       const desc = [];
       loose.forEach((b) => desc.push(...b.getDescendants(false)));
@@ -586,13 +643,17 @@ function generateVBAWithMap(workspace) {
   } finally {
     vbaGenerator.STATEMENT_PREFIX = null;
   }
-  if (!parts.length) {
+  if (!parts.length && !modLines.length) {
     return { code: "Sub MyMacro()\n    ' ブロックを組み立てるとここにコードが表示されます\nEnd Sub", lineMap: {} };
   }
-  // フォームの手続きがあるときは、教科書と同じく先頭に Option Explicit を書く
-  const hasForm = parts.length > 1 || workspace.getTopBlocks(false).some((b) => PROC_BLOCK_TYPES.has(b.type));
+  // フォームの手続きや Sub の外の Dim があるときは、教科書と同じく先頭に Option Explicit を書く
+  const hasForm = modLines.length > 0 || parts.length > 1 || workspace.getTopBlocks(false).some((b) => PROC_BLOCK_TYPES.has(b.type));
   const lines = hasForm ? ["Option Explicit"] : [];
   const ids = hasForm ? [null] : [];
+  modLines.forEach((l, k) => {
+    lines.push(l);
+    ids.push(modIds[k]);
+  });
   parts.forEach((p, k) => {
     if (k > 0 || hasForm) {
       lines.push("");

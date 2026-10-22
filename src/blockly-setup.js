@@ -1017,6 +1017,154 @@ Blockly.Blocks["var_dim"] = {
   },
 };
 
+// ===== 名前付き配列（教科書 第4節：Dim Umei(5) As String ／ Umei(1) = "食料品"） =====
+// 大きさの欄は、5 や 1 To 10 や 3, 4（2次元）のように書く。くわしいまちがいは実行時にやさしく説明される
+const DIMS_CHECK = (v) => (/^[0-9A-Za-z_\s,]*$/.test(v) ? v : null);
+
+// 配列の箱を用意する（Sub の中）
+Blockly.Blocks["arr_dim"] = {
+  init: function () {
+    this.appendDummyInput()
+      .appendField("📦 配列の箱を用意 Dim")
+      .appendField(new FieldVariableNoHiragana("Umei"), "VAR")
+      .appendField("（")
+      .appendField(new Blockly.FieldTextInput("5", DIMS_CHECK), "DIMS")
+      .appendField("）As")
+      .appendField(new Blockly.FieldDropdown(VAR_TYPE_OPTIONS), "TYPE");
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(CAT_COLORS.array);
+    this.setTooltip("配列（同じ種類の箱を、番号順に並べたもの）を用意します。Dim Umei(5) なら、0〜5 の6個の箱ができます。「1 To 10」なら 1〜10、「3, 4」なら表（2次元）になります");
+  },
+};
+
+// 全体で使う箱（Sub の外に書く Dim）。数が1つの変数も、配列も、これで用意する
+Blockly.Blocks["mod_dim"] = {
+  init: function () {
+    this.appendDummyInput()
+      .appendField("🌐 全体で使う箱（Sub の外）Dim")
+      .appendField(new FieldVariableNoHiragana("Umei"), "VAR")
+      .appendField("（")
+      .appendField(new Blockly.FieldTextInput("5", DIMS_CHECK), "DIMS")
+      .appendField("）As")
+      .appendField(new Blockly.FieldDropdown(VAR_TYPE_OPTIONS), "TYPE");
+    this.setColour(CAT_COLORS.array);
+    this.setTooltip("どの命令（Sub）からも使える箱を用意します。ボタンを押したときの命令と、フォームが開いたときの命令で、同じ配列を使いたいときに使います。かっこの中を空にすると、数が1つの変数になります");
+  },
+};
+
+Blockly.Blocks["arr_set_n"] = {
+  init: function () {
+    this.appendValueInput("INDEX")
+      .appendField("📦 配列")
+      .appendField(new FieldVariableNoHiragana("Umei"), "VAR")
+      .appendField("の");
+    this.appendValueInput("VALUE").appendField("番に");
+    this.appendDummyInput().appendField("を入れる");
+    this.setInputsInline(true);
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(CAT_COLORS.array);
+    this.setTooltip("配列の、番号（添字）で決めた箱に値を入れます。Umei(1) = \"食料品\"");
+  },
+};
+
+Blockly.Blocks["arr_get_n"] = {
+  init: function () {
+    this.appendValueInput("INDEX")
+      .appendField("📦 配列")
+      .appendField(new FieldVariableNoHiragana("Umei"), "VAR")
+      .appendField("の");
+    this.appendDummyInput().appendField("番の中身");
+    this.setInputsInline(true);
+    this.setOutput(true, null);
+    this.setColour(CAT_COLORS.array);
+    this.setTooltip("配列の、番号（添字）で決めた箱の中身を取り出します");
+  },
+};
+
+Blockly.Blocks["arr_set_2"] = {
+  init: function () {
+    this.appendValueInput("INDEX1")
+      .appendField("📦 表")
+      .appendField(new FieldVariableNoHiragana("Hyou"), "VAR")
+      .appendField("の 行");
+    this.appendValueInput("INDEX2").appendField("列");
+    this.appendValueInput("VALUE").appendField("に");
+    this.appendDummyInput().appendField("を入れる");
+    this.setInputsInline(true);
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(CAT_COLORS.array);
+    this.setTooltip("2次元の配列（表）の、行と列で決めた箱に値を入れます。Hyou(1, 2) = 5");
+  },
+};
+
+Blockly.Blocks["arr_get_2"] = {
+  init: function () {
+    this.appendValueInput("INDEX1")
+      .appendField("📦 表")
+      .appendField(new FieldVariableNoHiragana("Hyou"), "VAR")
+      .appendField("の 行");
+    this.appendValueInput("INDEX2").appendField("列");
+    this.appendDummyInput().appendField("の中身");
+    this.setInputsInline(true);
+    this.setOutput(true, null);
+    this.setColour(CAT_COLORS.array);
+    this.setTooltip("2次元の配列（表）の、行と列で決めた箱の中身を取り出します");
+  },
+};
+
+Blockly.Blocks["arr_bound"] = {
+  init: function () {
+    this.appendDummyInput()
+      .appendField("📏 配列")
+      .appendField(new FieldVariableNoHiragana("Umei"), "VAR")
+      .appendField("の")
+      .appendField(
+        new Blockly.FieldDropdown([
+          ["いちばん大きい番号（UBound）", "UBound"],
+          ["いちばん小さい番号（LBound）", "LBound"],
+        ]),
+        "KIND"
+      );
+    this.setOutput(true, "Number");
+    this.setColour(CAT_COLORS.array);
+    this.setTooltip("配列の、使える番号の範囲の終わり（UBound）と始まり（LBound）を調べます");
+  },
+};
+
+// ===== 乱数と切り捨て =====
+Blockly.Blocks["math_rnd"] = {
+  init: function () {
+    this.appendDummyInput().appendField("🎲 乱数（0以上1未満）Rnd");
+    this.setOutput(true, "Number");
+    this.setColour(CAT_COLORS.value);
+    this.setTooltip("0 以上 1 未満の、ランダムな小数です。Int(Rnd * 6) + 1 とすると、1〜6 のどれかになります（サイコロ）");
+  },
+};
+
+Blockly.Blocks["math_int"] = {
+  init: function () {
+    this.appendValueInput("VALUE").appendField("🔢 小数を切り捨てる Int(");
+    this.appendDummyInput().appendField(")");
+    this.setInputsInline(true);
+    this.setOutput(true, "Number");
+    this.setColour(CAT_COLORS.value);
+    this.setTooltip("小数点以下を切り捨てて、整数にします（マイナスの数は、小さいほうの整数になります）");
+  },
+};
+
+Blockly.Blocks["rand_init"] = {
+  init: function () {
+    this.appendDummyInput().appendField("🎲 乱数のたねをまく（Randomize）");
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(CAT_COLORS.value);
+    this.setTooltip("Rnd を使う前に1回書く、おまじないです。実行するたびに、ちがう乱数が出るようになります");
+  },
+};
+
 // 命令のまとまり（Sub）を作る
 Blockly.Blocks["proc_sub"] = {
   init: function () {
@@ -1211,6 +1359,16 @@ const TOOLBOX = {
       name: "📦 リスト（配列）",
       colour: CAT_COLORS.array,
       contents: [
+        { kind: "label", text: "名前を付けた配列（Dim Umei(5)）" },
+        { kind: "block", type: "mod_dim" },
+        { kind: "block", type: "arr_dim" },
+        { kind: "block", type: "arr_set_n", inputs: { INDEX: numShadow(1) } },
+        { kind: "block", type: "arr_get_n", inputs: { INDEX: numShadow(1) } },
+        { kind: "block", type: "arr_bound" },
+        { kind: "label", text: "表（2次元の配列）" },
+        { kind: "block", type: "arr_set_2", inputs: { INDEX1: numShadow(1), INDEX2: numShadow(1) } },
+        { kind: "block", type: "arr_get_2", inputs: { INDEX1: numShadow(1), INDEX2: numShadow(1) } },
+        { kind: "label", text: "かんたん配列 arr（Dim しなくても使える）" },
         { kind: "block", type: "array_set" },
         { kind: "block", type: "array_get" },
       ],
@@ -1251,6 +1409,32 @@ const TOOLBOX = {
         { kind: "block", type: "value_text" },
         { kind: "block", type: "value_math" },
         { kind: "block", type: "math_val" },
+        { kind: "block", type: "math_int" },
+        { kind: "block", type: "math_rnd" },
+        { kind: "block", type: "rand_init" },
+        // サイコロ：Int(Rnd * 6) + 1
+        {
+          kind: "block",
+          type: "value_math",
+          fields: { OP: "+" },
+          inputs: {
+            A: {
+              block: {
+                type: "math_int",
+                inputs: {
+                  VALUE: {
+                    block: {
+                      type: "value_math",
+                      fields: { OP: "*" },
+                      inputs: { A: { block: { type: "math_rnd" } }, B: numShadow(6) },
+                    },
+                  },
+                },
+              },
+            },
+            B: numShadow(1),
+          },
+        },
         { kind: "block", type: "math_format" },
         { kind: "block", type: "value_newline" },
       ],

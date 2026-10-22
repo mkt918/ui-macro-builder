@@ -2100,3 +2100,19 @@ button.uf-button.run:disabled { cursor: default; }
 }
 .files-text:read-only { background: #fafcfb; }
 .files-out-title { font-size: 12px; font-weight: 700; color: #1b6b3a; margin: 4px 0 6px; }
+
+/* 配列：交換（書きかわり）の様子。いま変わった箱は跳ねて強調、直前に変わった箱は薄く強調 */
+@keyframes arrayHop {
+  0% { transform: translateY(0); }
+  35% { transform: translateY(-9px); }
+  100% { transform: translateY(0); }
+}
+.array-cell.changed-now .array-val {
+  border-color: #e67e22;
+  background: #ffe2b0;
+  animation: arrayHop 0.45s ease;
+}
+.array-cell.changed-prev .array-val { border-color: #2c7be5; background: #e4efff; }
+.array-cell.changed-now .array-idx { color: #e67e22; }
+.array-2d td.changed-now { background: #ffe2b0; outline: 2px solid #e67e22; outline-offset: -2px; }
+.array-2d td.changed-prev { background: #e4efff; }

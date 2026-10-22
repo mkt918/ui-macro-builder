@@ -85,7 +85,6 @@ test("入れ子のくり返し（i と j）と、ブロックで表せないも�
 End Sub`);
   assert.deepEqual(types(ok), ["loop_range"]);
   assert.throws(() => P.parseVBA("Sub MyMacro()\n For i = 1 To 3\n  For j = 1 To 2\n   Cells(i, j).Value = i\n  Next j\n Next i\nEnd Sub"), /外側/);
-  assert.throws(() => P.parseVBA("Option Explicit\nDim Umei(5) As String\nPrivate Sub CommandButton1_Click()\n Label1.Caption = Umei(1)\nEnd Sub"), /Sub の外の Dim/);
   assert.throws(() => P.parseVBA("Sub MyMacro()\n With Range(\"A1\")\n End With\nEnd Sub"));
 });
 
@@ -231,4 +230,41 @@ End Sub`.replace("If n > 5 Then Exit Do", "If n > 5 Then\n            Exit Do\n 
   const u = P.parseVBA("Sub MyMacro()\n Do\n  n = n + 1\n Loop Until n = 3\nEnd Sub");
   assert.equal(u.roots[0].fields.KIND, "Until");
   assert.throws(() => P.parseVBA("Sub MyMacro()\n Do\n  n = 1\n Loop\nEnd Sub"), /Loop While/);
+});
+
+// ---------- M6・M7：配列・乱数 ----------
+test("教科書 例題 4-4-01：Sub の外の Dim（配列）と、配列の要素の代入・参照", () => {
+  const r = P.parseVBA(`Option Explicit
+Dim Umei(5) As String
+Private Sub UserForm_Initialize()
+    Umei(1) = "食料品"
+    Umei(2) = "日用品"
+End Sub
+Private Sub CommandButton1_Click()
+    Dim Soe As Integer
+    Soe = Val(TextBox1.Text)
+    Label1.Caption = Umei(Soe)
+End Sub`);
+  assert.deepEqual(types(r), ["mod_dim", "form_initialize", "form_button_click"]);
+  assert.equal(r.roots[0].fields.DIMS, "5");
+  assert.equal(r.roots[0].fields.TYPE, "String");
+  assert.equal(r.roots[0].fields.VAR.__var, "Umei");
+  assert.deepEqual(flat(r.roots[1]).filter((t) => t === "arr_set_n").length, 2);
+  assert.ok(flat(r.roots[2]).includes("arr_get_n"));
+});
+
+test("2次元配列・UBound・乱数（サイコロ）・Randomize", () => {
+  const r = P.parseVBA(`Sub MyMacro()
+    Dim Hyou(1 To 3, 1 To 4) As Integer
+    Randomize
+    Hyou(2, 3) = Int(Rnd * 6) + 1
+    Kotae = Hyou(2, 3) + UBound(Hyou)
+End Sub`);
+  const all = flat(r.roots[0]);
+  for (const t of ["arr_dim", "rand_init", "arr_set_2", "math_int", "math_rnd", "arr_get_2", "arr_bound"]) {
+    assert.ok(all.includes(t), t + " がある");
+  }
+  const dim = r.roots[0];
+  assert.equal(dim.fields.DIMS, "1 To 3, 1 To 4");
+  assert.throws(() => P.parseVBA("Sub MyMacro()\n a(1, 2, 3) = 0\nEnd Sub"), /3次元/);
 });

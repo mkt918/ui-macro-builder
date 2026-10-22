@@ -544,3 +544,126 @@ test("step には行番号と、分岐の結果が入る", () => {
   const start = steps.find((st) => st.procEvent === "start");
   assert.equal(start.line, 2);
 });
+
+// ---------- M6・M7：探索・並べ替え（教科書後半の定番プログラム） ----------
+const NUMS = "Dim a(1 To 8) As Integer\n    a(1) = 5: a(2) = 3: a(3) = 8: a(4) = 1: a(5) = 9: a(6) = 2: a(7) = 7: a(8) = 4";
+const showAll = "For i = 1 To 8\n        s = s & a(i) & \",\"\n    Next i\n    Debug.Print s";
+
+test("線形探索（見つかった位置と、比べた回数）", () => {
+  const src = `Sub Test()
+    Dim i As Integer, Pos As Integer, N As Integer
+    ${NUMS}
+    Pos = 0
+    For i = 1 To 8
+        N = N + 1
+        If a(i) = 9 Then
+            Pos = i
+            Exit For
+        End If
+    Next i
+    Debug.Print Pos & "番目 " & N & "回"
+End Sub`;
+  const r = runScript(src, { actions: [{ run: "Test" }] });
+  assert.equal(r.error, null);
+  assert.deepEqual(r.state.debug, ["5番目 5回"]);
+});
+
+test("二分探索（整列ずみの配列）", () => {
+  const src = `Sub Test()
+    Dim a(1 To 8) As Integer, Lo As Integer, Hi As Integer, Mid As Integer, Pos As Integer, N As Integer, i As Integer
+    For i = 1 To 8
+        a(i) = i * 10
+    Next i
+    Lo = 1: Hi = 8: Pos = 0
+    Do While Lo <= Hi
+        N = N + 1
+        Mid = (Lo + Hi) \\ 2
+        If a(Mid) = 70 Then
+            Pos = Mid
+            Exit Do
+        ElseIf a(Mid) < 70 Then
+            Lo = Mid + 1
+        Else
+            Hi = Mid - 1
+        End If
+    Loop
+    Debug.Print Pos & "," & N
+End Sub`;
+  const r = runScript(src, { actions: [{ run: "Test" }] });
+  assert.equal(r.error, null);
+  assert.deepEqual(r.state.debug, ["7,3"]);
+});
+
+test("バブルソート・選択ソート・挿入ソートが、同じ結果になる", () => {
+  const bubble = `Sub Test()
+    Dim i As Integer, j As Integer, w As Integer, s As String
+    ${NUMS}
+    For i = 1 To 7
+        For j = 1 To 8 - i
+            If a(j) > a(j + 1) Then
+                w = a(j): a(j) = a(j + 1): a(j + 1) = w
+            End If
+        Next j
+    Next i
+    ${showAll}
+End Sub`;
+  const select = `Sub Test()
+    Dim i As Integer, j As Integer, m As Integer, w As Integer, s As String
+    ${NUMS}
+    For i = 1 To 7
+        m = i
+        For j = i + 1 To 8
+            If a(j) < a(m) Then m = j
+        Next j
+        w = a(i): a(i) = a(m): a(m) = w
+    Next i
+    ${showAll}
+End Sub`;
+  const insert = `Sub Test()
+    Dim i As Integer, j As Integer, w As Integer, s As String
+    ${NUMS}
+    For i = 2 To 8
+        w = a(i)
+        j = i - 1
+        Do While j >= 1
+            If a(j) <= w Then Exit Do
+            a(j + 1) = a(j)
+            j = j - 1
+        Loop
+        a(j + 1) = w
+    Next i
+    ${showAll}
+End Sub`;
+  const expect = ["1,2,3,4,5,7,8,9,"];
+  for (const src of [bubble, select, insert]) {
+    const r = runScript(src, { actions: [{ run: "Test" }] });
+    assert.equal(r.error, null, r.error && r.error.message);
+    assert.deepEqual(r.state.debug, expect);
+  }
+});
+
+test("交換のとき、書きかわった2つの箱が step に記録される（表示で光らせる）", () => {
+  const src = `Sub Test()
+    Dim a(1 To 3) As Integer, w As Integer
+    a(1) = 5: a(2) = 3
+    w = a(1): a(1) = a(2): a(2) = w
+End Sub`;
+  const r = runScript(src, { actions: [{ run: "Test" }] });
+  const changedKeys = r.session.steps
+    .filter((st) => st.ops.some((o) => o[0][0] === "arrays" && o[0][2] === "data"))
+    .map((st) => st.ops.filter((o) => o[0][0] === "arrays" && o[0][2] === "data").map((o) => o[0][3]).join(""));
+  assert.deepEqual(changedKeys.slice(-2), ["1", "2"]);
+});
+
+test("サイコロ：Rnd のたねが同じなら、いつも同じ目（再生しても変わらない）", () => {
+  const src = `Sub Test()
+    Dim i As Integer
+    For i = 1 To 5
+        Debug.Print Int(Rnd * 6) + 1
+    Next i
+End Sub`;
+  const a = runScript(src, { seed: 777, actions: [{ run: "Test" }] });
+  const b = runScript(src, { seed: 777, actions: [{ run: "Test" }] });
+  assert.deepEqual(a.state.debug, b.state.debug);
+  assert.ok(a.state.debug.every((v) => Number(v) >= 1 && Number(v) <= 6));
+});

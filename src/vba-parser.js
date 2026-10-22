@@ -128,6 +128,31 @@ function isUnaryPos(tokens) {
   return last.type === "OP" && last.value !== ")";
 }
 
+// かっこの外にあるカンマで文字列を分ける（"3, 4" や "Umei(1), 2" のように、かっこの中のカンマは分けない）
+function splitTopLevel(str, sep) {
+  const parts = [];
+  let depth = 0;
+  let inStr = false;
+  let cur = "";
+  for (const ch of str) {
+    if (ch === '"') inStr = !inStr;
+    if (!inStr) {
+      if (ch === "(") depth++;
+      else if (ch === ")") depth--;
+      else if (ch === sep && depth === 0) {
+        parts.push(cur);
+        cur = "";
+        continue;
+      }
+    }
+    cur += ch;
+  }
+  parts.push(cur);
+  return parts;
+}
+
+const VBA_TYPE_NAMES = { integer: "Integer", long: "Long", single: "Single", double: "Double", string: "String", variant: "Variant" };
+
 // ===== 式パーサー（トークン列 → 値ブロック仕様） =====
 class ExprParser {
   constructor(tokens, line) {
@@ -315,6 +340,26 @@ class ExprParser {
     if (name === "vbCrLf" || name === "vbNewLine") {
       return { type: "value_newline" };
     }
+    if (name === "Int") {
+      this.expectOp("(");
+      const v = this.parseConcat();
+      this.expectOp(")");
+      return { type: "math_int", inputs: { VALUE: { block: v } } };
+    }
+    if (name === "Rnd") {
+      if (this.peek() && this.peek().type === "OP" && this.peek().value === "(") {
+        this.next();
+        this.expectOp(")");
+      }
+      return { type: "math_rnd" };
+    }
+    if (name === "UBound" || name === "LBound") {
+      this.expectOp("(");
+      const a = this.next();
+      if (!a || a.type !== "IDENT") throw new VbaParseError(`${name} には配列の名前を書いてください`, this.line);
+      this.expectOp(")");
+      return { type: "arr_bound", fields: { VAR: { __var: a.value }, KIND: name } };
+    }
     // フォームの部品のプロパティ（TextBox1.Text / Label1.Caption）
     const dot = this.peek();
     const prop = this.tokens[this.pos + 1];
@@ -399,6 +444,18 @@ class ExprParser {
     }
     if (HIRAGANA_RE.test(name)) {
       throw new VbaParseError(`変数名にひらがなは使えません: ${name}`, this.line);
+    }
+    // 名前付き配列の要素：Umei(1) ／ Hyou(1, 2)
+    if (this.peek() && this.peek().type === "OP" && this.peek().value === "(") {
+      this.next();
+      const idx = [this.parseConcat()];
+      if (this.peek() && this.peek().type === "OP" && this.peek().value === ",") {
+        this.next();
+        idx.push(this.parseConcat());
+      }
+      this.expectOp(")");
+      if (idx.length === 1) return { type: "arr_get_n", fields: { VAR: { __var: name } }, inputs: { INDEX: { block: idx[0] } } };
+      return { type: "arr_get_2", fields: { VAR: { __var: name } }, inputs: { INDEX1: { block: idx[0] }, INDEX2: { block: idx[1] } } };
     }
     return { type: "var_get", fields: { VAR: { __var: name } } };
   }
@@ -845,6 +902,39 @@ const SIMPLE_RULES = [
     }),
   ],
 
+  [/^Randomize$/i, () => ({ type: "rand_init" })],
+  // 配列の箱を用意する（Dim Umei(5) As String ／ Dim Hyou(3, 4) As Integer）
+  [
+    /^Dim\s+([A-Za-z_]\w*)\s*\((.*)\)(?:\s+As\s+(Integer|Long|Single|Double|String|Variant))?$/i,
+    (m, line) => {
+      checkVarNameAssignable(m[1], line);
+      const t = VBA_TYPE_NAMES[(m[3] || "Variant").toLowerCase()];
+      return { type: "arr_dim", fields: { VAR: { __var: m[1] }, DIMS: m[2].trim(), TYPE: t } };
+    },
+  ],
+  // 配列の要素に入れる：Umei(1) = "食料品" ／ Hyou(1, 2) = 5
+  [
+    /^([A-Za-z_]\w*)\s*\((.+)\)\s*=\s*(.+)$/,
+    (m, line) => {
+      const name = m[1];
+      if (/^(Range|Cells|Rows|Worksheets|WorksheetFunction|InputBox|MsgBox|Val|Format|Int)$/i.test(name)) {
+        throw new VbaParseError(`対応していない書き方です: "${m[0]}"`, line);
+      }
+      checkVarNameAssignable(name, line);
+      const idx = splitTopLevel(m[2], ",");
+      if (idx.length > 2) throw new VbaParseError("3次元以上の配列は、ブロックでは表せません", line);
+      const value = { block: parseExprString(m[3], line) };
+      if (idx.length === 1) {
+        return { type: "arr_set_n", fields: { VAR: { __var: name } }, inputs: { INDEX: { block: parseExprString(idx[0], line) }, VALUE: value } };
+      }
+      return {
+        type: "arr_set_2",
+        fields: { VAR: { __var: name } },
+        inputs: { INDEX1: { block: parseExprString(idx[0], line) }, INDEX2: { block: parseExprString(idx[1], line) }, VALUE: value },
+      };
+    },
+  ],
+
   // 変数：name = name + delta → 増減ブロック（それ以外の代入より先に判定）
   [
     /^([A-Za-z_]\w*)\s*=\s*\1\s*\+\s*(.+)$/i,
@@ -928,13 +1018,14 @@ function normalizeDims(lines) {
       out.push(l);
       continue;
     }
-    for (const part of m[1].split(",")) {
+    for (const part of splitTopLevel(m[1], ",")) {
       const p = part.trim().match(/^([A-Za-z_]\w*)(\s*\(.*\))?(?:\s+As\s+(\w+))?$/i);
       if (!p) throw new VbaParseError(`Dim の書き方が読み取れません: "${l.text}"`, l.line);
       const [, name, dims, type] = p;
       if (dims) {
-        if (name === "arr") continue;
-        throw new VbaParseError(`配列「${name}」は、ブロックでは表せません（ブロックの配列は arr だけです）`, l.line);
+        if (name === "arr") continue; // ブロックが自動で付ける arr の Dim は読み飛ばす
+        out.push({ text: `Dim ${name}${dims.trim()}${type ? " As " + type : ""}`, line: l.line });
+        continue;
       }
       if (COUNTER_NAMES.includes(name)) continue;
       if (!type || /^Variant$/i.test(type)) continue;
@@ -970,7 +1061,18 @@ function parseVBA(source) {
   } else {
     const stray = outside.find((l) => !/^Dim\s+\S+/i.test(l.text));
     if (stray) throw new VbaParseError(`Sub の外に命令があります: "${stray.text}"`, stray.line);
-    if (outside.length) throw new VbaParseError("Sub の外の Dim（モジュールの変数）は、ブロックでは表せません", outside[0].line);
+    // Sub の外の Dim は「🌐 全体で使う箱」ブロックになる
+    for (const l of outside) {
+      const m = l.text.match(/^Dim\s+(.+)$/i);
+      for (const part of splitTopLevel(m[1], ",")) {
+        const p = part.trim().match(/^([A-Za-z_]\w*)\s*(?:\((.*)\))?(?:\s+As\s+(\w+))?$/i);
+        if (!p) throw new VbaParseError(`Dim の書き方が読み取れません: "${l.text}"`, l.line);
+        checkVarNameAssignable(p[1], l.line);
+        const type = VBA_TYPE_NAMES[(p[3] || "Variant").toLowerCase()];
+        if (!type) throw new VbaParseError(`型「${p[3]}」は、ブロックでは表せません`, l.line);
+        roots.push({ type: "mod_dim", fields: { VAR: { __var: p[1] }, DIMS: (p[2] || "").trim(), TYPE: type } });
+      }
+    }
     let macroCount = 0;
     for (const p of procs) {
       const body = parseBody(p.body);
