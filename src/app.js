@@ -133,6 +133,50 @@
     }
   }
 
+  // ----- 仮想Excel表示エリアの幅（ドラッグで調整可能） -----
+  const LS_RIGHT_PANE_WIDTH = "umb_rightPaneWidth";
+  const RIGHT_PANE_MIN = 360;
+  const RIGHT_PANE_MAX = 1200;
+  function applyRightPaneWidth(width) {
+    document.documentElement.style.setProperty("--right-pane-width", `${width}px`);
+  }
+  function initRightPaneResize() {
+    const resizer = document.getElementById("pane-resizer");
+    if (!resizer) return;
+
+    const saved = Number(localStorage.getItem(LS_RIGHT_PANE_WIDTH));
+    if (saved && saved >= RIGHT_PANE_MIN && saved <= RIGHT_PANE_MAX) {
+      applyRightPaneWidth(saved);
+    }
+
+    resizer.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      resizer.classList.add("dragging");
+      resizer.setPointerCapture(e.pointerId);
+
+      const onMove = (moveEvent) => {
+        // 仮想Excelはビューポート右端に接しているため、マウスX座標から右端までの
+        // 距離＝そのまま欲しい幅になる
+        const maxWidth = Math.min(RIGHT_PANE_MAX, window.innerWidth - 300);
+        const width = Math.round(
+          Math.max(RIGHT_PANE_MIN, Math.min(maxWidth, window.innerWidth - moveEvent.clientX))
+        );
+        applyRightPaneWidth(width);
+      };
+      const onUp = (upEvent) => {
+        resizer.classList.remove("dragging");
+        resizer.releasePointerCapture(upEvent.pointerId);
+        resizer.removeEventListener("pointermove", onMove);
+        resizer.removeEventListener("pointerup", onUp);
+        const current = getComputedStyle(document.documentElement).getPropertyValue("--right-pane-width");
+        const px = parseInt(current, 10);
+        if (px) localStorage.setItem(LS_RIGHT_PANE_WIDTH, px);
+      };
+      resizer.addEventListener("pointermove", onMove);
+      resizer.addEventListener("pointerup", onUp);
+    });
+  }
+
   // workspace.setTheme() はグリッド線の色を更新しないため、切替のたびに手動で合わせる
   // （合わせないと、ライト→ダークと往復したときにグリッドがほぼ見えなくなる）
   function updateWorkspaceGridColour(isDark) {
@@ -532,6 +576,7 @@
       move: { scrollbars: true, drag: true, wheel: true },
       theme: isDark ? themes.dark : themes.light,
       renderer: "zelos",
+      media: "vendor/blockly/media/",
     });
 
     // 📦 変数カテゴリ：日本語ブロック + 「変数を作る」ボタン + 登録済み変数の取り出し
@@ -1132,6 +1177,9 @@
     // コード直打ちエディタの文字サイズ / グリッド線
     initCodeFontSize();
     initCodeGrid();
+
+    // 仮想Excel表示エリアの幅（ドラッグ調整）
+    initRightPaneResize();
 
     // 使い方ガイド
     const helpModal = document.getElementById("help-modal");

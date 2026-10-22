@@ -45,19 +45,15 @@
       }, 3000);
     });
   </script>
-  <!-- Blockly (CDN) -->
-  <script src="https://unpkg.com/blockly@11.2.1/blockly.min.js" onerror="cdnLoadFailed('Blockly')"></script>
-  <script src="https://unpkg.com/blockly@11.2.1/msg/ja.js" onerror="cdnLoadFailed('Blockly（日本語版）')"></script>
-  <!-- CodeMirror（VBAコード直打ち用エディタ）(CDN) -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css"
-        onerror="console.warn('CodeMirrorのスタイル読み込みに失敗しました（表示のみ影響）')" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.css"
-        onerror="console.warn('CodeMirrorヒントのスタイル読み込みに失敗しました（表示のみ影響）')" />
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js" onerror="cdnLoadFailed('CodeMirror')"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/vbscript/vbscript.min.js" onerror="cdnLoadFailed('CodeMirror（VBAモード）')"></script>
-  <!-- 入力アシスト（For/Dim等の例文候補ポップアップ）用アドオン。
-       読み込めなくてもエディタ自体は動くので cdnLoadFailed は呼ばず警告のみ -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.js"
+  <!-- Blockly 11.2.1 / CodeMirror 5.65.16 は vendor/ に同梱（学校のネットワークでCDNが止められても動くように） -->
+  <script src="vendor/blockly/blockly.min.js" onerror="cdnLoadFailed('Blockly')"></script>
+  <script src="vendor/blockly/msg/ja.js" onerror="cdnLoadFailed('Blockly（日本語版）')"></script>
+  <link rel="stylesheet" href="vendor/codemirror/codemirror.min.css" />
+  <link rel="stylesheet" href="vendor/codemirror/addon/hint/show-hint.min.css" />
+  <script src="vendor/codemirror/codemirror.min.js" onerror="cdnLoadFailed('CodeMirror')"></script>
+  <script src="vendor/codemirror/mode/vbscript/vbscript.min.js" onerror="cdnLoadFailed('CodeMirror（VBAモード）')"></script>
+  <!-- 入力アシスト（For/Dim等の例文候補ポップアップ）用アドオン。読み込めなくてもエディタ自体は動く -->
+  <script src="vendor/codemirror/addon/hint/show-hint.min.js"
           onerror="console.warn('入力アシスト機能の読み込みに失敗しました（エディタ自体は使えます）')"></script>
 </head>
 <!-- quest-mode-off: クエスト機能を一旦非表示（コード直打ち機能を作り込んでから再検討する）。
@@ -176,6 +172,9 @@
 
       <div class="error-banner" id="error-banner"></div>
     </section>
+
+    <!-- ドラッグで仮想Excel表示エリアの幅を調整するハンドル -->
+    <div class="pane-resizer" id="pane-resizer" title="ドラッグして仮想Excelの表示幅を調整"></div>
 
     <!-- 右: 仮想Excelプレビュー / VBA逆引きリファレンス（タブ切替） -->
     <aside class="right-pane">
