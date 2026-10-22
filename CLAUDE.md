@@ -9,13 +9,29 @@
 「ここまでまとめて」等と頼まれた場合は、`.claude/summaries/YYYY-MM-DD_見出し.md` に
 保存する（汎用フォーマット）。
 
-## 構成（ビルド不要・Blockly / CodeMirror CDN）
+## 大改修中（教科書準拠のユーザーフォーム対応）
+
+計画は [docs/textbook-userform-plan.md](docs/textbook-userform-plan.md)（マイルストーン M0〜M8）。
+対象は中学1年生を含むプログラミング初学者。画面の文言・エラーはやさしい言葉にする。
+
+### 新しい実行エンジン `src/vba/`（DOM 非依存。ブラウザと Node の両方で動く）
+
+- `lexer.js` — 字句解析。全角記号の検出（`zenkaku`）と `fixZenkaku`。`\`・`¥`・`￥` は整数除算
+- `ast-parser.js` — 構文解析（AST）。演算子の優先順位は教科書 p.93 の表どおり（`* / ¥ Mod` は同順位）
+- `runtime.js` — 実行エンジン（ジェネレータ）。MsgBox / InputBox で yield して一時停止する。
+  状態の変化は step（差分 ops ＋ 200 step ごとの全体の写し kf）で記録し、`StepStore.modelAt(i)` で各時点を復元する
+- `session.js` — 実行の管理（`start` / `resume` / `showForm` / `click` / `setText`、区間 `segments`）と、
+  テスト・課題判定用の `runScript`
+- テスト: `node --test tests/*.test.js`（教科書の例題 4-2-03・4-3-01・4-3-06・4-4-01 などを含む）
+
+## 構成（ビルド不要・Blockly / CodeMirror は vendor/ に同梱）
 
 - `index.html` — エントリーポイント
+- `vendor/` — Blockly 11.2.1・CodeMirror 5.65.16（学校のネットワークで CDN が止められても動くように同梱）
 - `src/blockly-setup.js` — カスタムブロック定義 + ツールボックス
 - `src/vba-generator.js` — ブロック → VBA コード生成
 - `src/vba-parser.js` — VBA コード → ブロック 変換（手打ちコードの解析）
-- `src/excel-preview.js` — ブロックを解釈実行して仮想 Excel をアニメーション
+- `src/excel-preview.js` — ブロックを解釈実行して仮想 Excel をアニメーション（M0 で `src/vba/` に置き換え予定）
 - `src/tasks/tasks.js` — 課題データ（`TASKS` 配列）
 - `src/app.js` — 全体の結線
 
