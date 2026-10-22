@@ -1391,7 +1391,7 @@
     let lastGroup = null;
     TASKS.forEach((quest) => {
       const isOriginal = quest.kind === "guide" || quest.kind === "challenge";
-      const group = isOriginal ? "original" : quest.kind ? "textbook" : "cell";
+      const group = isOriginal ? "original:" + quest.series : quest.kind ? "textbook" : "cell";
       if (group !== lastGroup) {
         lastGroup = group;
         const head = document.createElement("div");
@@ -1399,8 +1399,8 @@
         head.textContent =
           group === "textbook"
             ? "📘 教科書の例題・実習問題（第4章）"
-            : group === "original"
-            ? `🍕 ${quest.series}`
+            : isOriginal
+            ? `${quest.seriesIcon || "🍕"} ${quest.series}`
             : "📊 おまけ：セルを使った練習";
         list.appendChild(head);
       }
@@ -1455,6 +1455,15 @@
     currentTaskId = taskId;
     const task = TASKS.find((t) => t.id === taskId);
     if (!task) return false;
+
+    // 「前の課題の続き」の課題：初めて開くときだけ、前の課題の作業（ブロック・コード・フォーム）を引き継ぐ
+    if (task.continueFrom && !savedBlocks[taskId] && !savedCode[taskId] && !savedForms[taskId]) {
+      const from = task.continueFrom;
+      if (savedBlocks[from]) savedBlocks[taskId] = savedBlocks[from];
+      if (savedCode[from]) savedCode[taskId] = JSON.parse(JSON.stringify(savedCode[from]));
+      if (savedForms[from]) savedForms[taskId] = JSON.parse(JSON.stringify(savedForms[from]));
+      persist();
+    }
 
     // 課題説明
     document.getElementById("task-title").textContent = task.title;
@@ -1570,8 +1579,8 @@
   function showAnswerInEditor(task) {
     if (!confirmReplaceCode()) return;
     codeDirty = false;
-    if (task.form) {
-      formPanel.setForm(task.form);
+    if (task.answerForm || task.form) {
+      formPanel.setForm(task.answerForm || task.form);
       savedForms[currentKey()] = formPanel.getForm();
     }
     if (task.files) {
@@ -1637,7 +1646,7 @@
     const kind = task.kind === "example" ? "例題" : "実習問題";
     const meta =
       task.kind === "guide" || task.kind === "challenge"
-        ? `🍕 ${escapeHtml(task.series)}　${escapeHtml(task.step)}（${task.kind === "guide" ? "解説つき" : "自分で考えよう"}）`
+        ? `${task.seriesIcon || "🍕"} ${escapeHtml(task.series)}　${escapeHtml(task.step)}（${task.kind === "guide" ? "解説つき" : "自分で考えよう"}）`
         : `📘 ${kind} ${escapeHtml(task.code)}（教科書 p.${task.page}）`;
     // 解説・考え方（読みもの）。見出し h・本文 p・コード例 code は、どれも省略できる
     const lesson = (task.lesson || [])

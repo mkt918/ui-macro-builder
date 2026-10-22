@@ -385,6 +385,35 @@ const warikanLabelForm = (cap1, cap2) =>
     ufButton("CommandButton1", 90, 130, 120, 36, "計算する"),
   ]);
 
+// ---- 回転ずしアプリ（皿ボタン4つ・枚数と小計と合計の Label、そのあと割り勘）----
+const SUSHI_SERIES = "回転ずしアプリをつくろう";
+const SUSHI_PLATES = [100, 120, 150, 200];
+const SUSHI_DIMS = SUSHI_PLATES.map((p) => `Dim Mai${p} As Long`).join("\n") + "\nDim Gokei As Long";
+const SUSHI_SUBS = SUSHI_PLATES.map(
+  (p, i) =>
+    `Private Sub CommandButton${i + 1}_Click()\n    Mai${p} = Mai${p} + 1\n    Gokei = Gokei + ${p}\n` +
+    `    Label${i + 1}.Caption = "${p}円皿" & Mai${p} & "枚"\n    Label${i + 5}.Caption = "小計" & Mai${p} * ${p} & "円"\n` +
+    `    Label9.Caption = "合計" & Gokei & "円"\nEnd Sub`
+).join("\n");
+// withWari: true なら、割り勘のボタンと Label10・Label11 まで置いたフォーム（模範解答用）
+function sushiForm(withWari) {
+  const sunken = { SpecialEffect: 2, TextAlign: 1, FontSize: 12 };
+  const controls = [];
+  SUSHI_PLATES.forEach((p, i) => {
+    const y = 16 + 50 * i;
+    controls.push(ufButton(`CommandButton${i + 1}`, 20, y, 120, 36, `${p}円皿`));
+    controls.push(ufLabel(`Label${i + 1}`, 155, y, 100, 34, "", sunken));
+    controls.push(ufLabel(`Label${i + 5}`, 265, y, 130, 34, "", sunken));
+  });
+  controls.push(ufLabel("Label9", 155, 216, 240, 34, "", sunken));
+  if (withWari) {
+    controls.push(ufButton("CommandButton5", 20, 276, 120, 36, "割り勘"));
+    controls.push(ufLabel("Label10", 155, 276, 100, 34, "", sunken));
+    controls.push(ufLabel("Label11", 265, 276, 130, 34, "", sunken));
+  }
+  return ufForm(420, withWari ? 340 : 270, controls);
+}
+
 const ORIGINAL_TASKS = [
   {
     id: "warikan1",
@@ -559,32 +588,48 @@ End Sub`,
     kind: "challenge",
     series: WARIKAN_SERIES,
     step: "発展",
-    title: "割り勘アプリ 発展　幹事があまりを持とう",
+    continueFrom: "warikan3",
+    title: "割り勘アプリ 発展　幹事とほかの人の金額を出そう",
     difficulty: 3,
-    goal: "あまったお金は、幹事（かんじ）が引き受けることにしよう。幹事が出す金額と、ほかの人が出す金額を表示するアプリを作ろう。",
+    goal: "あまったお金は、幹事（かんじ）が引き受けることにしよう。ステップ3で作ったフォームの下に Label を4つ足して、幹事が出す金額と、ほかの人が出す金額も表示するアプリにしよう。",
     lesson: [
       {
         h: "考え方",
         p: "4580円を6人で分けると、1人763円であまりは2円。ほかの5人が763円ずつ出すなら、幹事は 763 + 2 = 765円 出せば、ぴったり4580円になります。\nたしかめ算：765 + 763 × 5 = 4580",
       },
+      {
+        h: "フォームに足すもの（ここが新しい！）",
+        p: "ステップ3のフォームはそのまま使います。ボタンを下にずらして、あいたところに Label を4つ足そう。\nLabel5 … Caption を「幹事」にする（見出し）\nLabel6 … 幹事の金額を出す枠\nLabel7 … Caption を「ほかの人」にする（見出し）\nLabel8 … ほかの人の金額を出す枠\nLabel は作った順に、Label5・Label6・Label7・Label8 という名前になります。",
+      },
     ],
     spec: {
       input: "合計金額、人数　4580、6",
-      output: "幹事 765円／ほかの人 763円",
+      output: "1人あたり 763円／あまり 2円／幹事 765円／ほかの人 763円",
       conditions: [
-        "ステップ3と同じように、InputBox で合計金額と人数をたずねる。",
-        "「ほかの人」が出す金額は、ステップ3の「1人あたり」と同じ。",
-        "「幹事」が出す金額は、「ほかの人」の金額に、あまりをたした金額にする。変数 Kanji を使う（型は Long）。",
-        "Label3 に幹事の金額を、Label4 にほかの人の金額を、それぞれ「円」をつけて表示する。",
+        "ステップ3のプログラムとフォームを、そのまま使う。",
+        "フォームの下に Label を4つ足す。Label5 の Caption は「幹事」、Label7 の Caption は「ほかの人」にする。",
+        "Label6 に幹事が出す金額を、Label8 にほかの人が出す金額を、それぞれ「円」をつけて表示する。",
+        "幹事の金額は、「1人あたり」に「あまり」をたした金額。変数 Kanji に入れる（型は Long）。ほかの人の金額は、「1人あたり」と同じ。",
       ],
       inputExample: "InputBox に「4580」「6」の順に入力する",
-      outputExample: "Label3 に「765円」、Label4 に「763円」と表示される",
+      outputExample: "Label3 に「763円」、Label4 に「2円」、Label6 に「765円」、Label8 に「763円」と表示される",
     },
-    form: warikanLabelForm("幹事", "ほかの人"),
+    form: warikanLabelForm("1人あたり", "あまり"),
+    answerForm: ufForm(300, 290, [
+      ufLabel("Label1", 24, 20, 110, 26, "1人あたり", { FontSize: 14 }),
+      ufLabel("Label2", 24, 70, 110, 26, "あまり", { FontSize: 14 }),
+      ufLabel("Label5", 24, 120, 110, 26, "幹事", { FontSize: 14 }),
+      ufLabel("Label7", 24, 170, 110, 26, "ほかの人", { FontSize: 14 }),
+      ufLabel("Label3", 144, 16, 120, 34, "", { SpecialEffect: 2, TextAlign: 1, FontSize: 16 }),
+      ufLabel("Label4", 144, 66, 120, 34, "", { SpecialEffect: 2, TextAlign: 1, FontSize: 16 }),
+      ufLabel("Label6", 144, 116, 120, 34, "", { SpecialEffect: 2, TextAlign: 1, FontSize: 16 }),
+      ufLabel("Label8", 144, 166, 120, 34, "", { SpecialEffect: 2, TextAlign: 1, FontSize: 16 }),
+      ufButton("CommandButton1", 90, 226, 120, 36, "計算する"),
+    ]),
     hints: [
-      "ステップ3のプログラムに、幹事の金額を入れる変数をもう1つ足そう。幹事の金額 ＝ 1人あたり ＋ あまり。",
-      "Kanji という変数を用意して、Kanji = Hitori + Amari と計算します。Label3 には Kanji を、Label4 には Hitori を表示します。",
-      'Kanji = Hitori + Amari ／ Label3.Caption = Kanji & "円" ／ Label4.Caption = Hitori & "円"',
+      "ステップ3のプログラムに、続きを書こう。①フォームに Label を4つ足す ②幹事の金額を計算する ③Label6 と Label8 に表示する、の順です。",
+      "幹事の金額 ＝ 1人あたり ＋ あまり。Kanji という変数を用意して、Kanji = Hitori + Amari と計算します。ほかの人の金額は Hitori と同じです。",
+      'Kanji = Hitori + Amari ／ Label6.Caption = Kanji & "円" ／ Label8.Caption = Hitori & "円"（Label5 の Caption は「幹事」、Label7 の Caption は「ほかの人」）',
     ],
     answer: `Option Explicit
 Private Sub CommandButton1_Click()
@@ -598,14 +643,146 @@ Private Sub CommandButton1_Click()
     Hitori = Gokei ¥ Ninzu
     Amari = Gokei Mod Ninzu
     Kanji = Hitori + Amari
-    Label3.Caption = Kanji & "円"
-    Label4.Caption = Hitori & "円"
+    Label3.Caption = Hitori & "円"
+    Label4.Caption = Amari & "円"
+    Label6.Caption = Kanji & "円"
+    Label8.Caption = Hitori & "円"
 End Sub`,
     scenario: [
-      { click: "CommandButton1", inputs: ["3000", "3"], expect: { controls: { Label3: { Caption: "1000円" }, Label4: { Caption: "1000円" } } } },
-      { click: "CommandButton1", inputs: ["1000", "3"], expect: { controls: { Label3: { Caption: "334円" }, Label4: { Caption: "333円" } } } },
-      { click: "CommandButton1", inputs: ["4580", "6"], expect: { controls: { Label3: { Caption: "765円" }, Label4: { Caption: "763円" } } } },
-      { click: "CommandButton1", inputs: ["1100", "3"], expect: { controls: { Label3: { Caption: "368円" }, Label4: { Caption: "366円" } } } },
+      ["3000", "3", "1000円", "0円", "1000円", "1000円"],
+      ["1000", "3", "333円", "1円", "334円", "333円"],
+      ["4580", "6", "763円", "2円", "765円", "763円"],
+      ["1100", "3", "366円", "2円", "368円", "366円"],
+    ].map((r) => ({
+      click: "CommandButton1",
+      inputs: [r[0], r[1]],
+      expect: {
+        controls: {
+          Label3: { Caption: r[2] },
+          Label4: { Caption: r[3] },
+          Label5: { Caption: "幹事" },
+          Label6: { Caption: r[4] },
+          Label7: { Caption: "ほかの人" },
+          Label8: { Caption: r[5] },
+        },
+      },
+    })),
+  },
+
+  /* ---------- 回転ずしアプリをつくろう ---------- */
+  {
+    id: "sushi1",
+    kind: "guide",
+    series: SUSHI_SERIES,
+    seriesIcon: "🍣",
+    step: "ステップ1",
+    title: "回転ずしアプリ ステップ1　ボタンで皿を数えよう",
+    difficulty: 3,
+    goal: "回転ずしのお会計アプリを作ろう。100円皿・120円皿・150円皿・200円皿のボタンを押すと、お皿の枚数・小計・合計が表示されるようにしよう。",
+    lesson: [
+      { p: "回転ずしでは、食べたお皿の数でお会計が決まります。ボタンを1回押すと、お皿が1枚ふえるアプリを作ります。" },
+      {
+        h: "① 押すたびに数がふえる箱",
+        p: "Sub の外に Dim を書くと、ボタンを押し終わっても、箱の中の数が消えません。押すたびに 1 ずつふやすには「Mai100 = Mai100 + 1」と書きます。",
+        code: "Dim Mai100 As Long\nPrivate Sub CommandButton1_Click()\n    Mai100 = Mai100 + 1\nEnd Sub",
+      },
+      { h: "② 合計の箱もふやす", p: "合計の箱 Gokei にも、100円皿なら 100 をたしていきます。", code: "Gokei = Gokei + 100" },
+      { h: "③ 小計を出す", p: "小計は「枚数 × 1枚の値段」です。", code: "Mai100 * 100" },
+      {
+        h: "④ Label に表示する",
+        p: "Label に文字を入れるには Caption を使います。「&」で文字と数をつなげます。",
+        code: 'Label1.Caption = "100円皿" & Mai100 & "枚"\nLabel5.Caption = "小計" & Mai100 * 100 & "円"\nLabel9.Caption = "合計" & Gokei & "円"',
+      },
+      { h: "⑤ ほかのお皿も同じ", p: "120円皿・150円皿・200円皿のボタンも、100円皿と同じ作りです。数字と Label の名前だけ変えます。" },
+    ],
+    spec: {
+      input: "ボタンを押す（100円皿、120円皿、150円皿、200円皿）",
+      output: "100円皿1枚／小計100円／合計100円",
+      conditions: [
+        "Sub の外で、枚数の箱 Mai100・Mai120・Mai150・Mai200 と、合計の箱 Gokei を用意する（型は Long）。",
+        "100円皿のボタン（CommandButton1）を押すと、Mai100 を 1 ふやし、Gokei に 100 をたす。",
+        "Label1 に「100円皿○枚」、Label5 に「小計○円」（枚数×100）、Label9 に「合計○円」を表示する。",
+        "120円皿（CommandButton2：Label2・Label6）、150円皿（CommandButton3：Label3・Label7）、200円皿（CommandButton4：Label4・Label8）も同じように作る。合計は、どのボタンでも Label9 に出す。",
+      ],
+      inputExample: "100円皿のボタンを2回、120円皿のボタンを1回押す",
+      outputExample: "Label1 に「100円皿2枚」、Label5 に「小計200円」、Label2 に「120円皿1枚」、Label6 に「小計120円」、Label9 に「合計320円」と表示される",
+    },
+    form: sushiForm(false),
+    hints: [
+      "まず 100円皿のボタン1つだけを完成させよう。できたら、コピーして数字と Label の名前を変えるだけです。",
+      "Sub の外に Dim Mai100 As Long と Dim Gokei As Long を書きます。ボタンの中では ①Mai100 を 1 ふやす ②Gokei に 100 をたす ③Label を3つ書きかえる、の順です。",
+      'Mai100 = Mai100 + 1 ／ Gokei = Gokei + 100 ／ Label1.Caption = "100円皿" & Mai100 & "枚" ／ Label5.Caption = "小計" & Mai100 * 100 & "円" ／ Label9.Caption = "合計" & Gokei & "円"',
+    ],
+    answer: `Option Explicit
+${SUSHI_DIMS}
+${SUSHI_SUBS}`,
+    scenario: [
+      { click: "CommandButton1", expect: { controls: { Label1: { Caption: "100円皿1枚" }, Label5: { Caption: "小計100円" }, Label9: { Caption: "合計100円" } } } },
+      { click: "CommandButton1", expect: { controls: { Label1: { Caption: "100円皿2枚" }, Label5: { Caption: "小計200円" }, Label9: { Caption: "合計200円" } } } },
+      { click: "CommandButton2", expect: { controls: { Label2: { Caption: "120円皿1枚" }, Label6: { Caption: "小計120円" }, Label9: { Caption: "合計320円" } } } },
+      { click: "CommandButton3", expect: { controls: { Label3: { Caption: "150円皿1枚" }, Label7: { Caption: "小計150円" }, Label9: { Caption: "合計470円" } } } },
+      { click: "CommandButton4", expect: { controls: { Label4: { Caption: "200円皿1枚" }, Label8: { Caption: "小計200円" }, Label9: { Caption: "合計670円" } } } },
+      { click: "CommandButton1", expect: { controls: { Label1: { Caption: "100円皿3枚" }, Label5: { Caption: "小計300円" }, Label9: { Caption: "合計770円" } } } },
+    ],
+  },
+  {
+    id: "sushi2",
+    kind: "challenge",
+    series: SUSHI_SERIES,
+    seriesIcon: "🍣",
+    step: "ステップ2",
+    continueFrom: "sushi1",
+    title: "回転ずしアプリ ステップ2　人数で割り勘にしよう",
+    difficulty: 3,
+    goal: "回転ずしアプリに「割り勘」ボタンを足そう。押すと人数をたずねて、合計を人数でわった「1人あたりの金額」を表示するアプリにしよう。",
+    lesson: [
+      {
+        h: "考え方",
+        p: "ステップ1のアプリをそのまま使い、続きを足します。割り勘の計算は、割り勘アプリで使った「¥」（整数の割り算）です。",
+      },
+      {
+        h: "フォームに足すもの（ここが新しい！）",
+        p: "CommandButton5 … Caption を「割り勘」にする\nLabel10 … 人数を出す枠\nLabel11 … 1人あたりの金額を出す枠",
+      },
+    ],
+    spec: {
+      input: "お皿のボタンを押す。そのあと「割り勘」ボタンを押して、人数を入力する　例：3",
+      output: "人数3人／1人あたり106円",
+      conditions: [
+        "ステップ1のプログラムとフォームを、そのまま使う。",
+        "フォームの下に「割り勘」ボタン（CommandButton5）と、Label10・Label11 を足す。",
+        "割り勘ボタンを押すと、InputBox で「人数を入力してください」とたずね、変数 Ninzu（型は Long）に入れる。",
+        "Gokei を Ninzu で「¥」でわった金額を、変数 Hitori（型は Long）に入れる。",
+        "Label10 に「人数○人」、Label11 に「1人あたり○円」を表示する。",
+      ],
+      inputExample: "100円皿1回、120円皿1回、100円皿もう1回を押して合計320円にし、「割り勘」を押して、InputBox に「3」と入力する",
+      outputExample: "Label10 に「人数3人」、Label11 に「1人あたり106円」と表示される",
+    },
+    form: sushiForm(false),
+    answerForm: sushiForm(true),
+    hints: [
+      "お皿のボタンの部分は、ステップ1のままで大丈夫。割り勘ボタンの命令を足すだけです。",
+      "CommandButton5_Click の中で、①InputBox で人数を聞く ②Hitori = Gokei ¥ Ninzu ③Label10 と Label11 に表示する、の順に書きます。Gokei は Sub の外にあるので、そのまま使えます。",
+      'Ninzu = Val(InputBox("人数を入力してください")) ／ Hitori = Gokei ¥ Ninzu ／ Label10.Caption = "人数" & Ninzu & "人" ／ Label11.Caption = "1人あたり" & Hitori & "円"',
+    ],
+    answer: `Option Explicit
+${SUSHI_DIMS}
+${SUSHI_SUBS}
+Private Sub CommandButton5_Click()
+    Dim Ninzu As Long
+    Dim Hitori As Long
+    Ninzu = Val(InputBox("人数を入力してください"))
+    Hitori = Gokei ¥ Ninzu
+    Label10.Caption = "人数" & Ninzu & "人"
+    Label11.Caption = "1人あたり" & Hitori & "円"
+End Sub`,
+    scenario: [
+      { click: "CommandButton1", expect: { controls: { Label1: { Caption: "100円皿1枚" }, Label9: { Caption: "合計100円" } } } },
+      { click: "CommandButton2", expect: { controls: { Label2: { Caption: "120円皿1枚" }, Label6: { Caption: "小計120円" }, Label9: { Caption: "合計220円" } } } },
+      { click: "CommandButton1", expect: { controls: { Label1: { Caption: "100円皿2枚" }, Label9: { Caption: "合計320円" } } } },
+      { click: "CommandButton5", inputs: ["3"], expect: { controls: { Label10: { Caption: "人数3人" }, Label11: { Caption: "1人あたり106円" } } } },
+      { click: "CommandButton4", expect: { controls: { Label4: { Caption: "200円皿1枚" }, Label9: { Caption: "合計520円" } } } },
+      { click: "CommandButton5", inputs: ["4"], expect: { controls: { Label10: { Caption: "人数4人" }, Label11: { Caption: "1人あたり130円" } } } },
     ],
   },
 ];
@@ -626,7 +803,7 @@ function runTaskScenario(task, source, opts) {
       props: Object.assign({}, c.props, { Left: c.left, Top: c.top, Width: c.width, Height: c.height }),
     })),
   });
-  const form = opts.form || (task.form ? toRuntime(task.form) : null);
+  const form = opts.form || ((task.answerForm || task.form) ? toRuntime(task.answerForm || task.form) : null);
   const files = opts.files || task.files || {};
   const scenario = task.scenario || [];
   const actions = [{ showForm: true }].concat(scenario.map((s) => ({ text: s.text, inputs: s.inputs, click: s.click })));

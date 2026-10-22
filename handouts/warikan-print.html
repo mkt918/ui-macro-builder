@@ -5,469 +5,319 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>割り勘アプリをつくろう（プリント）</title>
 <style>
-  /* A4 たて・両面印刷用。1課題＝1ページ（全4ページ）。外部ファイルなしで印刷できる */
-  :root {
-    --ink: #111;
-    --sub: #555;
-    --line: #333;
-    --soft: #f2f2f2;
-    --accent: #1f4e8c;
-  }
+  /* A4 たて・両面印刷用。1ステップ＝おもて（考える）＋うら（作る）。外部ファイルなしで印刷できる */
+  :root { --ink: #111; --sub: #555; --line: #222; --soft: #f1f1f1; }
   @page { size: A4 portrait; margin: 9mm 13mm; }
   * { box-sizing: border-box; }
   html { background: #d8d8d8; }
-  body {
-    margin: 0;
-    color: var(--ink);
-    background: #fff;
-    font-family: "BIZ UDPGothic", "Yu Gothic", "Meiryo", sans-serif;
-    font-size: 9.5pt;
-    line-height: 1.35;
-  }
+  body { margin: 0; color: var(--ink); background: #fff; font-family: "BIZ UDPGothic", "Yu Gothic", "Meiryo", sans-serif; font-size: 9.5pt; line-height: 1.35; }
+  svg { font-family: "BIZ UDPGothic", "Yu Gothic", "Meiryo", "Segoe UI Emoji", sans-serif; }
   .page { padding: 0; page-break-after: always; break-after: page; }
   .page:last-child { page-break-after: auto; break-after: auto; }
   @media screen {
     body { background: transparent; }
     .page { width: 210mm; min-height: 297mm; margin: 12px auto; padding: 9mm 13mm; background: #fff; box-shadow: 0 1px 6px rgba(0,0,0,.25); }
   }
-  @media print {
-    html, body { background: #fff; }
-    .page { width: auto; min-height: 0; margin: 0; padding: 0; box-shadow: none; }
-  }
+  @media print { html, body { background: #fff; } .page { width: auto; min-height: 0; margin: 0; padding: 0; box-shadow: none; } }
 
-  /* ---- ヘッダー ---- */
-  .head { display: flex; justify-content: space-between; align-items: flex-end; gap: 10px; border-bottom: 2.5px solid var(--line); padding-bottom: 4px; }
-  .series { font-size: 9.5pt; color: var(--sub); }
+  .head { display: flex; justify-content: space-between; align-items: flex-end; gap: 10px; border-bottom: 2.5px solid var(--line); padding-bottom: 3px; }
+  .series { font-size: 9pt; color: var(--sub); }
   .title { font-size: 15pt; font-weight: 700; line-height: 1.25; }
   .step-tag { display: inline-block; margin-right: 6px; padding: 0 9px; border: 2px solid var(--line); border-radius: 6px; font-size: 12pt; vertical-align: 1px; }
   .name { font-size: 9.5pt; white-space: nowrap; }
-  .name span { display: inline-block; min-width: 24mm; border-bottom: 1px solid var(--line); margin: 0 3px 0 2px; }
-  .name span.long { min-width: 38mm; }
+  .name span { display: inline-block; min-width: 20mm; border-bottom: 1px solid var(--line); margin: 0 3px 0 2px; }
+  .name span.long { min-width: 36mm; }
 
-  /* ---- 見出し・ボックス ---- */
+  /* 流れ（①〜⑥） */
+  ol.road { list-style: none; display: flex; gap: 0; margin: 4px 0 0; padding: 0; font-size: 8.5pt; }
+  ol.road li { flex: 1; text-align: center; padding: 1px 2px; border: 1.2px solid #999; color: #777; margin-left: -1px; }
+  ol.road li.on { background: #111; color: #fff; border-color: #111; font-weight: 700; }
+
   h2 { margin: 7px 0 3px; font-size: 10.5pt; padding-left: 7px; border-left: 5px solid var(--line); line-height: 1.3; }
-  .mission { margin-top: 6px; padding: 4px 10px; border: 2px solid var(--line); border-radius: 8px; background: var(--soft); }
-  .mission b { margin-right: 4px; }
-  .box { border: 1.5px solid var(--line); border-radius: 6px; padding: 3px 10px 4px; margin-top: 3px; }
-  .box.dashed { border-style: dashed; }
-  .note { font-size: 9.5pt; color: var(--sub); }
-  p { margin: 2px 0; }
+  .h2note { font-size: 8.8pt; font-weight: 400; color: var(--sub); }
 
-  /* ---- 解説 ---- */
+  /* ミッション（いちばん目立たせる） */
+  .mission2 { margin-top: 6px; border: 3px solid #000; border-radius: 10px; overflow: hidden; }
+  .mhead { background: #000; color: #fff; padding: 2px 10px; font-size: 12pt; font-weight: 700; }
+  .mhead span { font-size: 8.5pt; font-weight: 400; margin-left: 6px; }
+  .mbody { padding: 4px 10px 6px; }
+  .mlead { margin: 0; font-size: 10pt; }
+  .mmain { margin: 2px 0 3px; font-size: 12.5pt; font-weight: 700; line-height: 1.35; }
+  .mmain u { text-decoration: none; background: linear-gradient(transparent 60%, #d7d7d7 60%); }
+  .mband { margin: 3px 0 4px; padding: 2px 8px; border: 2px dashed #000; border-radius: 6px; font-size: 11.5pt; font-weight: 700; text-align: center; background: #f4f4f4; }
+  .mimg { display: block; width: 100%; height: auto; }
+
+  .box { border: 1.5px solid var(--line); border-radius: 6px; padding: 3px 10px 4px; margin-top: 3px; }
+  .note { font-size: 9pt; color: var(--sub); }
+  p { margin: 2px 0; }
+  code { font-family: Consolas, "BIZ UDGothic", "MS Gothic", monospace; font-size: 9.5pt; }
+
+  /* 解説 */
   .lesson { display: grid; gap: 3px; }
   .lesson .item { display: grid; grid-template-columns: 22px 1fr; gap: 0 6px; align-items: start; }
   .num { display: inline-block; width: 21px; height: 21px; line-height: 19px; text-align: center; border: 1.5px solid var(--line); border-radius: 50%; font-weight: 700; font-size: 10pt; }
   .item .t { font-weight: 700; }
-  code, .code {
-    font-family: Consolas, "BIZ UDGothic", "MS Gothic", monospace;
-    font-size: 9.5pt;
-  }
   .snip { display: block; margin: 2px 0 0; padding: 1px 8px; border-left: 4px solid var(--line); background: var(--soft); white-space: pre-wrap; font-family: Consolas, "BIZ UDGothic", "MS Gothic", monospace; font-size: 9.5pt; line-height: 1.4; }
   .ops { width: 100%; border-collapse: collapse; margin-top: 3px; }
   .ops th, .ops td { border: 1.2px solid var(--line); padding: 1px 8px; text-align: left; font-weight: 400; }
-  .ops th { background: var(--soft); font-weight: 700; width: 24%; }
+  .ops th { background: var(--soft); font-weight: 700; width: 14%; }
 
-  /* ---- 仕様の5つの欄 ---- */
-  table.spec { width: 100%; border-collapse: collapse; margin-top: 4px; }
-  table.spec th, table.spec td { border: 1.5px solid var(--line); padding: 2px 8px; vertical-align: top; text-align: left; }
-  table.spec th { width: 21mm; background: var(--soft); font-weight: 700; white-space: nowrap; }
+  /* 仕様 */
+  table.spec { width: 100%; border-collapse: collapse; margin-top: 3px; }
+  table.spec th, table.spec td { border: 1.5px solid var(--line); padding: 2px 7px; vertical-align: top; text-align: left; }
+  table.spec th { width: 19mm; background: var(--soft); font-weight: 700; white-space: nowrap; }
   table.spec ul { margin: 0; padding-left: 16px; }
   table.spec li { margin: 0; }
 
-  /* ---- プログラムを書く欄 ---- */
-  .codebox { margin-top: 4px; border: 1.5px solid var(--line); border-radius: 6px; padding: 3px 10px 4px; font-family: Consolas, "BIZ UDGothic", "MS Gothic", monospace; font-size: 9.5pt; line-height: 1.65; }
-  .codebox .ind { padding-left: 2em; }
-  .blank { display: inline-block; min-width: 3.2em; height: 1.05em; border-bottom: 1.5px solid var(--line); vertical-align: -1px; }
-  .blank.s { min-width: 1.7em; }
-  .blank.m { min-width: 5.5em; }
-  .blank.l { min-width: 9em; }
-  .blank.xl { min-width: 17em; }
-  .writeline { display: block; margin-left: 2em; height: 6mm; border-bottom: 1px dotted #777; }
+  /* 流れ図 */
+  .flowrow { display: flex; gap: 2mm; align-items: flex-start; margin-top: 3px; }
+  svg.flow { flex: none; width: 146mm; height: auto; }
+  .legend { flex: 1; border: 1.5px solid var(--line); border-radius: 6px; padding: 3px 6px; font-size: 8.5pt; line-height: 1.3; }
+  .lg-t { font-weight: 700; margin-bottom: 2px; }
+  .lg-i { display: flex; align-items: center; gap: 4px; margin-bottom: 1px; }
+  .lg-svg { width: 11mm; height: auto; flex: none; }
+  .lg-n { margin-top: 3px; }
+  .lg-n.blue { color: #1f4e8c; font-weight: 700; }
 
-  /* ---- ためし表 ---- */
-  table.try { width: 100%; border-collapse: collapse; margin-top: 4px; text-align: center; }
+  /* プログラム */
+  .codebox { margin-top: 3px; border: 1.5px solid var(--line); border-radius: 6px; padding: 3px 10px 4px; font-family: Consolas, "BIZ UDGothic", "MS Gothic", monospace; font-size: 9.5pt; line-height: 1.75; }
+  .ln.new { background: var(--soft); border-left: 4px solid #000; margin-left: -6px; padding-left: 6px; }
+  .lnote { margin-left: 10px; font-family: "BIZ UDPGothic", "Yu Gothic", "Meiryo", sans-serif; font-size: 8.5pt; font-weight: 700; }
+  .blank { display: inline-block; min-width: 3.2em; height: 1.05em; border-bottom: 1.5px solid var(--line); vertical-align: -1px; }
+  .blank.s { min-width: 2.2em; }
+  .blank.m { min-width: 4.4em; }
+  .blank.xl { min-width: 15em; }
+
+  /* 動かして確かめる表 */
+  table.try { width: 100%; border-collapse: collapse; margin-top: 3px; text-align: center; }
   table.try th, table.try td { border: 1.5px solid var(--line); padding: 1px 6px; }
   table.try th { background: var(--soft); font-weight: 700; }
-  table.try td.chk { width: 22mm; }
-
-  /* ---- ユーザーフォームの絵（SVG） ---- */
-  .uf-svg { display: block; width: 86mm; height: auto; }
-  .uf-svg.small { width: 46mm; flex: none; }
-  .mfx { display: flex; align-items: center; gap: 10px; }
-  .mfx > div { flex: 1; }
-  .with-form { display: flex; gap: 10px; align-items: flex-start; }
-  .with-form > div:last-child { flex: 1; }
+  table.try td.chk { width: 18mm; }
 
   .footer { margin-top: 4px; display: flex; justify-content: space-between; font-size: 9pt; color: var(--sub); }
-  ul.checks { list-style: none; padding: 0; margin: 2px 0 0; }
-  ul.checks li::before { content: "☐ "; }
 </style>
 </head>
 <body>
-<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
-  <defs>
-    <pattern id="uf-dots" width="8" height="8" patternUnits="userSpaceOnUse"><rect x="0" y="0" width="1" height="1" fill="#8a8a8a"/></pattern>
-  </defs>
-</svg>
-
-<!-- ======================= 1ページ目：ステップ1 ======================= -->
 <section class="page">
   <div class="head">
     <div>
-      <div class="series">🍕 割り勘アプリをつくろう　［解説つき］</div>
+      <div class="series">🍕 割り勘アプリをつくろう　［解説つき］　<b>おもて：考える</b></div>
       <div class="title"><span class="step-tag">ステップ1</span>1人あたりの金額を出そう</div>
     </div>
     <div class="name">　　年<span></span>組<span></span>番　名前<span class="long"></span></div>
   </div>
-
-  <div class="mission mfx"><div><b>🎯 ミッション</b>文化祭の打ち上げで、ジュース・ピザ・ケーキを注文した。3つの値段と人数を入力すると、<b>合計</b>と<b>1人あたりの金額</b>を表示するプログラムを作ろう。</div>
-    <svg class="uf-svg small" viewBox="0 0 330 112" role="img" aria-label="ユーザーフォームの絵。ボタン CommandButton1 が1つある">
-    <rect x="1" y="1" width="190" height="104" fill="#f0f0f0" stroke="#222" stroke-width="2"/>
-    <rect x="3" y="26" width="186" height="78" fill="url(#uf-dots)"/>
-    <rect x="1" y="1" width="190" height="25" fill="#d9d9d9" stroke="#222" stroke-width="2"/>
-    <text x="9" y="19" font-size="13" font-family="'BIZ UDPGothic','Yu Gothic','Meiryo',sans-serif">UserForm1</text>
-    <text x="176" y="20" font-size="16" font-weight="700" text-anchor="middle" font-family="'BIZ UDPGothic','Yu Gothic','Meiryo',sans-serif">×</text>
-    
-    <rect x="32" y="48" width="126" height="38" rx="3" fill="#f7f7f7" stroke="#222" stroke-width="1.6"/>
-    <text x="95" y="72" font-size="14" text-anchor="middle" font-family="'BIZ UDPGothic','Yu Gothic','Meiryo',sans-serif">計算する</text>
-    
-    <line x1="160" y1="67" x2="201" y2="67" stroke="#222" stroke-width="1.2"/>
-    <path d="M167 63 L160 67 L167 71" fill="none" stroke="#222" stroke-width="1.2"/>
-    <text x="204" y="71.5" font-size="13" font-weight="700" font-family="Consolas,'BIZ UDGothic','MS Gothic',monospace">CommandButton1</text>
-  </svg>
+  <ol class="road"><li class="on">① ミッション</li><li class="on">② 仕様</li><li class="on">③ 流れ図</li><li>④ 読む</li><li>⑤ プログラム</li><li>⑥ 動かす</li></ol>
+  <div class="mission2">
+    <div class="mhead">🎯 ① ミッション　<span>ここが一番大事！ どんなアプリを作るのか、イメージしよう</span></div>
+    <div class="mbody">
+      <p class="mlead">文化祭の打ち上げで、ジュース・ピザ・ケーキを注文しました。</p>
+      <p class="mmain">3つの値段と人数を入力すると、<u>合計</u>と<u>1人あたりの金額</u>を表示するプログラムを作ろう！</p>
+      
+      <svg class="mimg" viewBox="0 0 172 33" role="img" aria-label="ミッションの絵。ジュース300円、ピザ1200円、ケーキ900円、3人を入力すると、合計と1人あたりの金額が出る"><rect x="0" y="0" width="13" height="5" rx="1" fill="#111" stroke="#222" stroke-width="0.35"/><text x="6.5" y="3.6" font-size="3" font-weight="700" text-anchor="middle" fill="#fff">入力</text><rect x="0" y="6" width="60" height="5.9" rx="1.5" fill="#fff" stroke="#222" stroke-width="0.35"/><text x="2.5" y="10.2" font-size="3.3">🧃 ジュース　300円</text><rect x="0" y="12.6" width="60" height="5.9" rx="1.5" fill="#fff" stroke="#222" stroke-width="0.35"/><text x="2.5" y="16.799999999999997" font-size="3.3">🍕 ピザ　1200円</text><rect x="0" y="19.2" width="60" height="5.9" rx="1.5" fill="#fff" stroke="#222" stroke-width="0.35"/><text x="2.5" y="23.4" font-size="3.3">🍰 ケーキ　900円</text><rect x="0" y="25.799999999999997" width="60" height="5.9" rx="1.5" fill="#fff" stroke="#222" stroke-width="0.35"/><text x="2.5" y="29.999999999999996" font-size="3.3">👥 人数　3人</text><polygon points="62,14.9 66.95,14.9 66.95,12.5 71,16.5 66.95,20.5 66.95,18.1 62,18.1" fill="#cfcfcf" stroke="#222" stroke-width="0.35"/><rect x="73" y="6" width="30" height="26" rx="3" fill="#ececec" stroke="#222" stroke-width="0.5"/><text x="88" y="16.92" font-size="8" text-anchor="middle">💻</text><text x="88" y="22.92" font-size="3.5" font-weight="700" text-anchor="middle">割り勘</text><text x="88" y="27.32" font-size="3.5" font-weight="700" text-anchor="middle">アプリ</text><polygon points="105,14.9 109.95,14.9 109.95,12.5 114,16.5 109.95,20.5 109.95,18.1 105,18.1" fill="#cfcfcf" stroke="#222" stroke-width="0.35"/><rect x="116" y="0" width="13" height="5" rx="1" fill="#111" stroke="#222" stroke-width="0.35"/><text x="122.5" y="3.6" font-size="3" font-weight="700" text-anchor="middle" fill="#fff">出力</text><rect x="116" y="6" width="56" height="12" rx="1.5" fill="#fff" stroke="#222" stroke-width="0.5" stroke-dasharray="1.4 0.9"/><text x="144" y="13.8" font-size="5.2" font-weight="700" text-anchor="middle">合計は ？円</text><rect x="116" y="20" width="56" height="12" rx="1.5" fill="#fff" stroke="#222" stroke-width="0.5" stroke-dasharray="1.4 0.9"/><text x="144" y="27.8" font-size="5.2" font-weight="700" text-anchor="middle">1人 ？円</text></svg>
+    </div>
   </div>
-
-  <h2>📖 まず読もう</h2>
-  <div class="box lesson">
-    <div class="item"><span class="num">1</span><div>
-      <div class="t">値段を聞いて、変数（数を入れる箱）にしまう</div>
-      <p>InputBox で聞いた答えは「文字」です。<b>Val( )</b> をつけると「数」になります。<span class="note">（Long は大きめの整数が入る型です）</span></p>
-      <span class="snip">Dim Juice As Long
-Juice = Val(InputBox("ジュースの値段を入力してください"))</span>
-    </div></div>
-    <div class="item"><span class="num">2</span><div>
-      <div class="t">たし算をして、合計を出す</div>
-      <p>たし算は「<b>+</b>」です。答えは変数 Gokei（合計）にしまいます。</p>
-      <span class="snip">Gokei = Juice + Pizza + Cake
-MsgBox ("合計は" &amp; Gokei &amp; "円です")</span>
-    </div></div>
-    <div class="item"><span class="num">3</span><div>
-      <div class="t">人数でわり算をする</div>
-      <p>わり算は「<b>/</b>」です。</p>
-      <span class="snip">Hitori = Gokei / Ninzu
-MsgBox ("1人" &amp; Hitori &amp; "円です")</span>
-    </div></div>
-  </div>
-
-  <h2>📝 仕様（やること）を確かめよう</h2>
+  <h2>② 仕様を確かめよう</h2>
   <table class="spec">
-    <tr><th>入力データ</th><td>ジュース・ピザ・ケーキの値段、人数　<code>300、1200、900、3</code></td></tr>
-    <tr><th>出力データ</th><td>合計は2400円です ／ 1人800円です</td></tr>
-    <tr><th>処理条件</th><td><ul>
-      <li>値段は変数 <code>Juice</code>・<code>Pizza</code>・<code>Cake</code> に、人数は変数 <code>Ninzu</code> に入れる（型は Long）。</li>
-      <li>InputBox で、ジュース → ピザ → ケーキ → 人数 の順にたずねる。</li>
-      <li>3つの値段をたした合計を <code>Gokei</code> に入れ、MsgBox で表示する。</li>
-      <li><code>Gokei</code> を <code>Ninzu</code> でわった金額を <code>Hitori</code> に入れ、MsgBox で表示する。</li>
-    </ul></td></tr>
-    <tr><th>入力例</th><td>InputBox に「300」「1200」「900」「3」の順に入力する</td></tr>
-    <tr><th>出力例</th><td>「合計は2400円です」、続けて「1人800円です」と表示される</td></tr>
+    <tr><th>入力データ</th><td>ジュース・ピザ・ケーキの値段、人数　300、1200、900、3</td><th>出力データ</th><td>合計は2400円です／1人800円です</td></tr>
+    <tr><th>処理条件</th><td colspan="3"><ul><li>値段は変数 Juice・Pizza・Cake に、人数は変数 Ninzu に入れる（型は Long）。</li><li>InputBox 関数で、「ジュースの値段を入力してください」「ピザの値段を入力してください」「ケーキの値段を入力してください」「人数を入力してください」の順にたずねる。</li><li>3つの値段をたした合計を、変数 Gokei に入れ、MsgBox で「合計は Gokei 円です」と表示する。</li><li>Gokei を Ninzu でわった金額を、変数 Hitori に入れ、MsgBox で「1人 Hitori 円です」と表示する。</li></ul></td></tr>
+    <tr><th>入力例</th><td>InputBox に「300」「1200」「900」「3」の順に入力する</td><th>出力例</th><td>MsgBox に「合計は2400円です」、続けて「1人800円です」と表示される</td></tr>
   </table>
-
-  <h2>✏️ プログラムを完成させよう（＿＿ をうめる）</h2>
-  <div class="codebox">
-    <div>Private Sub CommandButton1_Click()</div>
-    <div class="ind">Dim Juice As Long ／ Dim Pizza As Long ／ Dim Cake As Long</div>
-    <div class="ind">Dim Ninzu As Long ／ Dim Gokei As Long ／ Dim Hitori As Long</div>
-    <div class="ind">Juice = Val(InputBox("ジュースの値段を入力してください"))</div>
-    <div class="ind"><span class="blank s"></span> = Val(InputBox("ピザの値段を入力してください"))</div>
-    <div class="ind"><span class="blank s"></span> = Val(InputBox("<span class="blank m"></span>"))</div>
-    <div class="ind"><span class="blank s"></span> = Val(InputBox("<span class="blank m"></span>"))</div>
-    <div class="ind">Gokei = <span class="blank"></span> <span class="blank s"></span> <span class="blank"></span> <span class="blank s"></span> <span class="blank"></span></div>
-    <div class="ind">MsgBox ("合計は" &amp; <span class="blank"></span> &amp; "円です")</div>
-    <div class="ind">Hitori = <span class="blank"></span> <span class="blank s"></span> <span class="blank"></span></div>
-    <div class="ind">MsgBox ("1人" &amp; <span class="blank"></span> &amp; "円です")</div>
-    <div>End Sub</div>
-  </div>
-
-  <h2>✅ 動かしてたしかめよう</h2>
-  <table class="try">
-    <tr><th>ジュース</th><th>ピザ</th><th>ケーキ</th><th>人数</th><th>合計</th><th>1人あたり</th><th>できた？</th></tr>
-    <tr><td>300</td><td>1200</td><td>900</td><td>3</td><td>2400</td><td>800</td><td class="chk">☐</td></tr>
-    <tr><td>500</td><td>900</td><td>100</td><td>5</td><td>1500</td><td>300</td><td class="chk">☐</td></tr>
-  </table>
-  <div class="footer"><span>※ 1000円を3人でわると 333.33…円。割り切れないときは、次のステップで考えます。</span><span>1 / 4</span></div>
+  <h2>③ 流れ図を書こう　<span class="h2note">平行四辺形には、<b>画面に出す「ことば」</b>と<b>「変数名」</b>を必ず書く</span></h2>
+  <div class="flowrow"><svg class="flow" viewBox="0 0 146 113.99999999999999" role="img" aria-label="流れ図を書く欄。はじめ、入力、計算、表示、おわりの記号がならんでいる"><rect x="56" y="1" width="28" height="7.2" rx="3.6" fill="#fff" stroke="#222" stroke-width="0.5"/><text x="70" y="5.699999999999999" font-size="3.1" font-weight="700" text-anchor="middle">はじめ</text><line x1="70" y1="8.2" x2="70" y2="10.999999999999998" stroke="#222" stroke-width="0.45"/><polygon points="69.1,10.2 70.9,10.2 70,11.399999999999999" fill="#222"/><polygon points="8,11.4 136,11.4 132,20 4,20" fill="#fff" stroke="#222" stroke-width="0.5"/><text x="10.5" y="16.8" font-size="3.1" fill="#555">ことば</text><line x1="20.4" y1="17.8" x2="90.4" y2="17.8" stroke="#222" stroke-width="0.3"/><text x="21.2" y="16.7" font-size="3.1" font-weight="700" fill="#1f4e8c">ジュースの値段を入力してください</text><text x="91.19999999999999" y="16.8" font-size="3.1" fill="#555">→変数</text><line x1="101.1" y1="17.8" x2="121.1" y2="17.8" stroke="#222" stroke-width="0.3"/><text x="101.89999999999999" y="16.7" font-size="3.1" font-weight="700" fill="#1f4e8c">Juice</text><text x="121.89999999999999" y="16.8" font-size="3.1" fill="#555">を入力</text><line x1="70" y1="20" x2="70" y2="22.8" stroke="#222" stroke-width="0.45"/><polygon points="69.1,22 70.9,22 70,23.2" fill="#222"/><polygon points="8,23.200000000000003 136,23.200000000000003 132,31.800000000000004 4,31.800000000000004" fill="#fff" stroke="#222" stroke-width="0.5"/><text x="10.5" y="28.600000000000005" font-size="3.1" fill="#555">ことば</text><line x1="20.4" y1="29.600000000000005" x2="90.4" y2="29.600000000000005" stroke="#222" stroke-width="0.3"/><text x="91.19999999999999" y="28.600000000000005" font-size="3.1" fill="#555">→変数</text><line x1="101.1" y1="29.600000000000005" x2="121.1" y2="29.600000000000005" stroke="#222" stroke-width="0.3"/><text x="121.89999999999999" y="28.600000000000005" font-size="3.1" fill="#555">を入力</text><line x1="70" y1="31.800000000000004" x2="70" y2="34.60000000000001" stroke="#222" stroke-width="0.45"/><polygon points="69.1,33.800000000000004 70.9,33.800000000000004 70,35.00000000000001" fill="#222"/><polygon points="8,35 136,35 132,43.6 4,43.6" fill="#fff" stroke="#222" stroke-width="0.5"/><text x="10.5" y="40.4" font-size="3.1" fill="#555">ことば</text><line x1="20.4" y1="41.4" x2="90.4" y2="41.4" stroke="#222" stroke-width="0.3"/><text x="91.19999999999999" y="40.4" font-size="3.1" fill="#555">→変数</text><line x1="101.1" y1="41.4" x2="121.1" y2="41.4" stroke="#222" stroke-width="0.3"/><text x="121.89999999999999" y="40.4" font-size="3.1" fill="#555">を入力</text><line x1="70" y1="43.6" x2="70" y2="46.400000000000006" stroke="#222" stroke-width="0.45"/><polygon points="69.1,45.6 70.9,45.6 70,46.800000000000004" fill="#222"/><polygon points="8,46.8 136,46.8 132,55.4 4,55.4" fill="#fff" stroke="#222" stroke-width="0.5"/><text x="10.5" y="52.199999999999996" font-size="3.1" fill="#555">ことば</text><line x1="20.4" y1="53.199999999999996" x2="90.4" y2="53.199999999999996" stroke="#222" stroke-width="0.3"/><text x="91.19999999999999" y="52.199999999999996" font-size="3.1" fill="#555">→変数</text><line x1="101.1" y1="53.199999999999996" x2="121.1" y2="53.199999999999996" stroke="#222" stroke-width="0.3"/><text x="121.89999999999999" y="52.199999999999996" font-size="3.1" fill="#555">を入力</text><line x1="70" y1="55.4" x2="70" y2="58.2" stroke="#222" stroke-width="0.45"/><polygon points="69.1,57.4 70.9,57.4 70,58.6" fill="#222"/><rect x="4" y="58.599999999999994" width="132" height="8.6" fill="#fff" stroke="#222" stroke-width="0.5"/><line x1="7" y1="65" x2="33" y2="65" stroke="#222" stroke-width="0.3"/><text x="33.8" y="63.99999999999999" font-size="3.1" fill="#555">＋</text><line x1="37.5" y1="65" x2="63.5" y2="65" stroke="#222" stroke-width="0.3"/><text x="64.3" y="63.99999999999999" font-size="3.1" fill="#555">＋</text><line x1="68" y1="65" x2="94" y2="65" stroke="#222" stroke-width="0.3"/><text x="94.8" y="63.99999999999999" font-size="3.1" fill="#555">→</text><line x1="98.5" y1="65" x2="120.5" y2="65" stroke="#222" stroke-width="0.3"/><line x1="70" y1="67.19999999999999" x2="70" y2="69.99999999999999" stroke="#222" stroke-width="0.45"/><polygon points="69.1,69.19999999999999 70.9,69.19999999999999 70,70.39999999999999" fill="#222"/><polygon points="8,70.39999999999999 136,70.39999999999999 132,78.99999999999999 4,78.99999999999999" fill="#fff" stroke="#222" stroke-width="0.5"/><text x="10.5" y="75.79999999999998" font-size="3.1" fill="#555">ことば</text><line x1="20.4" y1="76.79999999999998" x2="110.4" y2="76.79999999999998" stroke="#222" stroke-width="0.3"/><text x="111.19999999999999" y="75.79999999999998" font-size="3.1" fill="#555">を表示</text><line x1="70" y1="78.99999999999999" x2="70" y2="81.79999999999998" stroke="#222" stroke-width="0.45"/><polygon points="69.1,80.99999999999999 70.9,80.99999999999999 70,82.19999999999999" fill="#222"/><rect x="4" y="82.19999999999999" width="132" height="8.6" fill="#fff" stroke="#222" stroke-width="0.5"/><line x1="7" y1="88.59999999999998" x2="33" y2="88.59999999999998" stroke="#222" stroke-width="0.3"/><text x="33.8" y="87.59999999999998" font-size="3.1" fill="#555">÷</text><line x1="37.5" y1="88.59999999999998" x2="63.5" y2="88.59999999999998" stroke="#222" stroke-width="0.3"/><text x="64.3" y="87.59999999999998" font-size="3.1" fill="#555">→</text><line x1="68" y1="88.59999999999998" x2="94" y2="88.59999999999998" stroke="#222" stroke-width="0.3"/><line x1="70" y1="90.79999999999998" x2="70" y2="93.59999999999998" stroke="#222" stroke-width="0.45"/><polygon points="69.1,92.79999999999998 70.9,92.79999999999998 70,93.99999999999999" fill="#222"/><polygon points="8,93.99999999999999 136,93.99999999999999 132,102.59999999999998 4,102.59999999999998" fill="#fff" stroke="#222" stroke-width="0.5"/><text x="10.5" y="99.39999999999998" font-size="3.1" fill="#555">ことば</text><line x1="20.4" y1="100.39999999999998" x2="110.4" y2="100.39999999999998" stroke="#222" stroke-width="0.3"/><text x="111.19999999999999" y="99.39999999999998" font-size="3.1" fill="#555">を表示</text><line x1="70" y1="102.59999999999998" x2="70" y2="105.39999999999998" stroke="#222" stroke-width="0.45"/><polygon points="69.1,104.59999999999998 70.9,104.59999999999998 70,105.79999999999998" fill="#222"/><rect x="56" y="105.79999999999998" width="28" height="7.2" rx="3.6" fill="#fff" stroke="#222" stroke-width="0.5"/><text x="70" y="110.49999999999997" font-size="3.1" font-weight="700" text-anchor="middle">おわり</text></svg><div class="legend">
+    <div class="lg-t">記号のやくそく</div>
+    <div class="lg-i"><svg class="lg-svg" viewBox="0 0 14 7"><rect x="1" y="1" width="12" height="5" rx="2.5" fill="#fff" stroke="#222" stroke-width="0.5"/></svg><span>はじめ・おわり</span></div>
+    <div class="lg-i"><svg class="lg-svg" viewBox="0 0 14 7"><polygon points="3,1 13,1 11,6 1,6" fill="#fff" stroke="#222" stroke-width="0.5"/></svg><span>入力・表示</span></div>
+    <div class="lg-i"><svg class="lg-svg" viewBox="0 0 14 7"><rect x="1" y="1" width="12" height="5" rx="0" fill="#fff" stroke="#222" stroke-width="0.5"/></svg><span>計算</span></div>
+    <div class="lg-n"><b>ことば</b>＝画面に出る文字<br>（InputBox や MsgBox のメッセージ）</div>
+    <div class="lg-n"><b>変数</b>＝数を入れる箱の名前</div>
+    
+    <div class="lg-n blue">青い字はお手本</div>
+  </div></div>
+  <div class="footer"><span>流れ図が書けたら、うら（作る）へ →</span><span>1 / 8</span></div>
 </section>
-
-<!-- ======================= 2ページ目：ステップ2 ======================= -->
 <section class="page">
   <div class="head">
     <div>
-      <div class="series">🍕 割り勘アプリをつくろう　［解説つき］</div>
+      <div class="series">🍕 割り勘アプリをつくろう　<b>うら：作る</b></div>
+      <div class="title"><span class="step-tag">ステップ1</span>1人あたりの金額を出そう</div>
+    </div>
+    <div class="name">　　年<span></span>組<span></span>番　名前<span class="long"></span></div>
+  </div>
+  <ol class="road"><li>① ミッション</li><li>② 仕様</li><li>③ 流れ図</li><li class="on">④ 読む</li><li class="on">⑤ プログラム</li><li class="on">⑥ 動かす</li></ol>
+  <h2>④ まず読もう</h2>
+  <div class="box lesson"><div class="item"><span class="num">1</span><div><div class="t">値段を聞いて、変数（数を入れる箱）にしまう</div><p>InputBox で聞いた答えは「文字」です。<b>Val( )</b> をつけると「数」になります。<span class="note">（Long は大きめの整数が入る型）</span></p><span class="snip">Dim Juice As Long
+Juice = Val(InputBox("ジュースの値段を入力してください"))</span></div></div><div class="item"><span class="num">2</span><div><div class="t">たし算をして、合計を出す</div><p>たし算は「<b>+</b>」です。答えは変数 Gokei（合計）にしまいます。</p><span class="snip">Gokei = Juice + Pizza + Cake
+MsgBox ("合計は" &amp; Gokei &amp; "円です")</span></div></div><div class="item"><span class="num">3</span><div><div class="t">人数でわり算をする</div><p>わり算は「<b>/</b>」です。</p><span class="snip">Hitori = Gokei / Ninzu
+MsgBox ("1人" &amp; Hitori &amp; "円です")</span></div></div></div>
+  <h2>⑤ プログラムを完成させよう　<span class="h2note">流れ図で書いた「ことば」を InputBox のかっこの中に、「変数」を = の左に書き写そう。</span></h2>
+  <div class="codebox"><div class="ln" style="padding-left:0em">Private Sub CommandButton1_Click()</div><div class="ln" style="padding-left:2em">Dim Juice As Long</div><div class="ln" style="padding-left:2em">Dim Pizza As Long</div><div class="ln" style="padding-left:2em">Dim Cake As Long</div><div class="ln" style="padding-left:2em">Dim Ninzu As Long</div><div class="ln" style="padding-left:2em">Dim Gokei As Long</div><div class="ln" style="padding-left:2em">Dim Hitori As Long</div><div class="ln" style="padding-left:2em">Juice = Val(InputBox("ジュースの値段を入力してください"))</div><div class="ln" style="padding-left:2em">Pizza = Val(InputBox("<span class="blank xl"></span>"))</div><div class="ln" style="padding-left:2em">Cake = Val(InputBox("<span class="blank xl"></span>"))</div><div class="ln" style="padding-left:2em"><span class="blank m"></span> = Val(InputBox("<span class="blank xl"></span>"))</div><div class="ln" style="padding-left:2em">Gokei = Juice + <span class="blank m"></span> + <span class="blank m"></span></div><div class="ln" style="padding-left:2em">MsgBox ("合計は" &amp; Gokei &amp; "円です")</div><div class="ln" style="padding-left:2em">Hitori = <span class="blank m"></span> / <span class="blank m"></span></div><div class="ln" style="padding-left:2em">MsgBox ("1人" &amp; <span class="blank m"></span> &amp; "円です")</div><div class="ln" style="padding-left:0em">End Sub</div></div>
+  <h2>⑥ 動かしてたしかめよう</h2>
+  <table class="try"><tr><th>ジュース</th><th>ピザ</th><th>ケーキ</th><th>人数</th><th>合計</th><th>1人あたり</th><th>できた？</th></tr><tr><td>300</td><td>1200</td><td>900</td><td>3</td><td>2400</td><td>800</td><td class="chk">☐</td></tr><tr><td>500</td><td>900</td><td>100</td><td>5</td><td>1500</td><td>300</td><td class="chk">☐</td></tr></table>
+  <div class="footer"><span>※ 1000円を3人でわると 333.33…円。割り切れないときは、次のステップで考えます。</span><span>2 / 8</span></div>
+</section>
+<section class="page">
+  <div class="head">
+    <div>
+      <div class="series">🍕 割り勘アプリをつくろう　［解説つき］　<b>おもて：考える</b></div>
       <div class="title"><span class="step-tag">ステップ2</span>あまりのお金を考えよう</div>
     </div>
     <div class="name">　　年<span></span>組<span></span>番　名前<span class="long"></span></div>
   </div>
-
-  <div class="mission mfx"><div><b>🎯 ミッション</b>合計金額と人数を入力すると、<b>1人あたりの金額</b>と<b>あまりのお金</b>を表示するプログラムを作ろう。</div>
-    <svg class="uf-svg small" viewBox="0 0 330 112" role="img" aria-label="ユーザーフォームの絵。ボタン CommandButton1 が1つある">
-    <rect x="1" y="1" width="190" height="104" fill="#f0f0f0" stroke="#222" stroke-width="2"/>
-    <rect x="3" y="26" width="186" height="78" fill="url(#uf-dots)"/>
-    <rect x="1" y="1" width="190" height="25" fill="#d9d9d9" stroke="#222" stroke-width="2"/>
-    <text x="9" y="19" font-size="13" font-family="'BIZ UDPGothic','Yu Gothic','Meiryo',sans-serif">UserForm1</text>
-    <text x="176" y="20" font-size="16" font-weight="700" text-anchor="middle" font-family="'BIZ UDPGothic','Yu Gothic','Meiryo',sans-serif">×</text>
-    
-    <rect x="32" y="48" width="126" height="38" rx="3" fill="#f7f7f7" stroke="#222" stroke-width="1.6"/>
-    <text x="95" y="72" font-size="14" text-anchor="middle" font-family="'BIZ UDPGothic','Yu Gothic','Meiryo',sans-serif">計算する</text>
-    
-    <line x1="160" y1="67" x2="201" y2="67" stroke="#222" stroke-width="1.2"/>
-    <path d="M167 63 L160 67 L167 71" fill="none" stroke="#222" stroke-width="1.2"/>
-    <text x="204" y="71.5" font-size="13" font-weight="700" font-family="Consolas,'BIZ UDGothic','MS Gothic',monospace">CommandButton1</text>
-  </svg>
+  <ol class="road"><li class="on">① ミッション</li><li class="on">② 仕様</li><li class="on">③ 流れ図</li><li>④ 読む</li><li>⑤ プログラム</li><li>⑥ 動かす</li></ol>
+  <div class="mission2">
+    <div class="mhead">🎯 ① ミッション　<span>ここが一番大事！ どんなアプリを作るのか、イメージしよう</span></div>
+    <div class="mbody">
+      <p class="mlead">1000円を3人で分けると、1人333円で1円あまります。お金に小数はありません。</p>
+      <p class="mmain">合計金額と人数を入力すると、<u>1人あたりの金額</u>と<u>あまり</u>を表示するプログラムを作ろう！</p>
+      
+      <svg class="mimg" viewBox="0 0 172 33" role="img" aria-label="ミッションの絵。合計金額1000円、人数3人を入力すると、1人あたりの金額とあまりが出る"><rect x="0" y="0" width="13" height="5" rx="1" fill="#111" stroke="#222" stroke-width="0.35"/><text x="6.5" y="3.6" font-size="3" font-weight="700" text-anchor="middle" fill="#fff">入力</text><rect x="0" y="6" width="60" height="5.9" rx="1.5" fill="#fff" stroke="#222" stroke-width="0.35"/><text x="2.5" y="10.2" font-size="3.3">💰 合計金額　1000円</text><rect x="0" y="12.6" width="60" height="5.9" rx="1.5" fill="#fff" stroke="#222" stroke-width="0.35"/><text x="2.5" y="16.799999999999997" font-size="3.3">👥 人数　3人</text><text x="2.5" y="27" font-size="7">🙂🙂🙂</text><text x="26" y="27" font-size="3.4" font-weight="700">3人で分けると…？</text><polygon points="62,14.9 66.95,14.9 66.95,12.5 71,16.5 66.95,20.5 66.95,18.1 62,18.1" fill="#cfcfcf" stroke="#222" stroke-width="0.35"/><rect x="73" y="6" width="30" height="26" rx="3" fill="#ececec" stroke="#222" stroke-width="0.5"/><text x="88" y="16.92" font-size="8" text-anchor="middle">💻</text><text x="88" y="22.92" font-size="3.5" font-weight="700" text-anchor="middle">割り勘</text><text x="88" y="27.32" font-size="3.5" font-weight="700" text-anchor="middle">アプリ</text><polygon points="105,14.9 109.95,14.9 109.95,12.5 114,16.5 109.95,20.5 109.95,18.1 105,18.1" fill="#cfcfcf" stroke="#222" stroke-width="0.35"/><rect x="116" y="0" width="13" height="5" rx="1" fill="#111" stroke="#222" stroke-width="0.35"/><text x="122.5" y="3.6" font-size="3" font-weight="700" text-anchor="middle" fill="#fff">出力</text><rect x="116" y="6" width="56" height="12" rx="1.5" fill="#fff" stroke="#222" stroke-width="0.5" stroke-dasharray="1.4 0.9"/><text x="144" y="13.8" font-size="5.2" font-weight="700" text-anchor="middle">1人 ？円</text><rect x="116" y="20" width="56" height="12" rx="1.5" fill="#fff" stroke="#222" stroke-width="0.5" stroke-dasharray="1.4 0.9"/><text x="144" y="27.8" font-size="5.2" font-weight="700" text-anchor="middle">あまり ？円</text></svg>
+    </div>
   </div>
-
-  <h2>📖 まず読もう</h2>
-  <div class="box lesson">
-    <div class="item"><span class="num">1</span><div>
-      <div class="t">割り切れないとき</div>
-      <p>1000円を3人で分けると、<b>1人333円</b>で、<b>1円あまり</b>ます。このあまりまで考えるのが「割り勘」です。<br>たしかめ算：<b>333 × 3 + 1 = 1000</b> になれば、正しく分けられています。</p>
-    </div></div>
-    <div class="item"><span class="num">2</span><div>
-      <div class="t">この2つの記号を覚えよう</div>
-      <table class="ops">
-        <tr><th>¥</th><td>わり算の答えの<b>整数の部分</b>を出す（分けた金額）</td><td><code>1000 ¥ 3</code> → <b>333</b></td></tr>
-        <tr><th>Mod</th><td>わり算の<b>あまり</b>を出す</td><td><code>1000 Mod 3</code> → <b>1</b></td></tr>
-      </table>
-      <p class="note">¥ はキーボードの ¥ キーで打てます。</p>
-    </div></div>
-    <div class="item"><span class="num">3</span><div>
-      <div class="t">プログラムにすると</div>
-      <span class="snip">Hitori = Gokei ¥ Ninzu
-Amari = Gokei Mod Ninzu</span>
-    </div></div>
-    <div class="item"><span class="num">!</span><div>
-      <div class="t">ちゅうい：「/」と「¥」はちがう</div>
-      <p>「/」は四捨五入されて、合計とずれることがあります。割り勘では「¥」を使おう。</p>
-    </div></div>
-  </div>
-
-  <h2>📝 仕様（やること）を確かめよう</h2>
+  <h2>② 仕様を確かめよう</h2>
   <table class="spec">
-    <tr><th>入力データ</th><td>合計金額、人数　<code>1000、3</code></td></tr>
-    <tr><th>出力データ</th><td>1人333円です ／ あまりは1円です</td></tr>
-    <tr><th>処理条件</th><td><ul>
-      <li>合計金額は変数 <code>Gokei</code> に、人数は変数 <code>Ninzu</code> に入れる（型は Long）。</li>
-      <li>InputBox で、合計金額 → 人数 の順にたずねる。</li>
-      <li>「¥」で求めた1人あたりの金額を <code>Hitori</code> に入れ、MsgBox で表示する。</li>
-      <li>「Mod」で求めたあまりを <code>Amari</code> に入れ、MsgBox で表示する。</li>
-    </ul></td></tr>
-    <tr><th>入力例</th><td>InputBox に「1000」「3」の順に入力する</td></tr>
-    <tr><th>出力例</th><td>「1人333円です」、続けて「あまりは1円です」と表示される</td></tr>
+    <tr><th>入力データ</th><td>合計金額、人数　1000、3</td><th>出力データ</th><td>1人333円です／あまりは1円です</td></tr>
+    <tr><th>処理条件</th><td colspan="3"><ul><li>合計金額は変数 Gokei に、人数は変数 Ninzu に入れる（型は Long）。</li><li>InputBox 関数で、「合計金額を入力してください」「人数を入力してください」の順にたずねる。</li><li>「¥」で求めた1人あたりの金額を変数 Hitori に入れ、MsgBox で「1人 Hitori 円です」と表示する。</li><li>「Mod」で求めたあまりを変数 Amari に入れ、MsgBox で「あまりは Amari 円です」と表示する。</li></ul></td></tr>
+    <tr><th>入力例</th><td>InputBox に「1000」「3」の順に入力する</td><th>出力例</th><td>MsgBox に「1人333円です」、続けて「あまりは1円です」と表示される</td></tr>
   </table>
-
-  <h2>✏️ プログラムを完成させよう（＿＿ をうめる）</h2>
-  <div class="codebox">
-    <div>Private Sub CommandButton1_Click()</div>
-    <div class="ind">Dim Gokei As Long ／ Dim Ninzu As Long</div>
-    <div class="ind">Dim Hitori As Long ／ Dim Amari As Long</div>
-    <div class="ind">Gokei = Val(InputBox("合計金額を入力してください"))</div>
-    <div class="ind"><span class="blank m"></span> = Val(InputBox("<span class="blank m"></span>"))</div>
-    <div class="ind">Hitori = <span class="blank"></span> <span class="blank s"></span> <span class="blank"></span></div>
-    <div class="ind">Amari = <span class="blank"></span> <span class="blank s"></span> <span class="blank"></span></div>
-    <div class="ind">MsgBox ("1人" &amp; <span class="blank"></span> &amp; "円です")</div>
-    <div class="ind">MsgBox ("<span class="blank m"></span>" &amp; <span class="blank"></span> &amp; "円です")</div>
-    <div>End Sub</div>
-  </div>
-
-  <h2>✅ 動かしてたしかめよう</h2>
-  <table class="try">
-    <tr><th>合計金額</th><th>人数</th><th>1人あたり</th><th>あまり</th><th>たしかめ算（1人あたり × 人数 ＋ あまり）</th><th>できた？</th></tr>
-    <tr><td>1000</td><td>3</td><td>333</td><td>1</td><td>333 × 3 + 1 = 1000</td><td class="chk">☐</td></tr>
-    <tr><td>3000</td><td>3</td><td>1000</td><td>0</td><td>1000 × 3 + 0 = 3000</td><td class="chk">☐</td></tr>
-    <tr><td>4580</td><td>6</td><td>763</td><td>2</td><td>763 × 6 + 2 = 4580</td><td class="chk">☐</td></tr>
-    <tr><td>1100</td><td>3</td><td>366</td><td>2</td><td>366 × 3 + 2 = 1100</td><td class="chk">☐</td></tr>
-  </table>
-  <div class="footer"><span>※ 1100円・3人のとき、「/」で書くと 367円になってしまいます。「¥」で 366円になれば OK！</span><span>2 / 4</span></div>
+  <h2>③ 流れ図を書こう　<span class="h2note">平行四辺形には、<b>画面に出す「ことば」</b>と<b>「変数名」</b>を必ず書く</span></h2>
+  <div class="flowrow"><svg class="flow" viewBox="0 0 146 90.39999999999999" role="img" aria-label="流れ図を書く欄。はじめ、入力、計算、表示、おわりの記号がならんでいる"><rect x="56" y="1" width="28" height="7.2" rx="3.6" fill="#fff" stroke="#222" stroke-width="0.5"/><text x="70" y="5.699999999999999" font-size="3.1" font-weight="700" text-anchor="middle">はじめ</text><line x1="70" y1="8.2" x2="70" y2="10.999999999999998" stroke="#222" stroke-width="0.45"/><polygon points="69.1,10.2 70.9,10.2 70,11.399999999999999" fill="#222"/><polygon points="8,11.4 136,11.4 132,20 4,20" fill="#fff" stroke="#222" stroke-width="0.5"/><text x="10.5" y="16.8" font-size="3.1" fill="#555">ことば</text><line x1="20.4" y1="17.8" x2="90.4" y2="17.8" stroke="#222" stroke-width="0.3"/><text x="21.2" y="16.7" font-size="3.1" font-weight="700" fill="#1f4e8c">合計金額を入力してください</text><text x="91.19999999999999" y="16.8" font-size="3.1" fill="#555">→変数</text><line x1="101.1" y1="17.8" x2="121.1" y2="17.8" stroke="#222" stroke-width="0.3"/><text x="101.89999999999999" y="16.7" font-size="3.1" font-weight="700" fill="#1f4e8c">Gokei</text><text x="121.89999999999999" y="16.8" font-size="3.1" fill="#555">を入力</text><line x1="70" y1="20" x2="70" y2="22.8" stroke="#222" stroke-width="0.45"/><polygon points="69.1,22 70.9,22 70,23.2" fill="#222"/><polygon points="8,23.200000000000003 136,23.200000000000003 132,31.800000000000004 4,31.800000000000004" fill="#fff" stroke="#222" stroke-width="0.5"/><text x="10.5" y="28.600000000000005" font-size="3.1" fill="#555">ことば</text><line x1="20.4" y1="29.600000000000005" x2="90.4" y2="29.600000000000005" stroke="#222" stroke-width="0.3"/><text x="91.19999999999999" y="28.600000000000005" font-size="3.1" fill="#555">→変数</text><line x1="101.1" y1="29.600000000000005" x2="121.1" y2="29.600000000000005" stroke="#222" stroke-width="0.3"/><text x="121.89999999999999" y="28.600000000000005" font-size="3.1" fill="#555">を入力</text><line x1="70" y1="31.800000000000004" x2="70" y2="34.60000000000001" stroke="#222" stroke-width="0.45"/><polygon points="69.1,33.800000000000004 70.9,33.800000000000004 70,35.00000000000001" fill="#222"/><rect x="4" y="35" width="132" height="8.6" fill="#fff" stroke="#222" stroke-width="0.5"/><line x1="7" y1="41.4" x2="33" y2="41.4" stroke="#222" stroke-width="0.3"/><text x="33.8" y="40.4" font-size="3.1" fill="#555">¥</text><line x1="37.5" y1="41.4" x2="63.5" y2="41.4" stroke="#222" stroke-width="0.3"/><text x="64.3" y="40.4" font-size="3.1" fill="#555">→</text><line x1="68" y1="41.4" x2="94" y2="41.4" stroke="#222" stroke-width="0.3"/><line x1="70" y1="43.6" x2="70" y2="46.400000000000006" stroke="#222" stroke-width="0.45"/><polygon points="69.1,45.6 70.9,45.6 70,46.800000000000004" fill="#222"/><rect x="4" y="46.8" width="132" height="8.6" fill="#fff" stroke="#222" stroke-width="0.5"/><line x1="7" y1="53.199999999999996" x2="33" y2="53.199999999999996" stroke="#222" stroke-width="0.3"/><text x="33.8" y="52.199999999999996" font-size="3.1" fill="#555">Mod</text><line x1="39.608" y1="53.199999999999996" x2="65.608" y2="53.199999999999996" stroke="#222" stroke-width="0.3"/><text x="66.408" y="52.199999999999996" font-size="3.1" fill="#555">→</text><line x1="70.108" y1="53.199999999999996" x2="96.108" y2="53.199999999999996" stroke="#222" stroke-width="0.3"/><line x1="70" y1="55.4" x2="70" y2="58.2" stroke="#222" stroke-width="0.45"/><polygon points="69.1,57.4 70.9,57.4 70,58.6" fill="#222"/><polygon points="8,58.599999999999994 136,58.599999999999994 132,67.19999999999999 4,67.19999999999999" fill="#fff" stroke="#222" stroke-width="0.5"/><text x="10.5" y="63.99999999999999" font-size="3.1" fill="#555">ことば</text><line x1="20.4" y1="65" x2="110.4" y2="65" stroke="#222" stroke-width="0.3"/><text x="111.19999999999999" y="63.99999999999999" font-size="3.1" fill="#555">を表示</text><line x1="70" y1="67.19999999999999" x2="70" y2="69.99999999999999" stroke="#222" stroke-width="0.45"/><polygon points="69.1,69.19999999999999 70.9,69.19999999999999 70,70.39999999999999" fill="#222"/><polygon points="8,70.39999999999999 136,70.39999999999999 132,78.99999999999999 4,78.99999999999999" fill="#fff" stroke="#222" stroke-width="0.5"/><text x="10.5" y="75.79999999999998" font-size="3.1" fill="#555">ことば</text><line x1="20.4" y1="76.79999999999998" x2="110.4" y2="76.79999999999998" stroke="#222" stroke-width="0.3"/><text x="111.19999999999999" y="75.79999999999998" font-size="3.1" fill="#555">を表示</text><line x1="70" y1="78.99999999999999" x2="70" y2="81.79999999999998" stroke="#222" stroke-width="0.45"/><polygon points="69.1,80.99999999999999 70.9,80.99999999999999 70,82.19999999999999" fill="#222"/><rect x="56" y="82.19999999999999" width="28" height="7.2" rx="3.6" fill="#fff" stroke="#222" stroke-width="0.5"/><text x="70" y="86.89999999999998" font-size="3.1" font-weight="700" text-anchor="middle">おわり</text></svg><div class="legend">
+    <div class="lg-t">記号のやくそく</div>
+    <div class="lg-i"><svg class="lg-svg" viewBox="0 0 14 7"><rect x="1" y="1" width="12" height="5" rx="2.5" fill="#fff" stroke="#222" stroke-width="0.5"/></svg><span>はじめ・おわり</span></div>
+    <div class="lg-i"><svg class="lg-svg" viewBox="0 0 14 7"><polygon points="3,1 13,1 11,6 1,6" fill="#fff" stroke="#222" stroke-width="0.5"/></svg><span>入力・表示</span></div>
+    <div class="lg-i"><svg class="lg-svg" viewBox="0 0 14 7"><rect x="1" y="1" width="12" height="5" rx="0" fill="#fff" stroke="#222" stroke-width="0.5"/></svg><span>計算</span></div>
+    <div class="lg-n"><b>ことば</b>＝画面に出る文字<br>（InputBox や MsgBox のメッセージ）</div>
+    <div class="lg-n"><b>変数</b>＝数を入れる箱の名前</div>
+    <div class="lg-n"><b>¥</b>＝わり算の答えの整数の部分<br><b>Mod</b>＝わり算のあまり</div>
+    <div class="lg-n blue">青い字はお手本</div>
+  </div></div>
+  <div class="footer"><span>流れ図が書けたら、うら（作る）へ →</span><span>3 / 8</span></div>
 </section>
-
-<!-- ======================= 3ページ目：ステップ3 ======================= -->
 <section class="page">
   <div class="head">
     <div>
-      <div class="series">🍕 割り勘アプリをつくろう　［自分で考えよう］</div>
+      <div class="series">🍕 割り勘アプリをつくろう　<b>うら：作る</b></div>
+      <div class="title"><span class="step-tag">ステップ2</span>あまりのお金を考えよう</div>
+    </div>
+    <div class="name">　　年<span></span>組<span></span>番　名前<span class="long"></span></div>
+  </div>
+  <ol class="road"><li>① ミッション</li><li>② 仕様</li><li>③ 流れ図</li><li class="on">④ 読む</li><li class="on">⑤ プログラム</li><li class="on">⑥ 動かす</li></ol>
+  <h2>④ まず読もう</h2>
+  <div class="box lesson"><div class="item"><span class="num">1</span><div><div class="t">割り切れないとき</div><p>1000円を3人で分けると、<b>1人333円</b>で、<b>1円あまり</b>ます。このあまりまで考えるのが「割り勘」です。<br>たしかめ算：<b>333 × 3 + 1 = 1000</b> になれば、正しく分けられています。</p></div></div><div class="item"><span class="num">2</span><div><div class="t">この2つの記号を覚えよう</div><table class="ops"><tr><th>¥</th><td>わり算の答えの<b>整数の部分</b>（分けた金額）</td><td><code>1000 ¥ 3</code> → <b>333</b></td></tr><tr><th>Mod</th><td>わり算の<b>あまり</b></td><td><code>1000 Mod 3</code> → <b>1</b></td></tr></table><p class="note">¥ はキーボードの ¥ キーで打てます。</p></div></div><div class="item"><span class="num">3</span><div><div class="t">プログラムにすると</div><span class="snip">Hitori = Gokei ¥ Ninzu
+Amari = Gokei Mod Ninzu</span></div></div><div class="item"><span class="num">!</span><div><div class="t">ちゅうい：「/」と「¥」はちがう</div><p>「/」は四捨五入されて、合計とずれることがあります。割り勘では「¥」を使おう。</p></div></div></div>
+  <h2>⑤ プログラムを完成させよう　<span class="h2note">流れ図の ¥ と Mod を見ながら、＿＿に ¥ か Mod を書こう。</span></h2>
+  <div class="codebox"><div class="ln" style="padding-left:0em">Private Sub CommandButton1_Click()</div><div class="ln" style="padding-left:2em">Dim Gokei As Long</div><div class="ln" style="padding-left:2em">Dim Ninzu As Long</div><div class="ln" style="padding-left:2em">Dim Hitori As Long</div><div class="ln" style="padding-left:2em">Dim Amari As Long</div><div class="ln" style="padding-left:2em">Gokei = Val(InputBox("合計金額を入力してください"))</div><div class="ln" style="padding-left:2em"><span class="blank m"></span> = Val(InputBox("<span class="blank xl"></span>"))</div><div class="ln" style="padding-left:2em">Hitori = Gokei <span class="blank s"></span> Ninzu</div><div class="ln" style="padding-left:2em">Amari = Gokei <span class="blank s"></span> Ninzu</div><div class="ln" style="padding-left:2em">MsgBox ("1人" &amp; <span class="blank m"></span> &amp; "円です")</div><div class="ln" style="padding-left:2em">MsgBox ("あまりは" &amp; <span class="blank m"></span> &amp; "円です")</div><div class="ln" style="padding-left:0em">End Sub</div></div>
+  <h2>⑥ 動かしてたしかめよう</h2>
+  <table class="try"><tr><th>合計金額</th><th>人数</th><th>1人あたり</th><th>あまり</th><th>たしかめ算（1人あたり × 人数 ＋ あまり）</th><th>できた？</th></tr><tr><td>1000</td><td>3</td><td>333</td><td>1</td><td>333 × 3 + 1 = 1000</td><td class="chk">☐</td></tr><tr><td>3000</td><td>3</td><td>1000</td><td>0</td><td>1000 × 3 + 0 = 3000</td><td class="chk">☐</td></tr><tr><td>4580</td><td>6</td><td>763</td><td>2</td><td>763 × 6 + 2 = 4580</td><td class="chk">☐</td></tr><tr><td>1100</td><td>3</td><td>366</td><td>2</td><td>366 × 3 + 2 = 1100</td><td class="chk">☐</td></tr></table>
+  <div class="footer"><span>※ 1100円・3人のとき、「/」で書くと 367円になってしまいます。「¥」で 366円になれば OK！</span><span>4 / 8</span></div>
+</section>
+<section class="page">
+  <div class="head">
+    <div>
+      <div class="series">🍕 割り勘アプリをつくろう　［自分で考えよう］　<b>おもて：考える</b></div>
       <div class="title"><span class="step-tag">ステップ3</span>割り勘アプリを完成させよう</div>
     </div>
     <div class="name">　　年<span></span>組<span></span>番　名前<span class="long"></span></div>
   </div>
-
-  <div class="mission"><b>🎯 ミッション</b>合計金額と人数を入力すると、<b>1人あたりの金額</b>と<b>あまり</b>を、画面の Label に表示する「割り勘アプリ」を完成させよう。</div>
-
-  <h2>💡 考え方</h2>
-  <div class="box dashed">
-    <p>ステップ2のプログラムが、そのまま土台になります。ちがうのは、答えを <b>MsgBox ではなく Label</b> に表示するところだけ。</p>
-    <p>Label に文字を入れるときは　<code>Label3.Caption = …</code>　と書きます。</p>
-  </div>
-
-  <h2>📝 仕様（やること）を確かめよう</h2>
-  <div class="with-form">
-    <div>
-      <svg class="uf-svg" viewBox="0 0 352 196" role="img" aria-label="ユーザーフォームの絵。1人あたりの答えを出す Label3、あまりを出す Label4、ボタン CommandButton1">
-    <rect x="1" y="1" width="222" height="190" fill="#f0f0f0" stroke="#222" stroke-width="2"/>
-    <rect x="3" y="26" width="218" height="164" fill="url(#uf-dots)"/>
-    <rect x="1" y="1" width="222" height="25" fill="#d9d9d9" stroke="#222" stroke-width="2"/>
-    <text x="9" y="19" font-size="13" font-family="'BIZ UDPGothic','Yu Gothic','Meiryo',sans-serif">UserForm1</text>
-    <text x="208" y="20" font-size="16" font-weight="700" text-anchor="middle" font-family="'BIZ UDPGothic','Yu Gothic','Meiryo',sans-serif">×</text>
-    <text x="14" y="63" font-size="14" font-weight="700" font-family="'BIZ UDPGothic','Yu Gothic','Meiryo',sans-serif">1人あたり</text>
-    
-    <rect x="108" y="42" width="100" height="32" fill="#fff" stroke="#888" stroke-width="2"/>
-    <path d="M108 74 V42 H208" fill="none" stroke="#222" stroke-width="2"/>
-    <text x="14" y="115" font-size="14" font-weight="700" font-family="'BIZ UDPGothic','Yu Gothic','Meiryo',sans-serif">あまり</text>
-    
-    <rect x="108" y="94" width="100" height="32" fill="#fff" stroke="#888" stroke-width="2"/>
-    <path d="M108 126 V94 H208" fill="none" stroke="#222" stroke-width="2"/>
-    
-    <rect x="62" y="142" width="100" height="34" rx="3" fill="#f7f7f7" stroke="#222" stroke-width="1.6"/>
-    <text x="112" y="164" font-size="14" text-anchor="middle" font-family="'BIZ UDPGothic','Yu Gothic','Meiryo',sans-serif">計算する</text>
-    
-    <line x1="210" y1="58" x2="229" y2="58" stroke="#222" stroke-width="1.2"/>
-    <path d="M217 54 L210 58 L217 62" fill="none" stroke="#222" stroke-width="1.2"/>
-    <text x="232" y="62.5" font-size="13" font-weight="700" font-family="Consolas,'BIZ UDGothic','MS Gothic',monospace">Label3</text>
-    
-    <line x1="210" y1="110" x2="229" y2="110" stroke="#222" stroke-width="1.2"/>
-    <path d="M217 106 L210 110 L217 114" fill="none" stroke="#222" stroke-width="1.2"/>
-    <text x="232" y="114.5" font-size="13" font-weight="700" font-family="Consolas,'BIZ UDGothic','MS Gothic',monospace">Label4</text>
-    
-    <line x1="164" y1="159" x2="229" y2="159" stroke="#222" stroke-width="1.2"/>
-    <path d="M171 155 L164 159 L171 163" fill="none" stroke="#222" stroke-width="1.2"/>
-    <text x="232" y="163.5" font-size="13" font-weight="700" font-family="Consolas,'BIZ UDGothic','MS Gothic',monospace">CommandButton1</text>
-  </svg>
-    </div>
-    <div>
-      <table class="spec" style="margin-top:0">
-        <tr><th>入力データ</th><td>合計金額、人数　<code>4580、6</code></td></tr>
-        <tr><th>出力データ</th><td>1人あたり 763円 ／ あまり 2円</td></tr>
-        <tr><th>入力例</th><td>InputBox に「4580」「6」の順に入力する</td></tr>
-        <tr><th>出力例</th><td>Label3 に「763円」、Label4 に「2円」と表示される</td></tr>
-      </table>
+  <ol class="road"><li class="on">① ミッション</li><li class="on">② 仕様</li><li class="on">③ 流れ図</li><li>④ 読む</li><li>⑤ プログラム</li><li>⑥ 動かす</li></ol>
+  <div class="mission2">
+    <div class="mhead">🎯 ① ミッション　<span>ここが一番大事！ どんなアプリを作るのか、イメージしよう</span></div>
+    <div class="mbody">
+      <p class="mlead">ステップ2では、答えを MsgBox（べつの小さな窓）に出しました。</p>
+      <p class="mmain">ステップ3では、答えを<u>フォームの Label</u> に出す、本物の「割り勘アプリ」にしよう！</p>
+      <div class="mband">MsgBox  →  Label に表示するように、かわるよ！</div>
+      <svg class="mimg" viewBox="0 0 172 42" role="img" aria-label="ミッションの絵。MsgBoxの小さな窓に出していた答えを、ユーザーフォームの Label3 と Label4 に出すように変わる"><rect x="0" y="0" width="62" height="5" rx="1" fill="#111" stroke="#222" stroke-width="0.35"/><text x="31" y="3.6" font-size="3" font-weight="700" text-anchor="middle" fill="#fff">ステップ2：MsgBox（べつの小さな窓）</text><rect x="2" y="8" width="54" height="30" rx="0.6" fill="#fff" stroke="#222" stroke-width="0.5"/><rect x="2" y="8" width="54" height="5.5" rx="0.6" fill="#c9d3e2" stroke="#222" stroke-width="0.5"/><text x="4" y="11.9" font-size="2.8">Microsoft Excel</text><text x="53.5" y="12.3" font-size="3.4" font-weight="700" text-anchor="middle">×</text><text x="29" y="24" font-size="4.2" font-weight="700" text-anchor="middle">1人333円です</text><rect x="22" y="30" width="14" height="5.5" rx="0.8" fill="#f4f4f4" stroke="#222" stroke-width="0.45"/><text x="29" y="34" font-size="3" text-anchor="middle">OK</text><text x="70" y="17" font-size="3.8" font-weight="700" text-anchor="middle">かわる！</text><polygon points="60,22 71,22 71,19 80,24 71,29 71,26 60,26" fill="#cfcfcf" stroke="#222" stroke-width="0.35"/><rect x="84" y="0" width="66" height="5" rx="1" fill="#111" stroke="#222" stroke-width="0.35"/><text x="117" y="3.6" font-size="3" font-weight="700" text-anchor="middle" fill="#fff">ステップ3：フォームの Label に表示</text><rect x="84" y="8" width="62" height="31.2" rx="0.8" fill="#f0f0f0" stroke="#222" stroke-width="0.5"/><rect x="84" y="8" width="62" height="5.2" rx="0.8" fill="#d6d6d6" stroke="#222" stroke-width="0.5"/><text x="85.8" y="11.7" font-size="2.7">UserForm1</text><text x="143.4" y="12.1" font-size="3.6" font-weight="700" text-anchor="middle">×</text><text x="87" y="18.8" font-size="3.1" font-weight="700">1人あたり</text><rect x="110.66" y="14.6" width="33.480000000000004" height="5.6" rx="0.3" fill="#fff" stroke="#222" stroke-width="0.5"/><text x="127.4" y="18.6" font-size="3.3" font-weight="700" text-anchor="middle">333円</text><text x="87" y="26.8" font-size="3.1" font-weight="700">あまり</text><rect x="110.66" y="22.6" width="33.480000000000004" height="5.6" rx="0.3" fill="#fff" stroke="#222" stroke-width="0.5"/><text x="127.4" y="26.6" font-size="3.3" font-weight="700" text-anchor="middle">1円</text><rect x="104" y="31.4" width="22" height="6" rx="1" fill="#f7f7f7" stroke="#222" stroke-width="0.45"/><text x="115" y="35.6" font-size="2.9" text-anchor="middle">計算する</text><line x1="147" y1="17.4" x2="149.5" y2="17.4" stroke="#222" stroke-width="0.35"/><text x="150.5" y="18.4" font-size="2.8" font-weight="700" font-family="Consolas,'BIZ UDGothic','MS Gothic',monospace">Label3</text><line x1="147" y1="25.400000000000002" x2="149.5" y2="25.400000000000002" stroke="#222" stroke-width="0.35"/><text x="150.5" y="26.400000000000002" font-size="2.8" font-weight="700" font-family="Consolas,'BIZ UDGothic','MS Gothic',monospace">Label4</text></svg>
     </div>
   </div>
+  <h2>② 仕様を確かめよう</h2>
   <table class="spec">
-    <tr><th>処理条件</th><td><ul>
-      <li>ボタンを押すと、InputBox で「合計金額を入力してください」「人数を入力してください」の順にたずねる。</li>
-      <li>合計金額は <code>Gokei</code>、人数は <code>Ninzu</code>、1人あたりは <code>Hitori</code>、あまりは <code>Amari</code> に入れる（型は Long）。</li>
-      <li><code>Hitori</code> と <code>Amari</code> は、ステップ2で使った計算（<code>¥</code> と <code>Mod</code>）で求める。</li>
-      <li>Label3 に1人あたりの金額を、Label4 にあまりを、それぞれ「円」をつけて表示する。<b>MsgBox は使わない。</b></li>
-    </ul></td></tr>
+    <tr><th>入力データ</th><td>合計金額、人数　4580、6</td><th>出力データ</th><td>1人あたり 763円／あまり 2円</td></tr>
+    <tr><th>処理条件</th><td colspan="3"><ul><li>ボタンを押すと、InputBox で「合計金額を入力してください」「人数を入力してください」の順にたずねる。</li><li>合計金額は Gokei、人数は Ninzu、1人あたりは Hitori、あまりは Amari に入れる（型は Long）。</li><li>Hitori と Amari は、ステップ2で使った計算（¥ と Mod）で求める。</li><li>Label3 に1人あたりの金額を、Label4 にあまりを、それぞれ「円」をつけて表示する。MsgBox は使わない。</li></ul></td></tr>
+    <tr><th>入力例</th><td>InputBox に「4580」「6」の順に入力する</td><th>出力例</th><td>Label3 に「763円」、Label4 に「2円」と表示される</td></tr>
   </table>
-
-  <h2>✏️ プログラムを書こう</h2>
-  <div class="codebox">
-    <div>Private Sub CommandButton1_Click()</div>
-    <span class="writeline"></span><span class="writeline"></span><span class="writeline"></span><span class="writeline"></span>
-    <span class="writeline"></span><span class="writeline"></span><span class="writeline"></span><span class="writeline"></span>
-    <span class="writeline"></span><span class="writeline"></span>
-    <div>End Sub</div>
-  </div>
-
-  <h2>✅ 動かしてたしかめよう</h2>
-  <table class="try">
-    <tr><th>合計金額</th><th>人数</th><th>Label3（1人あたり）</th><th>Label4（あまり）</th><th>できた？</th></tr>
-    <tr><td>3000</td><td>3</td><td>1000円</td><td>0円</td><td class="chk">☐</td></tr>
-    <tr><td>1000</td><td>3</td><td>333円</td><td>1円</td><td class="chk">☐</td></tr>
-    <tr><td>4580</td><td>6</td><td>763円</td><td>2円</td><td class="chk">☐</td></tr>
-    <tr><td>500</td><td>7</td><td>71円</td><td>3円</td><td class="chk">☐</td></tr>
-  </table>
-  <div class="footer"><span>※ 行きづまったら、ステップ2のプログラムを見直そう。</span><span>3 / 4</span></div>
+  <h2>③ 流れ図を書こう　<span class="h2note">平行四辺形には、<b>画面に出す「ことば」</b>と<b>「変数名」</b>を必ず書く</span></h2>
+  <div class="flowrow"><svg class="flow" viewBox="0 0 146 90.39999999999999" role="img" aria-label="流れ図を書く欄。はじめ、入力、計算、表示、おわりの記号がならんでいる"><rect x="56" y="1" width="28" height="7.2" rx="3.6" fill="#fff" stroke="#222" stroke-width="0.5"/><text x="70" y="5.699999999999999" font-size="3.1" font-weight="700" text-anchor="middle">はじめ</text><line x1="70" y1="8.2" x2="70" y2="10.999999999999998" stroke="#222" stroke-width="0.45"/><polygon points="69.1,10.2 70.9,10.2 70,11.399999999999999" fill="#222"/><polygon points="8,11.4 136,11.4 132,20 4,20" fill="#fff" stroke="#222" stroke-width="0.5"/><text x="10.5" y="16.8" font-size="3.1" fill="#555">ことば</text><line x1="20.4" y1="17.8" x2="90.4" y2="17.8" stroke="#222" stroke-width="0.3"/><text x="91.19999999999999" y="16.8" font-size="3.1" fill="#555">→変数</text><line x1="101.1" y1="17.8" x2="121.1" y2="17.8" stroke="#222" stroke-width="0.3"/><text x="121.89999999999999" y="16.8" font-size="3.1" fill="#555">を入力</text><line x1="70" y1="20" x2="70" y2="22.8" stroke="#222" stroke-width="0.45"/><polygon points="69.1,22 70.9,22 70,23.2" fill="#222"/><polygon points="8,23.200000000000003 136,23.200000000000003 132,31.800000000000004 4,31.800000000000004" fill="#fff" stroke="#222" stroke-width="0.5"/><text x="10.5" y="28.600000000000005" font-size="3.1" fill="#555">ことば</text><line x1="20.4" y1="29.600000000000005" x2="90.4" y2="29.600000000000005" stroke="#222" stroke-width="0.3"/><text x="91.19999999999999" y="28.600000000000005" font-size="3.1" fill="#555">→変数</text><line x1="101.1" y1="29.600000000000005" x2="121.1" y2="29.600000000000005" stroke="#222" stroke-width="0.3"/><text x="121.89999999999999" y="28.600000000000005" font-size="3.1" fill="#555">を入力</text><line x1="70" y1="31.800000000000004" x2="70" y2="34.60000000000001" stroke="#222" stroke-width="0.45"/><polygon points="69.1,33.800000000000004 70.9,33.800000000000004 70,35.00000000000001" fill="#222"/><rect x="4" y="35" width="132" height="8.6" fill="#fff" stroke="#222" stroke-width="0.5"/><line x1="7" y1="41.4" x2="33" y2="41.4" stroke="#222" stroke-width="0.3"/><line x1="33.8" y1="41.4" x2="43.8" y2="41.4" stroke="#222" stroke-width="0.3"/><line x1="44.599999999999994" y1="41.4" x2="70.6" y2="41.4" stroke="#222" stroke-width="0.3"/><text x="71.39999999999999" y="40.4" font-size="3.1" fill="#555">→</text><line x1="75.1" y1="41.4" x2="101.1" y2="41.4" stroke="#222" stroke-width="0.3"/><line x1="70" y1="43.6" x2="70" y2="46.400000000000006" stroke="#222" stroke-width="0.45"/><polygon points="69.1,45.6 70.9,45.6 70,46.800000000000004" fill="#222"/><rect x="4" y="46.8" width="132" height="8.6" fill="#fff" stroke="#222" stroke-width="0.5"/><line x1="7" y1="53.199999999999996" x2="33" y2="53.199999999999996" stroke="#222" stroke-width="0.3"/><line x1="33.8" y1="53.199999999999996" x2="43.8" y2="53.199999999999996" stroke="#222" stroke-width="0.3"/><line x1="44.599999999999994" y1="53.199999999999996" x2="70.6" y2="53.199999999999996" stroke="#222" stroke-width="0.3"/><text x="71.39999999999999" y="52.199999999999996" font-size="3.1" fill="#555">→</text><line x1="75.1" y1="53.199999999999996" x2="101.1" y2="53.199999999999996" stroke="#222" stroke-width="0.3"/><line x1="70" y1="55.4" x2="70" y2="58.2" stroke="#222" stroke-width="0.45"/><polygon points="69.1,57.4 70.9,57.4 70,58.6" fill="#222"/><polygon points="8,58.599999999999994 136,58.599999999999994 132,67.19999999999999 4,67.19999999999999" fill="#fff" stroke="#222" stroke-width="0.5"/><line x1="10.5" y1="65" x2="72.5" y2="65" stroke="#222" stroke-width="0.3"/><text x="73.3" y="63.99999999999999" font-size="3.1" fill="#555">を</text><text x="77" y="63.99999999999999" font-size="3.1" fill="#555">Label</text><line x1="86.28" y1="65" x2="98.28" y2="65" stroke="#222" stroke-width="0.3"/><text x="99.08" y="63.99999999999999" font-size="3.1" fill="#555">に表示</text><line x1="70" y1="67.19999999999999" x2="70" y2="69.99999999999999" stroke="#222" stroke-width="0.45"/><polygon points="69.1,69.19999999999999 70.9,69.19999999999999 70,70.39999999999999" fill="#222"/><polygon points="8,70.39999999999999 136,70.39999999999999 132,78.99999999999999 4,78.99999999999999" fill="#fff" stroke="#222" stroke-width="0.5"/><line x1="10.5" y1="76.79999999999998" x2="72.5" y2="76.79999999999998" stroke="#222" stroke-width="0.3"/><text x="73.3" y="75.79999999999998" font-size="3.1" fill="#555">を</text><text x="77" y="75.79999999999998" font-size="3.1" fill="#555">Label</text><line x1="86.28" y1="76.79999999999998" x2="98.28" y2="76.79999999999998" stroke="#222" stroke-width="0.3"/><text x="99.08" y="75.79999999999998" font-size="3.1" fill="#555">に表示</text><line x1="70" y1="78.99999999999999" x2="70" y2="81.79999999999998" stroke="#222" stroke-width="0.45"/><polygon points="69.1,80.99999999999999 70.9,80.99999999999999 70,82.19999999999999" fill="#222"/><rect x="56" y="82.19999999999999" width="28" height="7.2" rx="3.6" fill="#fff" stroke="#222" stroke-width="0.5"/><text x="70" y="86.89999999999998" font-size="3.1" font-weight="700" text-anchor="middle">おわり</text></svg><div class="legend">
+    <div class="lg-t">記号のやくそく</div>
+    <div class="lg-i"><svg class="lg-svg" viewBox="0 0 14 7"><rect x="1" y="1" width="12" height="5" rx="2.5" fill="#fff" stroke="#222" stroke-width="0.5"/></svg><span>はじめ・おわり</span></div>
+    <div class="lg-i"><svg class="lg-svg" viewBox="0 0 14 7"><polygon points="3,1 13,1 11,6 1,6" fill="#fff" stroke="#222" stroke-width="0.5"/></svg><span>入力・表示</span></div>
+    <div class="lg-i"><svg class="lg-svg" viewBox="0 0 14 7"><rect x="1" y="1" width="12" height="5" rx="0" fill="#fff" stroke="#222" stroke-width="0.5"/></svg><span>計算</span></div>
+    <div class="lg-n"><b>ことば</b>＝画面に出る文字<br>（InputBox や MsgBox のメッセージ）</div>
+    <div class="lg-n"><b>変数</b>＝数を入れる箱の名前</div>
+    <div class="lg-n"><b>Label</b>に出すときは<br>「○○を Label3 に表示」<br>のように書く</div>
+    <div class="lg-n blue">青い字はお手本</div>
+  </div></div>
+  <div class="footer"><span>流れ図が書けたら、うら（作る）へ →</span><span>5 / 8</span></div>
 </section>
-
-<!-- ======================= 4ページ目：発展 ======================= -->
 <section class="page">
   <div class="head">
     <div>
-      <div class="series">🍕 割り勘アプリをつくろう　［自分で考えよう］</div>
-      <div class="title"><span class="step-tag">発展</span>幹事があまりを持とう</div>
+      <div class="series">🍕 割り勘アプリをつくろう　<b>うら：作る</b></div>
+      <div class="title"><span class="step-tag">ステップ3</span>割り勘アプリを完成させよう</div>
     </div>
     <div class="name">　　年<span></span>組<span></span>番　名前<span class="long"></span></div>
   </div>
-
-  <div class="mission"><b>🎯 ミッション</b>あまったお金は、<b>幹事（かんじ）</b>が引き受けることにしよう。<b>幹事が出す金額</b>と、<b>ほかの人が出す金額</b>を表示するアプリを作ろう。</div>
-
-  <h2>💡 考え方</h2>
-  <div class="box dashed">
-    <p>4580円を6人で分けると、1人763円であまりは2円。ほかの5人が763円ずつ出すなら、幹事は <b>763 + 2 = 765円</b> 出せば、ぴったり4580円になります。</p>
-    <p><b>たしかめ算：765 + 763 × 5 ＝ 4580</b></p>
-  </div>
-
-  <h2>📝 仕様（やること）を確かめよう</h2>
-  <div class="with-form">
-    <div>
-      <svg class="uf-svg" viewBox="0 0 352 196" role="img" aria-label="ユーザーフォームの絵。幹事の金額を出す Label3、ほかの人の金額を出す Label4、ボタン CommandButton1">
-    <rect x="1" y="1" width="222" height="190" fill="#f0f0f0" stroke="#222" stroke-width="2"/>
-    <rect x="3" y="26" width="218" height="164" fill="url(#uf-dots)"/>
-    <rect x="1" y="1" width="222" height="25" fill="#d9d9d9" stroke="#222" stroke-width="2"/>
-    <text x="9" y="19" font-size="13" font-family="'BIZ UDPGothic','Yu Gothic','Meiryo',sans-serif">UserForm1</text>
-    <text x="208" y="20" font-size="16" font-weight="700" text-anchor="middle" font-family="'BIZ UDPGothic','Yu Gothic','Meiryo',sans-serif">×</text>
-    <text x="14" y="63" font-size="14" font-weight="700" font-family="'BIZ UDPGothic','Yu Gothic','Meiryo',sans-serif">幹事</text>
-    
-    <rect x="108" y="42" width="100" height="32" fill="#fff" stroke="#888" stroke-width="2"/>
-    <path d="M108 74 V42 H208" fill="none" stroke="#222" stroke-width="2"/>
-    <text x="14" y="115" font-size="14" font-weight="700" font-family="'BIZ UDPGothic','Yu Gothic','Meiryo',sans-serif">ほかの人</text>
-    
-    <rect x="108" y="94" width="100" height="32" fill="#fff" stroke="#888" stroke-width="2"/>
-    <path d="M108 126 V94 H208" fill="none" stroke="#222" stroke-width="2"/>
-    
-    <rect x="62" y="142" width="100" height="34" rx="3" fill="#f7f7f7" stroke="#222" stroke-width="1.6"/>
-    <text x="112" y="164" font-size="14" text-anchor="middle" font-family="'BIZ UDPGothic','Yu Gothic','Meiryo',sans-serif">計算する</text>
-    
-    <line x1="210" y1="58" x2="229" y2="58" stroke="#222" stroke-width="1.2"/>
-    <path d="M217 54 L210 58 L217 62" fill="none" stroke="#222" stroke-width="1.2"/>
-    <text x="232" y="62.5" font-size="13" font-weight="700" font-family="Consolas,'BIZ UDGothic','MS Gothic',monospace">Label3</text>
-    
-    <line x1="210" y1="110" x2="229" y2="110" stroke="#222" stroke-width="1.2"/>
-    <path d="M217 106 L210 110 L217 114" fill="none" stroke="#222" stroke-width="1.2"/>
-    <text x="232" y="114.5" font-size="13" font-weight="700" font-family="Consolas,'BIZ UDGothic','MS Gothic',monospace">Label4</text>
-    
-    <line x1="164" y1="159" x2="229" y2="159" stroke="#222" stroke-width="1.2"/>
-    <path d="M171 155 L164 159 L171 163" fill="none" stroke="#222" stroke-width="1.2"/>
-    <text x="232" y="163.5" font-size="13" font-weight="700" font-family="Consolas,'BIZ UDGothic','MS Gothic',monospace">CommandButton1</text>
-  </svg>
-    </div>
-    <div>
-      <table class="spec" style="margin-top:0">
-        <tr><th>入力データ</th><td>合計金額、人数　<code>4580、6</code></td></tr>
-        <tr><th>出力データ</th><td>幹事 765円 ／ ほかの人 763円</td></tr>
-        <tr><th>入力例</th><td>InputBox に「4580」「6」の順に入力する</td></tr>
-        <tr><th>出力例</th><td>Label3 に「765円」、Label4 に「763円」と表示される</td></tr>
-      </table>
-    </div>
-  </div>
-  <table class="spec">
-    <tr><th>処理条件</th><td><ul>
-      <li>ステップ3と同じように、InputBox で合計金額と人数をたずねる。</li>
-      <li>「ほかの人」が出す金額は、ステップ3の「1人あたり」と同じ。</li>
-      <li>「幹事」が出す金額は、「ほかの人」の金額に、あまりをたした金額にする。変数 <code>Kanji</code> を使う（型は Long）。</li>
-      <li>Label3 に幹事の金額を、Label4 にほかの人の金額を、それぞれ「円」をつけて表示する。</li>
-    </ul></td></tr>
-  </table>
-
-  <h2>✏️ プログラムを書こう</h2>
-  <div class="codebox">
-    <div>Private Sub CommandButton1_Click()</div>
-    <span class="writeline"></span><span class="writeline"></span><span class="writeline"></span><span class="writeline"></span>
-    <span class="writeline"></span><span class="writeline"></span><span class="writeline"></span><span class="writeline"></span>
-    <span class="writeline"></span><span class="writeline"></span><span class="writeline"></span>
-    <div>End Sub</div>
-  </div>
-
-  <h2>✅ 動かしてたしかめよう</h2>
-  <table class="try">
-    <tr><th>合計金額</th><th>人数</th><th>Label3（幹事）</th><th>Label4（ほかの人）</th><th>できた？</th></tr>
-    <tr><td>3000</td><td>3</td><td>1000円</td><td>1000円</td><td class="chk">☐</td></tr>
-    <tr><td>1000</td><td>3</td><td>334円</td><td>333円</td><td class="chk">☐</td></tr>
-    <tr><td>4580</td><td>6</td><td>765円</td><td>763円</td><td class="chk">☐</td></tr>
-    <tr><td>1100</td><td>3</td><td>368円</td><td>366円</td><td class="chk">☐</td></tr>
-  </table>
-  <div class="footer"><span>🎉 ここまでできたら、割り勘アプリの完成です！</span><span>4 / 4</span></div>
+  <ol class="road"><li>① ミッション</li><li>② 仕様</li><li>③ 流れ図</li><li class="on">④ 読む</li><li class="on">⑤ プログラム</li><li class="on">⑥ 動かす</li></ol>
+  <h2>④ まず読もう</h2>
+  <div class="box lesson"><div class="item"><span class="num">1</span><div><div class="t">答えを出す場所が、かわる</div><p>ステップ2では MsgBox に出しました。ステップ3では、フォームの上の <b>Label</b> に出します。</p><span class="snip">ステップ2：MsgBox ("1人" &amp; Hitori &amp; "円です")
+ステップ3：Label3.Caption = Hitori &amp; "円"</span></div></div><div class="item"><span class="num">2</span><div><div class="t">Label に文字を入れる書き方</div><p><b>Label名.Caption = 入れたいもの</b> と書きます。「円」は & でつなぎます。<br>Label3 は上の枠（1人あたり）、Label4 は下の枠（あまり）です。</p><span class="snip">Label4.Caption = Amari &amp; "円"</span></div></div><div class="item"><span class="num">3</span><div><div class="t">MsgBox は使わない</div><p>MsgBox を書くと、小さな窓が出てしまいます。Dim・InputBox・¥・Mod はステップ2と同じです。</p></div></div></div>
+  <h2>⑤ プログラムを完成させよう　<span class="h2note">ステップ2から、いちばん下の2行だけが新しくなったよ。</span></h2>
+  <div class="codebox"><div class="ln" style="padding-left:0em">Private Sub CommandButton1_Click()</div><div class="ln" style="padding-left:2em">Dim Gokei As Long</div><div class="ln" style="padding-left:2em">Dim Ninzu As Long</div><div class="ln" style="padding-left:2em">Dim Hitori As Long</div><div class="ln" style="padding-left:2em">Dim Amari As Long</div><div class="ln" style="padding-left:2em">Gokei = Val(InputBox("合計金額を入力してください"))</div><div class="ln" style="padding-left:2em">Ninzu = Val(InputBox("人数を入力してください"))</div><div class="ln" style="padding-left:2em">Hitori = Gokei ¥ Ninzu</div><div class="ln" style="padding-left:2em">Amari = Gokei Mod Ninzu</div><div class="ln new" style="padding-left:2em">Label<span class="blank s"></span>.Caption = <span class="blank m"></span> &amp; "円"<span class="lnote">← MsgBox をやめて Label に！</span></div><div class="ln new" style="padding-left:2em">Label<span class="blank s"></span>.Caption = <span class="blank m"></span> &amp; "円"<span class="lnote">← MsgBox をやめて Label に！</span></div><div class="ln" style="padding-left:0em">End Sub</div></div>
+  <h2>⑥ 動かしてたしかめよう</h2>
+  <table class="try"><tr><th>合計金額</th><th>人数</th><th>Label3（1人あたり）</th><th>Label4（あまり）</th><th>できた？</th></tr><tr><td>3000</td><td>3</td><td>1000円</td><td>0円</td><td class="chk">☐</td></tr><tr><td>1000</td><td>3</td><td>333円</td><td>1円</td><td class="chk">☐</td></tr><tr><td>4580</td><td>6</td><td>763円</td><td>2円</td><td class="chk">☐</td></tr><tr><td>500</td><td>7</td><td>71円</td><td>3円</td><td class="chk">☐</td></tr></table>
+  <div class="footer"><span>※ MsgBox の窓が出たら、MsgBox を消し忘れています。</span><span>6 / 8</span></div>
 </section>
-
+<section class="page">
+  <div class="head">
+    <div>
+      <div class="series">🍕 割り勘アプリをつくろう　［自分で考えよう］　<b>おもて：考える</b></div>
+      <div class="title"><span class="step-tag">発展</span>幹事とほかの人の金額を出そう</div>
+    </div>
+    <div class="name">　　年<span></span>組<span></span>番　名前<span class="long"></span></div>
+  </div>
+  <ol class="road"><li class="on">① ミッション</li><li class="on">② 仕様</li><li class="on">③ 流れ図</li><li>④ 読む</li><li>⑤ プログラム</li><li>⑥ 動かす</li></ol>
+  <div class="mission2">
+    <div class="mhead">🎯 ① ミッション　<span>ここが一番大事！ どんなアプリを作るのか、イメージしよう</span></div>
+    <div class="mbody">
+      <p class="mlead">あまったお金は、幹事が引き受けます。</p>
+      <p class="mmain">ステップ3のフォームの下に、<u>「幹事」と「ほかの人」の金額を出す枠（Label）</u>を足そう！</p>
+      <div class="mband">★ 新しく足すもの：Label を4つ（Label5・6・7・8）</div>
+      <svg class="mimg" viewBox="0 0 172 46" role="img" aria-label="ミッションの絵。ステップ3のフォームの下に、幹事とほかの人の Label を足したフォーム"><rect x="0" y="0" width="36" height="5" rx="1" fill="#111" stroke="#222" stroke-width="0.35"/><text x="18" y="3.6" font-size="3" font-weight="700" text-anchor="middle" fill="#fff">ステップ3のフォーム</text><rect x="0" y="8" width="56" height="22" rx="0.8" fill="#f0f0f0" stroke="#222" stroke-width="0.5"/><rect x="0" y="8" width="56" height="5.2" rx="0.8" fill="#d6d6d6" stroke="#222" stroke-width="0.5"/><text x="1.8" y="11.7" font-size="2.7">UserForm1</text><text x="53.4" y="12.1" font-size="3.6" font-weight="700" text-anchor="middle">×</text><text x="3" y="18.8" font-size="3.1" font-weight="700">1人あたり</text><rect x="24.08" y="14.6" width="30.240000000000002" height="5.6" rx="0.3" fill="#fff" stroke="#222" stroke-width="0.5"/><text x="39.199999999999996" y="18.6" font-size="3.3" font-weight="700" text-anchor="middle">763円</text><text x="3" y="26.2" font-size="3.1" font-weight="700">あまり</text><rect x="24.08" y="22" width="30.240000000000002" height="5.6" rx="0.3" fill="#fff" stroke="#222" stroke-width="0.5"/><text x="39.199999999999996" y="26" font-size="3.3" font-weight="700" text-anchor="middle">2円</text><text x="66" y="22" font-size="3.8" font-weight="700" text-anchor="middle">足す！</text><polygon points="58,26.7 66.8,26.7 66.8,24 74,28.5 66.8,33 66.8,30.3 58,30.3" fill="#cfcfcf" stroke="#222" stroke-width="0.35"/><rect x="78" y="0" width="56" height="5" rx="1" fill="#111" stroke="#222" stroke-width="0.35"/><text x="106" y="3.6" font-size="3" font-weight="700" text-anchor="middle" fill="#fff">新しいフォーム（点線が追加）</text><rect x="78" y="8" width="62" height="36.800000000000004" rx="0.8" fill="#f0f0f0" stroke="#222" stroke-width="0.5"/><rect x="78" y="8" width="62" height="5.2" rx="0.8" fill="#d6d6d6" stroke="#222" stroke-width="0.5"/><text x="79.8" y="11.7" font-size="2.7">UserForm1</text><text x="137.4" y="12.1" font-size="3.6" font-weight="700" text-anchor="middle">×</text><text x="81" y="18.8" font-size="3.1" font-weight="700">1人あたり</text><rect x="104.66" y="14.6" width="33.480000000000004" height="5.6" rx="0.3" fill="#fff" stroke="#222" stroke-width="0.5"/><text x="121.4" y="18.6" font-size="3.3" font-weight="700" text-anchor="middle">763円</text><text x="81" y="26.2" font-size="3.1" font-weight="700">あまり</text><rect x="104.66" y="22" width="33.480000000000004" height="5.6" rx="0.3" fill="#fff" stroke="#222" stroke-width="0.5"/><text x="121.4" y="26" font-size="3.3" font-weight="700" text-anchor="middle">2円</text><rect x="78.8" y="28.5" width="60.4" height="7" rx="1" fill="none" stroke="#000" stroke-width="0.55" stroke-dasharray="1.4 0.9"/><text x="81" y="33.6" font-size="3.1" font-weight="700">幹事</text><rect x="104.66" y="29.4" width="33.480000000000004" height="5.6" rx="0.3" fill="#fff" stroke="#222" stroke-width="0.5"/><text x="121.4" y="33.4" font-size="3.3" font-weight="700" text-anchor="middle">765円</text><rect x="78.8" y="35.900000000000006" width="60.4" height="7" rx="1" fill="none" stroke="#000" stroke-width="0.55" stroke-dasharray="1.4 0.9"/><text x="81" y="41.00000000000001" font-size="3.1" font-weight="700">ほかの人</text><rect x="104.66" y="36.800000000000004" width="33.480000000000004" height="5.6" rx="0.3" fill="#fff" stroke="#222" stroke-width="0.5"/><text x="121.4" y="40.800000000000004" font-size="3.3" font-weight="700" text-anchor="middle">763円</text><line x1="141" y1="32.199999999999996" x2="142" y2="32.199999999999996" stroke="#222" stroke-width="0.35"/><text x="143" y="33.199999999999996" font-size="2.8" font-weight="700" font-family="Consolas,'BIZ UDGothic','MS Gothic',monospace">←追加 Label5,6</text><line x1="141" y1="39.6" x2="142" y2="39.6" stroke="#222" stroke-width="0.35"/><text x="143" y="40.6" font-size="2.8" font-weight="700" font-family="Consolas,'BIZ UDGothic','MS Gothic',monospace">←追加 Label7,8</text></svg>
+    </div>
+  </div>
+  <h2>② 仕様を確かめよう</h2>
+  <table class="spec">
+    <tr><th>入力データ</th><td>合計金額、人数　4580、6</td><th>出力データ</th><td>1人あたり 763円／あまり 2円／幹事 765円／ほかの人 763円</td></tr>
+    <tr><th>処理条件</th><td colspan="3"><ul><li>ステップ3のプログラムとフォームを、そのまま使う。</li><li>フォームの下に Label を4つ足す。Label5 の Caption は「幹事」、Label7 の Caption は「ほかの人」にする。</li><li>Label6 に幹事が出す金額を、Label8 にほかの人が出す金額を、それぞれ「円」をつけて表示する。</li><li>幹事の金額は、「1人あたり」に「あまり」をたした金額。変数 Kanji に入れる（型は Long）。ほかの人の金額は、「1人あたり」と同じ。</li></ul></td></tr>
+    <tr><th>入力例</th><td>InputBox に「4580」「6」の順に入力する</td><th>出力例</th><td>Label3 に「763円」、Label4 に「2円」、Label6 に「765円」、Label8 に「763円」と表示される</td></tr>
+  </table>
+  <h2>③ 流れ図を書こう　<span class="h2note">平行四辺形には、<b>画面に出す「ことば」</b>と<b>「変数名」</b>を必ず書く</span></h2>
+  <div class="flowrow"><svg class="flow" viewBox="0 0 146 78.6" role="img" aria-label="流れ図を書く欄。はじめ、入力、計算、表示、おわりの記号がならんでいる"><rect x="56" y="1" width="28" height="7.2" rx="3.6" fill="#fff" stroke="#222" stroke-width="0.5"/><text x="70" y="5.699999999999999" font-size="3.1" font-weight="700" text-anchor="middle">はじめ</text><line x1="70" y1="8.2" x2="70" y2="10.999999999999998" stroke="#222" stroke-width="0.45"/><polygon points="69.1,10.2 70.9,10.2 70,11.399999999999999" fill="#222"/><rect x="4" y="11.4" width="132" height="8.6" rx="1.5" fill="#ececec" stroke="#777" stroke-width="0.45" stroke-dasharray="1.6 1"/><text x="70" y="16.8" font-size="3.1" text-anchor="middle" fill="#444">ステップ3と同じ：入力2つ → ¥ と Mod の計算</text><line x1="70" y1="20" x2="70" y2="22.8" stroke="#222" stroke-width="0.45"/><polygon points="69.1,22 70.9,22 70,23.2" fill="#222"/><rect x="4" y="23.200000000000003" width="132" height="8.6" fill="#fff" stroke="#222" stroke-width="0.9" stroke-dasharray="2 1"/><line x1="7" y1="29.600000000000005" x2="33" y2="29.600000000000005" stroke="#222" stroke-width="0.3"/><line x1="33.8" y1="29.600000000000005" x2="43.8" y2="29.600000000000005" stroke="#222" stroke-width="0.3"/><line x1="44.599999999999994" y1="29.600000000000005" x2="70.6" y2="29.600000000000005" stroke="#222" stroke-width="0.3"/><text x="71.39999999999999" y="28.600000000000005" font-size="3.1" fill="#555">→</text><line x1="75.1" y1="29.600000000000005" x2="101.1" y2="29.600000000000005" stroke="#222" stroke-width="0.3"/><rect x="137" y="25.000000000000004" width="8" height="5" rx="1" fill="#111" stroke="#222" stroke-width="0.35"/><text x="141" y="28.600000000000005" font-size="2.9" font-weight="700" text-anchor="middle" fill="#fff">追加</text><line x1="70" y1="31.800000000000004" x2="70" y2="34.60000000000001" stroke="#222" stroke-width="0.45"/><polygon points="69.1,33.800000000000004 70.9,33.800000000000004 70,35.00000000000001" fill="#222"/><rect x="4" y="35" width="132" height="8.6" rx="1.5" fill="#ececec" stroke="#777" stroke-width="0.45" stroke-dasharray="1.6 1"/><text x="70" y="40.4" font-size="3.1" text-anchor="middle" fill="#444">ステップ3と同じ：Label3・Label4 に表示</text><line x1="70" y1="43.6" x2="70" y2="46.400000000000006" stroke="#222" stroke-width="0.45"/><polygon points="69.1,45.6 70.9,45.6 70,46.800000000000004" fill="#222"/><polygon points="8,46.8 136,46.8 132,55.4 4,55.4" fill="#fff" stroke="#222" stroke-width="0.9" stroke-dasharray="2 1"/><line x1="10.5" y1="53.199999999999996" x2="72.5" y2="53.199999999999996" stroke="#222" stroke-width="0.3"/><text x="73.3" y="52.199999999999996" font-size="3.1" fill="#555">を</text><text x="77" y="52.199999999999996" font-size="3.1" fill="#555">Label</text><line x1="86.28" y1="53.199999999999996" x2="98.28" y2="53.199999999999996" stroke="#222" stroke-width="0.3"/><text x="99.08" y="52.199999999999996" font-size="3.1" fill="#555">に表示</text><rect x="137" y="48.599999999999994" width="8" height="5" rx="1" fill="#111" stroke="#222" stroke-width="0.35"/><text x="141" y="52.199999999999996" font-size="2.9" font-weight="700" text-anchor="middle" fill="#fff">追加</text><line x1="70" y1="55.4" x2="70" y2="58.2" stroke="#222" stroke-width="0.45"/><polygon points="69.1,57.4 70.9,57.4 70,58.6" fill="#222"/><polygon points="8,58.599999999999994 136,58.599999999999994 132,67.19999999999999 4,67.19999999999999" fill="#fff" stroke="#222" stroke-width="0.9" stroke-dasharray="2 1"/><line x1="10.5" y1="65" x2="72.5" y2="65" stroke="#222" stroke-width="0.3"/><text x="73.3" y="63.99999999999999" font-size="3.1" fill="#555">を</text><text x="77" y="63.99999999999999" font-size="3.1" fill="#555">Label</text><line x1="86.28" y1="65" x2="98.28" y2="65" stroke="#222" stroke-width="0.3"/><text x="99.08" y="63.99999999999999" font-size="3.1" fill="#555">に表示</text><rect x="137" y="60.39999999999999" width="8" height="5" rx="1" fill="#111" stroke="#222" stroke-width="0.35"/><text x="141" y="63.99999999999999" font-size="2.9" font-weight="700" text-anchor="middle" fill="#fff">追加</text><line x1="70" y1="67.19999999999999" x2="70" y2="69.99999999999999" stroke="#222" stroke-width="0.45"/><polygon points="69.1,69.19999999999999 70.9,69.19999999999999 70,70.39999999999999" fill="#222"/><rect x="56" y="70.39999999999999" width="28" height="7.2" rx="3.6" fill="#fff" stroke="#222" stroke-width="0.5"/><text x="70" y="75.09999999999998" font-size="3.1" font-weight="700" text-anchor="middle">おわり</text></svg><div class="legend">
+    <div class="lg-t">記号のやくそく</div>
+    <div class="lg-i"><svg class="lg-svg" viewBox="0 0 14 7"><rect x="1" y="1" width="12" height="5" rx="2.5" fill="#fff" stroke="#222" stroke-width="0.5"/></svg><span>はじめ・おわり</span></div>
+    <div class="lg-i"><svg class="lg-svg" viewBox="0 0 14 7"><polygon points="3,1 13,1 11,6 1,6" fill="#fff" stroke="#222" stroke-width="0.5"/></svg><span>入力・表示</span></div>
+    <div class="lg-i"><svg class="lg-svg" viewBox="0 0 14 7"><rect x="1" y="1" width="12" height="5" rx="0" fill="#fff" stroke="#222" stroke-width="0.5"/></svg><span>計算</span></div>
+    <div class="lg-n"><b>ことば</b>＝画面に出る文字<br>（InputBox や MsgBox のメッセージ）</div>
+    <div class="lg-n"><b>変数</b>＝数を入れる箱の名前</div>
+    <div class="lg-n"><b>灰色の箱</b>…ステップ3と同じ（書かなくてOK）</div><div class="lg-n"><b>追加</b>…ステップ3から<br>新しく足すところ。ここだけ書く</div>
+    <div class="lg-n blue">青い字はお手本</div>
+  </div></div>
+  <div class="footer"><span>流れ図が書けたら、うら（作る）へ →</span><span>7 / 8</span></div>
+</section>
+<section class="page">
+  <div class="head">
+    <div>
+      <div class="series">🍕 割り勘アプリをつくろう　<b>うら：作る</b></div>
+      <div class="title"><span class="step-tag">発展</span>幹事とほかの人の金額を出そう</div>
+    </div>
+    <div class="name">　　年<span></span>組<span></span>番　名前<span class="long"></span></div>
+  </div>
+  <ol class="road"><li>① ミッション</li><li>② 仕様</li><li>③ 流れ図</li><li class="on">④ 読む</li><li class="on">⑤ プログラム</li><li class="on">⑥ 動かす</li></ol>
+  <h2>④ まず読もう</h2>
+  <div class="box lesson"><div class="item"><span class="num">1</span><div><div class="t">幹事の金額を考える</div><p>4580円を6人で分けると、1人763円であまりは2円。ほかの5人が763円ずつ出すなら、幹事は <b>763 + 2 = 765円</b> 出せば、ぴったり4580円になります。<br>たしかめ算：<b>765 + 763 × 5 = 4580</b></p></div></div><div class="item"><span class="num">2</span><div><div class="t">フォームに足す Label（ここが新しい！）</div><p>ボタンを下にずらして、あいたところに Label を4つ足します。<br><b>Label5</b>＝見出し（Caption を「幹事」）　<b>Label6</b>＝幹事の金額を出す枠<br><b>Label7</b>＝見出し（Caption を「ほかの人」）　<b>Label8</b>＝ほかの人の金額を出す枠<br><span class="note">Label は作った順に Label5・6・7・8 という名前になります。</span></p></div></div></div>
+  <h2>⑤ プログラムを完成させよう　<span class="h2note">ステップ3の続きに、「追加」の行を足そう。</span></h2>
+  <div class="codebox"><div class="ln" style="padding-left:0em">Private Sub CommandButton1_Click()</div><div class="ln" style="padding-left:2em">Dim Gokei As Long</div><div class="ln" style="padding-left:2em">Dim Ninzu As Long</div><div class="ln" style="padding-left:2em">Dim Hitori As Long</div><div class="ln" style="padding-left:2em">Dim Amari As Long</div><div class="ln new" style="padding-left:2em">Dim <span class="blank m"></span> As Long<span class="lnote">← 追加（幹事の金額を入れる箱）</span></div><div class="ln" style="padding-left:2em">Gokei = Val(InputBox("合計金額を入力してください"))</div><div class="ln" style="padding-left:2em">Ninzu = Val(InputBox("人数を入力してください"))</div><div class="ln" style="padding-left:2em">Hitori = Gokei ¥ Ninzu</div><div class="ln" style="padding-left:2em">Amari = Gokei Mod Ninzu</div><div class="ln new" style="padding-left:2em"><span class="blank m"></span> = Hitori + <span class="blank m"></span><span class="lnote">← 追加（幹事 ＝ 1人あたり ＋ あまり）</span></div><div class="ln" style="padding-left:2em">Label3.Caption = Hitori &amp; "円"</div><div class="ln" style="padding-left:2em">Label4.Caption = Amari &amp; "円"</div><div class="ln new" style="padding-left:2em">Label<span class="blank s"></span>.Caption = <span class="blank m"></span> &amp; "円"<span class="lnote">← 追加（幹事）</span></div><div class="ln new" style="padding-left:2em">Label<span class="blank s"></span>.Caption = <span class="blank m"></span> &amp; "円"<span class="lnote">← 追加（ほかの人）</span></div><div class="ln" style="padding-left:0em">End Sub</div></div>
+  <h2>⑥ 動かしてたしかめよう</h2>
+  <table class="try"><tr><th>合計金額</th><th>人数</th><th>Label3（1人あたり）</th><th>Label4（あまり）</th><th>Label6（幹事）</th><th>Label8（ほかの人）</th><th>できた？</th></tr><tr><td>3000</td><td>3</td><td>1000円</td><td>0円</td><td>1000円</td><td>1000円</td><td class="chk">☐</td></tr><tr><td>1000</td><td>3</td><td>333円</td><td>1円</td><td>334円</td><td>333円</td><td class="chk">☐</td></tr><tr><td>4580</td><td>6</td><td>763円</td><td>2円</td><td>765円</td><td>763円</td><td class="chk">☐</td></tr><tr><td>1100</td><td>3</td><td>366円</td><td>2円</td><td>368円</td><td>366円</td><td class="chk">☐</td></tr></table>
+  <div class="footer"><span>🎉 ここまでできたら、割り勘アプリの完成です！</span><span>8 / 8</span></div>
+</section>
 </body>
 </html>

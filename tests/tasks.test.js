@@ -19,8 +19,17 @@ test("課題の id は重複せず、教科書の課題は必要な欄をそろ�
   }
 });
 
-test("オリジナル課題（割り勘アプリ）は必要な欄をそろえ、解説つき→挑戦の順に並ぶ", () => {
-  assert.deepEqual(ORIGINAL_TASKS.map((t) => t.kind), ["guide", "guide", "challenge", "challenge"]);
+test("オリジナル課題（割り勘・回転ずし）は必要な欄をそろえ、シリーズごとに解説つき→挑戦の順に並ぶ", () => {
+  assert.deepEqual(ORIGINAL_TASKS.map((t) => t.id), ["warikan1", "warikan2", "warikan3", "warikan4", "sushi1", "sushi2"]);
+  assert.deepEqual(ORIGINAL_TASKS.map((t) => t.kind), ["guide", "guide", "challenge", "challenge", "guide", "challenge"]);
+  // 「続き」の課題は、同じシリーズの直前の課題から引き継ぐ。フォームを足す課題は、足した後の形を持つ
+  ORIGINAL_TASKS.forEach((t, i) => {
+    if (t.continueFrom) {
+      assert.equal(t.continueFrom, ORIGINAL_TASKS[i - 1].id, t.id + " continueFrom");
+      assert.equal(ORIGINAL_TASKS[i - 1].series, t.series, t.id + " 同じシリーズ");
+      assert.ok(t.answerForm.controls.length > t.form.controls.length, t.id + " answerForm は部品が増える");
+    }
+  });
   for (const t of ORIGINAL_TASKS) {
     assert.ok(t.series && t.step && t.title && t.goal, t.id + " 基本の欄");
     for (const k of ["input", "output", "inputExample", "outputExample"]) assert.ok(t.spec[k], `${t.id} spec.${k}`);

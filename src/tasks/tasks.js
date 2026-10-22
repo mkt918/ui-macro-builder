@@ -30,7 +30,9 @@
  *
  * オリジナル課題（src/tasks/textbook-tasks.js の ORIGINAL_TASKS。教科書の課題ではない）の追加フィールド:
  *   kind      : "guide"（解説つき）/ "challenge"（自分で考える）。code・page は不要
- *   series    : シリーズ名（クエスト一覧の見出し）　step: "ステップ1" など
+ *   series    : シリーズ名（クエスト一覧の見出し）　seriesIcon: 見出しの絵文字（省略は 🍕）　step: "ステップ1" など
+ *   continueFrom : 前の課題の id。初めて開くとき、その課題のブロック・コード・フォームを引き継ぐ（続きを作らせる課題用）
+ *   answerForm   : 模範解答が使うフォーム。form は「始めの形」で、生徒が部品を足す課題のとき、足した後の形をここに書く
  *   lesson    : [{ h:見出し, p:本文, code:コード例 }]　guide は「まず読もう」、challenge は「考え方」として表示
  */
 
