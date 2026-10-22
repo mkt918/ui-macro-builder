@@ -2418,10 +2418,33 @@
     const d = new Date();
     const pad = (n) => String(n).padStart(2, "0");
     const def = `vba_${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}`;
+    const blob = new Blob([JSON.stringify(buildWorkPayload(), null, 1)], { type: "application/json" });
+
+    // 保存先を自分で選べるブラウザ（Chrome / Edge）では「名前を付けて保存」の窓を出す
+    if (typeof window.showSaveFilePicker === "function") {
+      (async () => {
+        try {
+          const handle = await window.showSaveFilePicker({
+            suggestedName: def + ".vbalearn",
+            types: [{ description: "UI Macro Builder の作品", accept: { "application/json": [".vbalearn"] } }],
+          });
+          const writable = await handle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+          showToast(`💾 「${handle.name}」を保存しました`, 4500);
+        } catch (e) {
+          if (e && e.name === "AbortError") return; // 保存先の選択をやめた
+          console.warn("保存先を選ぶ保存に失敗:", e);
+          alert("保存できませんでした。もう一度ためしてください。");
+        }
+      })();
+      return;
+    }
+
+    // 保存先を選べないブラウザ（Firefox / Safari）は、ダウンロードフォルダに入る
     const raw = prompt("ファイルの名前を入れてください（例: jis4-2-01）", def);
     if (raw === null) return;
     const name = (raw.trim() || def).replace(/[\\/:*?"<>|]/g, "_").replace(/\.vbalearn$/i, "") + ".vbalearn";
-    const blob = new Blob([JSON.stringify(buildWorkPayload(), null, 1)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = name;
@@ -2431,7 +2454,7 @@
       URL.revokeObjectURL(a.href);
       a.remove();
     }, 1000);
-    showToast(`💾 「${name}」をダウンロードフォルダに保存しました`, 4500);
+    showToast(`💾 「${name}」をダウンロードフォルダに保存しました（このブラウザでは保存先を選べません）`, 4500);
   }
 
   function openWorkFile(file) {
