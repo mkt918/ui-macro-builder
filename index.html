@@ -217,6 +217,7 @@
         <button class="right-tab active" id="right-tab-form" data-right-tab="form">🪟 ユーザーフォーム</button>
         <button class="right-tab" id="right-tab-excel" data-right-tab="excel">📊 仮想Excel</button>
         <button class="right-tab" id="right-tab-flow" data-right-tab="flow">🔀 流れ図</button>
+        <button class="right-tab" id="right-tab-files" data-right-tab="files">📁 ファイル</button>
         <button class="right-tab" id="right-tab-reference" data-right-tab="reference">📖 リファレンス</button>
       </div>
       <div class="right-pane-body">
@@ -228,6 +229,7 @@
           <button class="form-add-btn" data-add="Label" title="文字を表示する部品">🏷 ラベル</button>
           <button class="form-add-btn" data-add="TextBox" title="文字を入力してもらう部品">⌨ テキストボックス</button>
           <button class="form-add-btn" data-add="CommandButton" title="押すと命令が動くボタン">🔘 ボタン</button>
+          <button class="form-add-btn" data-add="ListBox" title="いくつもの文字を一覧で表示する部品">📋 リスト</button>
           <span class="toolbar-spacer"></span>
           <label class="form-names-toggle" title="教科書の「画面設計」の図のように、部品の名前を表示します">
             <input type="checkbox" id="form-show-names" /> 名前を表示
@@ -240,6 +242,24 @@
         </div>
         <div class="form-stage" id="form-stage"></div>
         <div class="form-props" id="form-props"></div>
+      </div>
+
+      <!-- ファイル（Open ～ For Input で読める CSV などを置く場所） -->
+      <div class="files-panel right-tab-panel" id="right-panel-files">
+        <div class="files-header">
+          <span>📁 ファイル</span>
+          <span class="files-hint">プログラムの Open で読めるファイルを置く場所です。名前だけで探します</span>
+        </div>
+        <div class="files-toolbar">
+          <button class="form-tool-btn" id="files-add">＋ 新しいファイル</button>
+          <button class="form-tool-btn" id="files-upload">📂 PCのファイルを読みこむ</button>
+          <button class="form-tool-btn" id="files-sample" title="教科書の例題 4-3-06 の入力ファイル">📄 見本 uriage.csv を入れる</button>
+          <input type="file" id="files-upload-input" accept=".csv,.txt,text/csv,text/plain" multiple hidden />
+        </div>
+        <div class="files-scroll">
+          <div class="files-list" id="files-list"></div>
+          <div class="files-out" id="files-out" hidden></div>
+        </div>
       </div>
 
       <!-- 流れ図（プログラムから自動で描く。実行中の記号が光る） -->
@@ -408,6 +428,13 @@
         </section>
 
         <section class="help-section">
+          <h4>📁 ファイル（CSV）を読む</h4>
+          <p class="help-note">プログラムで <code>Open "uriage.csv" For Input As #1</code> のように書くと、右の <span class="help-key">📁 ファイル</span> タブに置いたファイルを読めます（名前だけで探します）。
+          <span class="help-key">📂 PCのファイルを読みこむ</span> で、自分の PC の CSV も入れられます。教科書の例題 4-3-06 で使う <b>uriage.csv</b> は、最初から入っています。
+          プログラムが書き出したファイルも、同じタブの下に出ます。</p>
+        </section>
+
+        <section class="help-section">
           <h4>⚠️ まちがいがあるとき</h4>
           <p class="help-note">プログラムにまちがいがあると、下に赤い（または黄色い）説明が出ます。「👀 その行を見る」でまちがいの行に飛べます。
           日本語入力のまま打った全角の記号（＝ （ ） など）は、「🔧 半角に直す」で直せます。</p>
@@ -474,6 +501,7 @@
   <script src="src/vba-dialog.js"></script>
   <script src="src/userform.js"></script>
   <script src="src/flowchart.js"></script>
+  <script src="src/filespanel.js"></script>
   <script src="src/tour.js"></script>
   <script src="src/excel-preview.js"></script>
   <script src="src/tasks/tasks.js"></script>

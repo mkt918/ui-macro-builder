@@ -35,6 +35,7 @@
 - `src/vba-dialog.js` — InputBox / MsgBox のダイアログ（Windows の標準ダイアログと同じ見た目）
 - `src/userform.js` — 🪟 ユーザーフォームのデザイナー兼実行画面（`UserFormPanel`）。フォームのデータは `umb_forms` に保存
 - `src/tour.js` — はじめてガイド（初回だけ自動表示。「❓ 使い方」から再表示）
+- `src/filespanel.js` — 📁 ファイル（仮想のCSV置き場。`umb_files` に作業ごとに保存。UTF-8→だめなら Shift_JIS で読みこむ）
 - `src/flowchart.js` — 🔀 流れ図（AST から教科書の記法で SVG を描く。記法は docs/textbook-userform-plan.md の「流れ図の描き方」）
 - 保存：ブラウザ（localStorage の `umb_blocks` / `umb_code` / `umb_forms` / `umb_initial`）に自動保存。
   「💾 保存」「📂 開く」で `.vbalearn`（JSON）ファイル、「📤 先生に送る」で同じ内容のリンク（`#share=`）

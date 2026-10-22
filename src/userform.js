@@ -10,7 +10,7 @@
   "use strict";
 
   const GRID = 6;
-  const DEFAULT_SIZE = { Label: [120, 24], TextBox: [130, 26], CommandButton: [110, 32] };
+  const DEFAULT_SIZE = { Label: [120, 24], TextBox: [130, 26], CommandButton: [110, 32], ListBox: [150, 110] };
   const TYPE_JA = { Label: "ラベル", TextBox: "テキストボックス", CommandButton: "コマンドボタン", ListBox: "リストボックス" };
   const TYPE_ICON = { Label: "🏷", TextBox: "⌨", CommandButton: "🔘", ListBox: "📋" };
   const HELP = {
@@ -48,6 +48,7 @@
     const [w, h] = DEFAULT_SIZE[type] || [100, 24];
     const props = { FontSize: 12 };
     if (type === "TextBox") props.Text = "";
+    else if (type === "ListBox") props.List = [];
     else props.Caption = name;
     return { name, type, left, top, width: w, height: h, props };
   }
@@ -440,12 +441,12 @@
         html += '<div class="uf-props-grid">';
         html += this.field("名前（Name）", "name", "text", c.name, "プログラムで使う名前です（英字で始める）");
         if (c.type === "TextBox") html += this.field("入力された文字（Text）", "prop:Text", "text", p.Text);
-        else html += this.field("表示する文字（Caption）", "prop:Caption", "text", p.Caption);
+        else if (c.type !== "ListBox") html += this.field("表示する文字（Caption）", "prop:Caption", "text", p.Caption);
         html += this.field("文字の大きさ（Font）", "prop:FontSize", "number", p.FontSize || 12);
         html += this.field("太字（Font）", "prop:FontBold", "checkbox", !!p.FontBold);
         html += this.field("文字の色（ForeColor）", "prop:ForeColor", "color", vbaColorToHex(p.ForeColor) || "#000000");
         html += this.field("背景の色（BackColor）", "prop:BackColor", "color", vbaColorToHex(p.BackColor) || (c.type === "TextBox" ? "#ffffff" : c.type === "CommandButton" ? "#e1e1e1" : "#f0f0f0"));
-        if (c.type !== "CommandButton") {
+        if (c.type === "Label" || c.type === "TextBox") {
           html += this.select("文字のそろえ方（TextAlign）", "prop:TextAlign", p.TextAlign || 1, [[1, "左"], [2, "中央"], [3, "右"]]);
         }
         if (c.type === "Label") {
@@ -544,7 +545,7 @@
       this.history.push(snapshot);
       const from = c.name;
       c.name = name;
-      if (c.type !== "TextBox" && c.props.Caption === from) c.props.Caption = name;
+      if ((c.type === "Label" || c.type === "CommandButton") && c.props.Caption === from) c.props.Caption = name;
       this.selected = name;
       this.render();
       this.changed({ structure: true, renamed: { from, to: name } });

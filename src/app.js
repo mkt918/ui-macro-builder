@@ -36,6 +36,9 @@
   const savedForms = {}; // taskId -> フォームのデータ（userform.js の form）
   let formPanel = null; // 🪟 ユーザーフォームのデザイナー兼実行画面
   let lastArea = "form"; // 3ステップ表示用：最後にさわった場所（"form" / "program"）
+  const savedFiles = {}; // taskId -> { ファイル名: 中身 }（📁 ファイルタブの仮想ファイル）
+  const LS_FILES = "umb_files";
+  let filesPanel = null; // 📁 ファイル
   let flowChart = null; // 🔀 流れ図
   let flowAst = null; // 流れ図にするプログラム（AST）
   let flowMsg = null; // 描けないときの説明
@@ -231,6 +234,7 @@
       localStorage.setItem(LS_INITIAL, JSON.stringify(savedInitial));
       localStorage.setItem(LS_CODE, JSON.stringify(savedCode));
       localStorage.setItem(LS_FORMS, JSON.stringify(savedForms));
+      localStorage.setItem(LS_FILES, JSON.stringify(savedFiles));
     } catch (e) {
       console.warn("保存失敗:", e);
     }
@@ -247,6 +251,8 @@
       Object.assign(savedCode, code);
       const forms = JSON.parse(localStorage.getItem(LS_FORMS) || "{}");
       Object.assign(savedForms, forms);
+      const files = JSON.parse(localStorage.getItem(LS_FILES) || "{}");
+      Object.assign(savedFiles, files);
     } catch (e) {
       console.warn("読み込み失敗:", e);
     }
@@ -722,7 +728,8 @@
   function createSession() {
     try {
       const form = formPanel ? formPanel.runtimeForm() : null;
-      return { s: new VbaSession.Session(currentSource(), { initialCells: view.getInitialCells(), form, seed: 20261022 }) };
+      const files = filesPanel ? filesPanel.getFiles() : {};
+      return { s: new VbaSession.Session(currentSource(), { initialCells: view.getInitialCells(), form, files, seed: 20261022 }) };
     } catch (e) {
       if (e && e.kind) return { error: e };
       throw e;
@@ -1084,6 +1091,7 @@
       }
     }
     if (formRunning()) updateFormPanel();
+    if (filesPanel) filesPanel.setOutputs((view.currentModel() || {}).files);
     if (flowChart) flowChart.highlight(step ? step.line : null, step ? step.proc : null, step ? step.branch : undefined);
   }
 
@@ -1216,6 +1224,21 @@
     // 🔀 流れ図
     flowChart = new FlowChart(document.getElementById("flow-body"), { onHover: onFlowHover, onClick: onFlowClick });
 
+    // 📁 ファイル（読めるファイルは作業ごとに保存。変えたら実行し直す）
+    filesPanel = new FilesPanel({
+      list: document.getElementById("files-list"),
+      out: document.getElementById("files-out"),
+      onToast: (m) => showToast(m, 4500),
+      onChange: (files) => {
+        if (!sharedViewMode) {
+          savedFiles[currentKey()] = files;
+          persist();
+        }
+        if (runActive) stopRun();
+        else schedulePreview(500);
+      },
+    });
+
     // ブロック変更 → コード再生成 + 実行し直し
     workspace.addChangeListener(onWorkspaceChange);
 
@@ -1300,7 +1323,7 @@
   // クリア済みフラグは合算（減らさない）、ブロック/初期データは
   // 「今このタブで編集中でない課題」だけ取り込む（作業中のものを壊さないため）
   function onOtherTabStorageChange(e) {
-    if (![LS_BLOCKS, LS_SOLVED, LS_INITIAL, LS_CODE, LS_FORMS].includes(e.key)) return;
+    if (![LS_BLOCKS, LS_SOLVED, LS_INITIAL, LS_CODE, LS_FORMS, LS_FILES].includes(e.key)) return;
     try {
       const otherSolved = JSON.parse(localStorage.getItem(LS_SOLVED) || "[]");
       let newlySolvedCount = 0;
@@ -1337,6 +1360,10 @@
       const otherForms = JSON.parse(localStorage.getItem(LS_FORMS) || "{}");
       Object.keys(otherForms).forEach((k) => {
         if (k !== activeKey) savedForms[k] = otherForms[k];
+      });
+      const otherFiles = JSON.parse(localStorage.getItem(LS_FILES) || "{}");
+      Object.keys(otherFiles).forEach((k) => {
+        if (k !== activeKey) savedFiles[k] = otherFiles[k];
       });
 
       if (newlySolvedCount > 0 || updatedTaskCount > 0) {
@@ -1440,6 +1467,7 @@
     restoreCodeState(taskId);
     runActive = false;
     formPanel.setForm(savedForms[taskId] || (task.form ? task.form : UserFormUtil.defaultForm()));
+    filesPanel.setFiles(savedFiles[taskId] || task.files || {});
 
     updateCurrentQuestDisplay();
     onWorkspaceChange();
@@ -1484,6 +1512,8 @@
     restoreCodeState(FREE_MODE_ID);
     runActive = false;
     formPanel.setForm(savedForms[FREE_MODE_ID] || UserFormUtil.defaultForm());
+    // 初めて開いたときは、教科書の例題で使う見本の CSV を入れておく
+    filesPanel.setFiles(savedFiles[FREE_MODE_ID] || { "uriage.csv": FilesUtil.SAMPLE_URIAGE });
     // 初めて開いたとき：教科書の最初の形（ボタンを押したときの命令の入れ物）を置いておく
     if (!xml && !savedCode[FREE_MODE_ID] && workspace.getTopBlocks(false).length === 0) {
       const hat = workspace.newBlock("form_button_click");
@@ -1966,6 +1996,19 @@
       if (session && session.status === "error" && view.cursor === view.steps.length) showProgramError(session.error, !runActive);
     });
 
+    // ----- 📁 ファイルの道具 -----
+    document.getElementById("files-add").addEventListener("click", () => {
+      const n = filesPanel.addFile("data.csv", "");
+      if (n) showToast(`📄 「${n}」を作りました。中身を書いて、名前も付け直そう`);
+    });
+    const filesInput = document.getElementById("files-upload-input");
+    document.getElementById("files-upload").addEventListener("click", () => {
+      filesInput.value = "";
+      filesInput.click();
+    });
+    filesInput.addEventListener("change", () => filesPanel.readFromPc(filesInput.files));
+    document.getElementById("files-sample").addEventListener("click", () => filesPanel.addSample());
+
     // ----- 🪟 ユーザーフォームの道具 -----
     document.querySelectorAll(".form-add-btn").forEach((b) => {
       b.addEventListener("click", () => {
@@ -2194,6 +2237,7 @@
       xml: Blockly.Xml.domToText(dom),
       initial: view.getInitialCells(),
       form: formPanel.getForm(),
+      files: filesPanel.getFiles(),
     };
     if (codeOwner === "code") payload.code = { text: codeEditor.getValue(), match: blocksMatchCode, reason: blocksMismatchReason };
     return payload;
@@ -2212,6 +2256,7 @@
     sharedViewMode = !!shared;
     view.setInitialCells(payload.initial || {});
     formPanel.setForm(payload.form || UserFormUtil.defaultForm());
+    filesPanel.setFiles(payload.files || {});
     if (payload.code && typeof payload.code.text === "string") {
       codeOwner = "code";
       blocksMatchCode = !!payload.code.match;
@@ -2227,6 +2272,7 @@
       const key = currentKey();
       savedInitial[key] = view.getInitialCells();
       savedForms[key] = formPanel.getForm();
+      savedFiles[key] = filesPanel.getFiles();
       saveCodeState();
     }
     updateCodeSyncStatus();
