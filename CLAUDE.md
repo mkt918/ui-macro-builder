@@ -76,6 +76,7 @@ npx http-server -p 8778 -c-1
 - **オリジナル課題（割り勘アプリ）**：`src/tasks/textbook-tasks.js` の `ORIGINAL_TASKS`。教科書の後・セルの練習の前に並ぶ。
   種類 `kind` は `guide`（解説つき。`lesson` を「まず読もう」に出す）/ `challenge`（自分で考える。`lesson` は「考え方」）。
   `code`・`page` の代わりに `series`・`step` を使う。台本の判定は教科書の課題と同じ。
+  配布用の印刷プリントは `handouts/warikan-print.html`（A4・4ページ。ブラウザで開いて印刷。課題の文言を変えたら手で直す）。
 
 教科書の課題を足すときは、次の形で頼む：
 

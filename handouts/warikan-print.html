@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>割り勘アプリをつくろう（プリント）</title>
+<style>
+  /* A4 たて・両面印刷用。1課題＝1ページ（全4ページ）。外部ファイルなしで印刷できる */
+  :root {
+    --ink: #111;
+    --sub: #555;
+    --line: #333;
+    --soft: #f2f2f2;
+    --accent: #1f4e8c;
+  }
+  @page { size: A4 portrait; margin: 9mm 13mm; }
+  * { box-sizing: border-box; }
+  html { background: #d8d8d8; }
+  body {
+    margin: 0;
+    color: var(--ink);
+    background: #fff;
+    font-family: "BIZ UDPGothic", "Yu Gothic", "Meiryo", sans-serif;
+    font-size: 9.5pt;
+    line-height: 1.35;
+  }
+  .page { padding: 0; page-break-after: always; break-after: page; }
+  .page:last-child { page-break-after: auto; break-after: auto; }
+  @media screen {
+    body { background: transparent; }
+    .page { width: 210mm; min-height: 297mm; margin: 12px auto; padding: 9mm 13mm; background: #fff; box-shadow: 0 1px 6px rgba(0,0,0,.25); }
+  }
+  @media print {
+    html, body { background: #fff; }
+    .page { width: auto; min-height: 0; margin: 0; padding: 0; box-shadow: none; }
+  }
+
+  /* ---- ヘッダー ---- */
+  .head { display: flex; justify-content: space-between; align-items: flex-end; gap: 10px; border-bottom: 2.5px solid var(--line); padding-bottom: 4px; }
+  .series { font-size: 9.5pt; color: var(--sub); }
+  .title { font-size: 15pt; font-weight: 700; line-height: 1.25; }
+  .step-tag { display: inline-block; margin-right: 6px; padding: 0 9px; border: 2px solid var(--line); border-radius: 6px; font-size: 12pt; vertical-align: 1px; }
+  .name { font-size: 9.5pt; white-space: nowrap; }
+  .name span { display: inline-block; min-width: 24mm; border-bottom: 1px solid var(--line); margin: 0 3px 0 2px; }
+  .name span.long { min-width: 38mm; }
+
+  /* ---- 見出し・ボックス ---- */
+  h2 { margin: 7px 0 3px; font-size: 10.5pt; padding-left: 7px; border-left: 5px solid var(--line); line-height: 1.3; }
+  .mission { margin-top: 6px; padding: 4px 10px; border: 2px solid var(--line); border-radius: 8px; background: var(--soft); }
+  .mission b { margin-right: 4px; }
+  .box { border: 1.5px solid var(--line); border-radius: 6px; padding: 3px 10px 4px; margin-top: 3px; }
+  .box.dashed { border-style: dashed; }
+  .note { font-size: 9.5pt; color: var(--sub); }
+  p { margin: 2px 0; }
+
+  /* ---- 解説 ---- */
+  .lesson { display: grid; gap: 3px; }
+  .lesson .item { display: grid; grid-template-columns: 22px 1fr; gap: 0 6px; align-items: start; }
+  .num { display: inline-block; width: 21px; height: 21px; line-height: 19px; text-align: center; border: 1.5px solid var(--line); border-radius: 50%; font-weight: 700; font-size: 10pt; }
+  .item .t { font-weight: 700; }
+  code, .code {
+    font-family: Consolas, "BIZ UDGothic", "MS Gothic", monospace;
+    font-size: 9.5pt;
+  }
+  .snip { display: block; margin: 2px 0 0; padding: 1px 8px; border-left: 4px solid var(--line); background: var(--soft); white-space: pre-wrap; font-family: Consolas, "BIZ UDGothic", "MS Gothic", monospace; font-size: 9.5pt; line-height: 1.4; }
+  .ops { width: 100%; border-collapse: collapse; margin-top: 3px; }
+  .ops th, .ops td { border: 1.2px solid var(--line); padding: 1px 8px; text-align: left; font-weight: 400; }
+  .ops th { background: var(--soft); font-weight: 700; width: 24%; }
+
+  /* ---- 仕様の5つの欄 ---- */
+  table.spec { width: 100%; border-collapse: collapse; margin-top: 4px; }
+  table.spec th, table.spec td { border: 1.5px solid var(--line); padding: 2px 8px; vertical-align: top; text-align: left; }
+  table.spec th { width: 21mm; background: var(--soft); font-weight: 700; white-space: nowrap; }
+  table.spec ul { margin: 0; padding-left: 16px; }
+  table.spec li { margin: 0; }
+
+  /* ---- プログラムを書く欄 ---- */
+  .codebox { margin-top: 4px; border: 1.5px solid var(--line); border-radius: 6px; padding: 3px 10px 4px; font-family: Consolas, "BIZ UDGothic", "MS Gothic", monospace; font-size: 9.5pt; line-height: 1.65; }
+  .codebox .ind { padding-left: 2em; }
+  .blank { display: inline-block; min-width: 3.2em; height: 1.05em; border-bottom: 1.5px solid var(--line); vertical-align: -1px; }
+  .blank.s { min-width: 1.7em; }
+  .blank.m { min-width: 5.5em; }
+  .blank.l { min-width: 9em; }
+  .blank.xl { min-width: 17em; }
+  .writeline { display: block; margin-left: 2em; height: 6mm; border-bottom: 1px dotted #777; }
+
+  /* ---- ためし表 ---- */
+  table.try { width: 100%; border-collapse: collapse; margin-top: 4px; text-align: center; }
+  table.try th, table.try td { border: 1.5px solid var(--line); padding: 1px 6px; }
+  table.try th { background: var(--soft); font-weight: 700; }
+  table.try td.chk { width: 22mm; }
+
+  /* ---- フォームのイメージ ---- */
+  .form-sketch { display: inline-block; width: 78mm; border: 2px solid var(--line); border-radius: 4px; background: #fff; vertical-align: top; }
+  .form-sketch .bar { border-bottom: 2px solid var(--line); background: var(--soft); padding: 1px 8px; font-size: 9pt; }
+  .form-sketch .row { display: flex; align-items: center; gap: 8px; padding: 4px 10px 0; }
+  .form-sketch .cap { width: 24mm; font-weight: 700; }
+  .form-sketch .out { flex: 1; height: 7mm; border: 1.5px solid var(--line); border-radius: 2px; box-shadow: inset 1px 1px 0 #999; position: relative; }
+  .form-sketch .btn { margin: 6px auto 6px; width: 34mm; height: 8mm; border: 1.5px solid var(--line); border-radius: 4px; text-align: center; line-height: 7mm; font-weight: 700; background: var(--soft); }
+  .names { font-size: 9pt; color: var(--sub); }
+  .with-form { display: flex; gap: 10px; align-items: flex-start; }
+  .with-form > div:last-child { flex: 1; }
+
+  .footer { margin-top: 4px; display: flex; justify-content: space-between; font-size: 9pt; color: var(--sub); }
+  ul.checks { list-style: none; padding: 0; margin: 2px 0 0; }
+  ul.checks li::before { content: "☐ "; }
+</style>
+</head>
+<body>
+
+<!-- ======================= 1ページ目：ステップ1 ======================= -->
+<section class="page">
+  <div class="head">
+    <div>
+      <div class="series">🍕 割り勘アプリをつくろう　［解説つき］</div>
+      <div class="title"><span class="step-tag">ステップ1</span>1人あたりの金額を出そう</div>
+    </div>
+    <div class="name">　　年<span></span>組<span></span>番　名前<span class="long"></span></div>
+  </div>
+
+  <div class="mission"><b>🎯 ミッション</b>文化祭の打ち上げで、ジュース・ピザ・ケーキを注文した。3つの値段と人数を入力すると、<b>合計</b>と<b>1人あたりの金額</b>を表示するプログラムを作ろう。</div>
+
+  <h2>📖 まず読もう</h2>
+  <div class="box lesson">
+    <div class="item"><span class="num">1</span><div>
+      <div class="t">値段を聞いて、変数（数を入れる箱）にしまう</div>
+      <p>InputBox で聞いた答えは「文字」です。<b>Val( )</b> をつけると「数」になります。<span class="note">（Long は大きめの整数が入る型です）</span></p>
+      <span class="snip">Dim Juice As Long
+Juice = Val(InputBox("ジュースの値段を入力してください"))</span>
+    </div></div>
+    <div class="item"><span class="num">2</span><div>
+      <div class="t">たし算をして、合計を出す</div>
+      <p>たし算は「<b>+</b>」です。答えは変数 Gokei（合計）にしまいます。</p>
+      <span class="snip">Gokei = Juice + Pizza + Cake
+MsgBox ("合計は" &amp; Gokei &amp; "円です")</span>
+    </div></div>
+    <div class="item"><span class="num">3</span><div>
+      <div class="t">人数でわり算をする</div>
+      <p>わり算は「<b>/</b>」です。</p>
+      <span class="snip">Hitori = Gokei / Ninzu
+MsgBox ("1人" &amp; Hitori &amp; "円です")</span>
+    </div></div>
+  </div>
+
+  <h2>📝 仕様（やること）を確かめよう</h2>
+  <table class="spec">
+    <tr><th>入力データ</th><td>ジュース・ピザ・ケーキの値段、人数　<code>300、1200、900、3</code></td></tr>
+    <tr><th>出力データ</th><td>合計は2400円です ／ 1人800円です</td></tr>
+    <tr><th>処理条件</th><td><ul>
+      <li>値段は変数 <code>Juice</code>・<code>Pizza</code>・<code>Cake</code> に、人数は変数 <code>Ninzu</code> に入れる（型は Long）。</li>
+      <li>InputBox で、ジュース → ピザ → ケーキ → 人数 の順にたずねる。</li>
+      <li>3つの値段をたした合計を <code>Gokei</code> に入れ、MsgBox で表示する。</li>
+      <li><code>Gokei</code> を <code>Ninzu</code> でわった金額を <code>Hitori</code> に入れ、MsgBox で表示する。</li>
+    </ul></td></tr>
+    <tr><th>入力例</th><td>InputBox に「300」「1200」「900」「3」の順に入力する</td></tr>
+    <tr><th>出力例</th><td>「合計は2400円です」、続けて「1人800円です」と表示される</td></tr>
+  </table>
+
+  <h2>✏️ プログラムを完成させよう（＿＿ をうめる）</h2>
+  <div class="codebox">
+    <div>Private Sub CommandButton1_Click()</div>
+    <div class="ind">Dim Juice As Long ／ Dim Pizza As Long ／ Dim Cake As Long</div>
+    <div class="ind">Dim Ninzu As Long ／ Dim Gokei As Long ／ Dim Hitori As Long</div>
+    <div class="ind">Juice = Val(InputBox("ジュースの値段を入力してください"))</div>
+    <div class="ind"><span class="blank s"></span> = Val(InputBox("ピザの値段を入力してください"))</div>
+    <div class="ind"><span class="blank s"></span> = Val(InputBox("<span class="blank m"></span>"))</div>
+    <div class="ind"><span class="blank s"></span> = Val(InputBox("<span class="blank m"></span>"))</div>
+    <div class="ind">Gokei = <span class="blank"></span> <span class="blank s"></span> <span class="blank"></span> <span class="blank s"></span> <span class="blank"></span></div>
+    <div class="ind">MsgBox ("合計は" &amp; <span class="blank"></span> &amp; "円です")</div>
+    <div class="ind">Hitori = <span class="blank"></span> <span class="blank s"></span> <span class="blank"></span></div>
+    <div class="ind">MsgBox ("1人" &amp; <span class="blank"></span> &amp; "円です")</div>
+    <div>End Sub</div>
+  </div>
+
+  <h2>✅ 動かしてたしかめよう</h2>
+  <table class="try">
+    <tr><th>ジュース</th><th>ピザ</th><th>ケーキ</th><th>人数</th><th>合計</th><th>1人あたり</th><th>できた？</th></tr>
+    <tr><td>300</td><td>1200</td><td>900</td><td>3</td><td>2400</td><td>800</td><td class="chk">☐</td></tr>
+    <tr><td>500</td><td>900</td><td>100</td><td>5</td><td>1500</td><td>300</td><td class="chk">☐</td></tr>
+  </table>
+  <div class="footer"><span>※ 1000円を3人でわると 333.33…円。割り切れないときは、次のステップで考えます。</span><span>1 / 4</span></div>
+</section>
+
+<!-- ======================= 2ページ目：ステップ2 ======================= -->
+<section class="page">
+  <div class="head">
+    <div>
+      <div class="series">🍕 割り勘アプリをつくろう　［解説つき］</div>
+      <div class="title"><span class="step-tag">ステップ2</span>あまりのお金を考えよう</div>
+    </div>
+    <div class="name">　　年<span></span>組<span></span>番　名前<span class="long"></span></div>
+  </div>
+
+  <div class="mission"><b>🎯 ミッション</b>合計金額と人数を入力すると、<b>1人あたりの金額</b>と<b>あまりのお金</b>を表示するプログラムを作ろう。</div>
+
+  <h2>📖 まず読もう</h2>
+  <div class="box lesson">
+    <div class="item"><span class="num">1</span><div>
+      <div class="t">割り切れないとき</div>
+      <p>1000円を3人で分けると、<b>1人333円</b>で、<b>1円あまり</b>ます。このあまりまで考えるのが「割り勘」です。</p>
+    </div></div>
+    <div class="item"><span class="num">2</span><div>
+      <div class="t">この2つの記号を覚えよう</div>
+      <table class="ops">
+        <tr><th>¥</th><td>わり算の答えの<b>整数の部分</b>を出す（分けた金額）</td><td><code>1000 ¥ 3</code> → <b>333</b></td></tr>
+        <tr><th>Mod</th><td>わり算の<b>あまり</b>を出す</td><td><code>1000 Mod 3</code> → <b>1</b></td></tr>
+      </table>
+      <p class="note">¥ はキーボードの ¥ キーで打てます。</p>
+    </div></div>
+    <div class="item"><span class="num">3</span><div>
+      <div class="t">たしかめ算</div>
+      <p><b>333 × 3 + 1 = 1000</b> になれば、正しく分けられています。</p>
+    </div></div>
+    <div class="item"><span class="num">4</span><div>
+      <div class="t">プログラムにすると</div>
+      <span class="snip">Hitori = Gokei ¥ Ninzu
+Amari = Gokei Mod Ninzu</span>
+    </div></div>
+    <div class="item"><span class="num">!</span><div>
+      <div class="t">ちゅうい：「/」と「¥」はちがう</div>
+      <p>「/」は小数まで出て、整数の箱に入れると四捨五入されるので、合計とずれることがあります。割り勘では「¥」を使いましょう。</p>
+    </div></div>
+  </div>
+
+  <h2>📝 仕様（やること）を確かめよう</h2>
+  <table class="spec">
+    <tr><th>入力データ</th><td>合計金額、人数　<code>1000、3</code></td></tr>
+    <tr><th>出力データ</th><td>1人333円です ／ あまりは1円です</td></tr>
+    <tr><th>処理条件</th><td><ul>
+      <li>合計金額は変数 <code>Gokei</code> に、人数は変数 <code>Ninzu</code> に入れる（型は Long）。</li>
+      <li>InputBox で、合計金額 → 人数 の順にたずねる。</li>
+      <li>「¥」で求めた1人あたりの金額を <code>Hitori</code> に入れ、MsgBox で表示する。</li>
+      <li>「Mod」で求めたあまりを <code>Amari</code> に入れ、MsgBox で表示する。</li>
+    </ul></td></tr>
+    <tr><th>入力例</th><td>InputBox に「1000」「3」の順に入力する</td></tr>
+    <tr><th>出力例</th><td>「1人333円です」、続けて「あまりは1円です」と表示される</td></tr>
+  </table>
+
+  <h2>✏️ プログラムを完成させよう（＿＿ をうめる）</h2>
+  <div class="codebox">
+    <div>Private Sub CommandButton1_Click()</div>
+    <div class="ind">Dim Gokei As Long ／ Dim Ninzu As Long</div>
+    <div class="ind">Dim Hitori As Long ／ Dim Amari As Long</div>
+    <div class="ind">Gokei = Val(InputBox("合計金額を入力してください"))</div>
+    <div class="ind"><span class="blank m"></span> = Val(InputBox("<span class="blank m"></span>"))</div>
+    <div class="ind">Hitori = <span class="blank"></span> <span class="blank s"></span> <span class="blank"></span></div>
+    <div class="ind">Amari = <span class="blank"></span> <span class="blank s"></span> <span class="blank"></span></div>
+    <div class="ind">MsgBox ("1人" &amp; <span class="blank"></span> &amp; "円です")</div>
+    <div class="ind">MsgBox ("<span class="blank m"></span>" &amp; <span class="blank"></span> &amp; "円です")</div>
+    <div>End Sub</div>
+  </div>
+
+  <h2>✅ 動かしてたしかめよう</h2>
+  <table class="try">
+    <tr><th>合計金額</th><th>人数</th><th>1人あたり</th><th>あまり</th><th>たしかめ算（1人あたり × 人数 ＋ あまり）</th><th>できた？</th></tr>
+    <tr><td>1000</td><td>3</td><td>333</td><td>1</td><td>333 × 3 + 1 = 1000</td><td class="chk">☐</td></tr>
+    <tr><td>3000</td><td>3</td><td>1000</td><td>0</td><td>1000 × 3 + 0 = 3000</td><td class="chk">☐</td></tr>
+    <tr><td>4580</td><td>6</td><td>763</td><td>2</td><td>763 × 6 + 2 = 4580</td><td class="chk">☐</td></tr>
+    <tr><td>1100</td><td>3</td><td>366</td><td>2</td><td>366 × 3 + 2 = 1100</td><td class="chk">☐</td></tr>
+  </table>
+  <div class="footer"><span>※ 1100円・3人のとき、「/」で書くと 367円になってしまいます。「¥」で 366円になれば OK！</span><span>2 / 4</span></div>
+</section>
+
+<!-- ======================= 3ページ目：ステップ3 ======================= -->
+<section class="page">
+  <div class="head">
+    <div>
+      <div class="series">🍕 割り勘アプリをつくろう　［自分で考えよう］</div>
+      <div class="title"><span class="step-tag">ステップ3</span>割り勘アプリを完成させよう</div>
+    </div>
+    <div class="name">　　年<span></span>組<span></span>番　名前<span class="long"></span></div>
+  </div>
+
+  <div class="mission"><b>🎯 ミッション</b>合計金額と人数を入力すると、<b>1人あたりの金額</b>と<b>あまり</b>を、画面の Label に表示する「割り勘アプリ」を完成させよう。</div>
+
+  <h2>💡 考え方</h2>
+  <div class="box dashed">
+    <p>ステップ2のプログラムが、そのまま土台になります。ちがうのは、答えを <b>MsgBox ではなく Label</b> に表示するところだけ。</p>
+    <p>Label に文字を入れるときは　<code>Label3.Caption = …</code>　と書きます。</p>
+  </div>
+
+  <h2>📝 仕様（やること）を確かめよう</h2>
+  <div class="with-form">
+    <div>
+      <div class="form-sketch">
+        <div class="bar">UserForm1</div>
+        <div class="row"><span class="cap">1人あたり</span><span class="out"></span></div>
+        <div class="row"><span class="cap">あまり</span><span class="out"></span></div>
+        <div class="btn">計算する</div>
+      </div>
+      <div class="names">1人あたり＝Label1　あまり＝Label2<br>結果の枠＝Label3（上）・Label4（下）<br>ボタン＝CommandButton1</div>
+    </div>
+    <div>
+      <table class="spec" style="margin-top:0">
+        <tr><th>入力データ</th><td>合計金額、人数　<code>4580、6</code></td></tr>
+        <tr><th>出力データ</th><td>1人あたり 763円 ／ あまり 2円</td></tr>
+        <tr><th>入力例</th><td>InputBox に「4580」「6」の順に入力する</td></tr>
+        <tr><th>出力例</th><td>Label3 に「763円」、Label4 に「2円」と表示される</td></tr>
+      </table>
+    </div>
+  </div>
+  <table class="spec">
+    <tr><th>処理条件</th><td><ul>
+      <li>ボタンを押すと、InputBox で「合計金額を入力してください」「人数を入力してください」の順にたずねる。</li>
+      <li>合計金額は <code>Gokei</code>、人数は <code>Ninzu</code>、1人あたりは <code>Hitori</code>、あまりは <code>Amari</code> に入れる（型は Long）。</li>
+      <li><code>Hitori</code> と <code>Amari</code> は、ステップ2で使った計算（<code>¥</code> と <code>Mod</code>）で求める。</li>
+      <li>Label3 に1人あたりの金額を、Label4 にあまりを、それぞれ「円」をつけて表示する。<b>MsgBox は使わない。</b></li>
+    </ul></td></tr>
+  </table>
+
+  <h2>✏️ プログラムを書こう</h2>
+  <div class="codebox">
+    <div>Private Sub CommandButton1_Click()</div>
+    <span class="writeline"></span><span class="writeline"></span><span class="writeline"></span><span class="writeline"></span>
+    <span class="writeline"></span><span class="writeline"></span><span class="writeline"></span><span class="writeline"></span>
+    <span class="writeline"></span><span class="writeline"></span>
+    <div>End Sub</div>
+  </div>
+
+  <h2>✅ 動かしてたしかめよう</h2>
+  <table class="try">
+    <tr><th>合計金額</th><th>人数</th><th>Label3（1人あたり）</th><th>Label4（あまり）</th><th>できた？</th></tr>
+    <tr><td>3000</td><td>3</td><td>1000円</td><td>0円</td><td class="chk">☐</td></tr>
+    <tr><td>1000</td><td>3</td><td>333円</td><td>1円</td><td class="chk">☐</td></tr>
+    <tr><td>4580</td><td>6</td><td>763円</td><td>2円</td><td class="chk">☐</td></tr>
+    <tr><td>500</td><td>7</td><td>71円</td><td>3円</td><td class="chk">☐</td></tr>
+  </table>
+  <div class="footer"><span>※ 行きづまったら、ステップ2のプログラムを見直そう。</span><span>3 / 4</span></div>
+</section>
+
+<!-- ======================= 4ページ目：発展 ======================= -->
+<section class="page">
+  <div class="head">
+    <div>
+      <div class="series">🍕 割り勘アプリをつくろう　［自分で考えよう］</div>
+      <div class="title"><span class="step-tag">発展</span>幹事があまりを持とう</div>
+    </div>
+    <div class="name">　　年<span></span>組<span></span>番　名前<span class="long"></span></div>
+  </div>
+
+  <div class="mission"><b>🎯 ミッション</b>あまったお金は、<b>幹事（かんじ）</b>が引き受けることにしよう。<b>幹事が出す金額</b>と、<b>ほかの人が出す金額</b>を表示するアプリを作ろう。</div>
+
+  <h2>💡 考え方</h2>
+  <div class="box dashed">
+    <p>4580円を6人で分けると、1人763円であまりは2円。ほかの5人が763円ずつ出すなら、幹事は <b>763 + 2 = 765円</b> 出せば、ぴったり4580円になります。</p>
+    <p><b>たしかめ算：765 + 763 × 5 ＝ 4580</b></p>
+  </div>
+
+  <h2>📝 仕様（やること）を確かめよう</h2>
+  <div class="with-form">
+    <div>
+      <div class="form-sketch">
+        <div class="bar">UserForm1</div>
+        <div class="row"><span class="cap">幹事</span><span class="out"></span></div>
+        <div class="row"><span class="cap">ほかの人</span><span class="out"></span></div>
+        <div class="btn">計算する</div>
+      </div>
+      <div class="names">幹事＝Label1　ほかの人＝Label2<br>結果の枠＝Label3（上）・Label4（下）<br>ボタン＝CommandButton1</div>
+    </div>
+    <div>
+      <table class="spec" style="margin-top:0">
+        <tr><th>入力データ</th><td>合計金額、人数　<code>4580、6</code></td></tr>
+        <tr><th>出力データ</th><td>幹事 765円 ／ ほかの人 763円</td></tr>
+        <tr><th>入力例</th><td>InputBox に「4580」「6」の順に入力する</td></tr>
+        <tr><th>出力例</th><td>Label3 に「765円」、Label4 に「763円」と表示される</td></tr>
+      </table>
+    </div>
+  </div>
+  <table class="spec">
+    <tr><th>処理条件</th><td><ul>
+      <li>ステップ3と同じように、InputBox で合計金額と人数をたずねる。</li>
+      <li>「ほかの人」が出す金額は、ステップ3の「1人あたり」と同じ。</li>
+      <li>「幹事」が出す金額は、「ほかの人」の金額に、あまりをたした金額にする。変数 <code>Kanji</code> を使う（型は Long）。</li>
+      <li>Label3 に幹事の金額を、Label4 にほかの人の金額を、それぞれ「円」をつけて表示する。</li>
+    </ul></td></tr>
+  </table>
+
+  <h2>✏️ プログラムを書こう</h2>
+  <div class="codebox">
+    <div>Private Sub CommandButton1_Click()</div>
+    <span class="writeline"></span><span class="writeline"></span><span class="writeline"></span><span class="writeline"></span>
+    <span class="writeline"></span><span class="writeline"></span><span class="writeline"></span><span class="writeline"></span>
+    <span class="writeline"></span><span class="writeline"></span><span class="writeline"></span>
+    <div>End Sub</div>
+  </div>
+
+  <h2>✅ 動かしてたしかめよう</h2>
+  <table class="try">
+    <tr><th>合計金額</th><th>人数</th><th>Label3（幹事）</th><th>Label4（ほかの人）</th><th>できた？</th></tr>
+    <tr><td>3000</td><td>3</td><td>1000円</td><td>1000円</td><td class="chk">☐</td></tr>
+    <tr><td>1000</td><td>3</td><td>334円</td><td>333円</td><td class="chk">☐</td></tr>
+    <tr><td>4580</td><td>6</td><td>765円</td><td>763円</td><td class="chk">☐</td></tr>
+    <tr><td>1100</td><td>3</td><td>368円</td><td>366円</td><td class="chk">☐</td></tr>
+  </table>
+  <div class="footer"><span>🎉 ここまでできたら、割り勘アプリの完成です！</span><span>4 / 4</span></div>
+</section>
+
+</body>
+</html>
