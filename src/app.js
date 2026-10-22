@@ -36,6 +36,11 @@
   const savedForms = {}; // taskId -> フォームのデータ（userform.js の form）
   let formPanel = null; // 🪟 ユーザーフォームのデザイナー兼実行画面
   let lastArea = "form"; // 3ステップ表示用：最後にさわった場所（"form" / "program"）
+  let flowChart = null; // 🔀 流れ図
+  let flowAst = null; // 流れ図にするプログラム（AST）
+  let flowMsg = null; // 描けないときの説明
+  let flowDirty = true; // 描き直しが必要か（タブが見えているときだけ描く）
+  let hoverLine = null; // 流れ図の記号にマウスを乗せて光らせているコードの行（0始まり）
   let runTarget = null; // ▶実行で動かすもの："form"（フォームを開く）/ "macro:名前"
   const LS_FORMS = "umb_forms";
   const LOAD_GROUP = "umb-code-to-blocks"; // コード→ブロック変換で起きたブロックの変化の目印
@@ -774,10 +779,12 @@
       session = null;
       view.loadSession(null, "⚠️ プログラムにまちがいがあります（下の説明を見てね）");
       showProgramError(error, true);
+      setFlowSource(null, "プログラムにまちがいがあるので、流れ図を描けません（下の説明を見て直そう）");
       checkQuestClear();
       return;
     }
     session = s;
+    setFlowSource(s.ast);
     view.liveForm = false;
     updateRunTargets(s);
     let status = null;
@@ -823,6 +830,7 @@
     session = s;
     runActive = true;
     hideProgramError();
+    setFlowSource(s.ast);
     startTarget(s);
     view.liveForm = runTarget === "form";
     view.loadSession(s, "▶ 実行中…");
@@ -1076,6 +1084,55 @@
       }
     }
     if (formRunning()) updateFormPanel();
+    if (flowChart) flowChart.highlight(step ? step.line : null, step ? step.proc : null, step ? step.branch : undefined);
+  }
+
+  // ===== 🔀 流れ図 =====
+  function setFlowSource(ast, msg) {
+    flowAst = ast;
+    flowMsg = msg || null;
+    flowDirty = true;
+    if (document.getElementById("right-panel-flow").classList.contains("active")) renderFlow();
+  }
+  function renderFlow() {
+    if (!flowChart || !flowDirty) return;
+    flowDirty = false;
+    try {
+      flowChart.render(flowAst, flowMsg);
+    } catch (e) {
+      console.warn("流れ図を描けませんでした:", e);
+      flowChart.render(null, "この流れ図はまだ描けません");
+    }
+  }
+  // 流れ図の記号にマウスを乗せた：その命令の行を光らせる
+  function onFlowHover(line) {
+    if (!codeEditor) return;
+    if (hoverLine !== null) codeEditor.removeLineClass(hoverLine, "background", "code-hover-line");
+    hoverLine = null;
+    if (line && line <= codeEditor.lineCount()) {
+      hoverLine = line - 1;
+      codeEditor.addLineClass(hoverLine, "background", "code-hover-line");
+    }
+  }
+  // 流れ図の記号をクリックした：その命令の場所（ブロックかコードの行）へ飛ぶ
+  function onFlowClick(line) {
+    if (!line) return;
+    const id = codeOwner === "blocks" ? lineMap[line] : null;
+    if (id && workspace.getBlockById(id)) {
+      document.getElementById("tab-blocks").click();
+      setTimeout(() => {
+        workspace.centerOnBlock(id);
+        workspace.getBlockById(id).select();
+      }, 60);
+      return;
+    }
+    document.getElementById("tab-code").click();
+    setTimeout(() => {
+      codeEditor.refresh();
+      codeEditor.focus();
+      codeEditor.setCursor({ line: line - 1, ch: 0 });
+      codeEditor.scrollIntoView({ line: line - 1, ch: 0 }, 80);
+    }, 80);
   }
 
   // ----- 初期化 -----
@@ -1102,6 +1159,7 @@
     workspace.registerToolboxCategoryCallback("VARIABLE_JP", function (ws) {
       const items = [
         { kind: "button", text: "＋ 変数を作る", callbackKey: "CREATE_VARIABLE_JP" },
+        { kind: "block", type: "var_dim" },
         { kind: "block", type: "var_set" },
         { kind: "block", type: "var_change", inputs: { DELTA: { shadow: { type: "value_number", fields: { NUM: 1 } } } } },
       ];
@@ -1154,6 +1212,9 @@
     });
     // ブロックの「部品の名前」の選択肢は、いまのフォームの部品から作る
     window.UMB_formControls = () => (formPanel ? formPanel.controlNames() : []);
+
+    // 🔀 流れ図
+    flowChart = new FlowChart(document.getElementById("flow-body"), { onHover: onFlowHover, onClick: onFlowClick });
 
     // ブロック変更 → コード再生成 + 実行し直し
     workspace.addChangeListener(onWorkspaceChange);
@@ -1700,6 +1761,11 @@
     const rp = document.getElementById("right-pane");
     if (rp) rp.classList.toggle("reference-active", target === "reference");
     if (target === "form") updateFormPanel();
+    if (target === "flow") {
+      renderFlow();
+      const step = view && view.cursor > 0 ? view.steps[view.cursor - 1] : null;
+      if (flowChart) flowChart.highlight(step ? step.line : null, step ? step.proc : null, step ? step.branch : undefined);
+    }
     updateStepGuide();
 
     if (target === "reference") {

@@ -107,8 +107,13 @@ function tokenize(str, line) {
       i += 2;
       continue;
     }
-    if ("+-*/&=<>(),.".includes(c)) {
+    if ("+-*/&=<>(),.^\\".includes(c)) {
       tokens.push({ type: "OP", value: c });
+      i++;
+      continue;
+    }
+    if (c === "¥") {
+      tokens.push({ type: "OP", value: "\\" }); // 教科書の ¥（整数のわり算）
       i++;
       continue;
     }
@@ -189,17 +194,27 @@ class ExprParser {
     }
     return left;
   }
+  // * / ¥ Mod は同じ順位で左から（教科書 p.93 の表）
   parseMul() {
-    let left = this.parsePrimary();
+    let left = this.parsePow();
     while (
       this.peek() &&
-      ((this.peek().type === "OP" && (this.peek().value === "*" || this.peek().value === "/")) ||
+      ((this.peek().type === "OP" && ["*", "/", "\\"].includes(this.peek().value)) ||
         (this.peek().type === "IDENT" && this.peek().value === "Mod"))
     ) {
       const t = this.next();
       const op = t.type === "IDENT" ? "mod" : t.value;
-      const right = this.parsePrimary();
+      const right = this.parsePow();
       left = { type: "value_math", fields: { OP: op }, inputs: { A: { block: left }, B: { block: right } } };
+    }
+    return left;
+  }
+  parsePow() {
+    let left = this.parsePrimary();
+    while (this.peek() && this.peek().type === "OP" && this.peek().value === "^") {
+      this.next();
+      const right = this.parsePrimary();
+      left = { type: "value_math", fields: { OP: "^" }, inputs: { A: { block: left }, B: { block: right } } };
     }
     return left;
   }
@@ -241,6 +256,18 @@ class ExprParser {
       const v = this.parseConcat();
       this.expectOp(")");
       return { type: "math_val", inputs: { VALUE: { block: v } } };
+    }
+    if (name === "Format") {
+      this.expectOp("(");
+      const v = this.parseConcat();
+      this.expectOp(",");
+      const f = this.next();
+      if (!f || f.type !== "STR") throw new VbaParseError('Format の書式は "###,##0" のように " で囲んでください', this.line);
+      this.expectOp(")");
+      return { type: "math_format", fields: { FORMAT: f.value }, inputs: { VALUE: { block: v } } };
+    }
+    if (name === "vbCrLf" || name === "vbNewLine") {
+      return { type: "value_newline" };
     }
     // フォームの部品のプロパティ（TextBox1.Text / Label1.Caption）
     const dot = this.peek();
@@ -551,6 +578,18 @@ const SIMPLE_RULES = [
   // フォーム
   [/^Unload\s+Me$/i, () => ({ type: "form_unload" })],
   [/^End$/i, () => ({ type: "prog_end" })],
+  // 命令のまとまり（Sub）の呼び出し
+  [/^Call\s+([A-Za-z_]\w*)(\s*\(\s*\))?$/i, (m) => ({ type: "proc_call", fields: { NAME: m[1] } })],
+  // 箱を用意する（Dim 名前 As 型）
+  [
+    /^Dim\s+([A-Za-z_]\w*)(?:\s+As\s+(Integer|Long|Single|Double|String|Variant))?$/i,
+    (m, line) => {
+      checkVarNameAssignable(m[1], line);
+      const t = (m[2] || "Variant").toLowerCase();
+      const TYPE = { integer: "Integer", long: "Long", single: "Single", double: "Double", string: "String", variant: "Variant" }[t];
+      return { type: "var_dim", fields: { VAR: { __var: m[1] }, TYPE } };
+    },
+  ],
   [
     /^(?:Me\.)?([A-Za-z_]\w*)\.(Caption|Text|Value|Visible|Enabled)\s*=\s*(.+)$/,
     (m, line) => ({
@@ -741,9 +780,35 @@ function splitProcedures(lines) {
   return { procs, outside };
 }
 
+// Dim の行を「📦 箱を用意する」ブロック用の行に直す。
+// ブロックが自動で付ける Dim（カウンタ i・j・k、配列 arr、As Variant）は読み飛ばす
+function normalizeDims(lines) {
+  const out = [];
+  for (const l of lines) {
+    const m = l.text.match(/^Dim\s+(.+)$/i);
+    if (!m) {
+      out.push(l);
+      continue;
+    }
+    for (const part of m[1].split(",")) {
+      const p = part.trim().match(/^([A-Za-z_]\w*)(\s*\(.*\))?(?:\s+As\s+(\w+))?$/i);
+      if (!p) throw new VbaParseError(`Dim の書き方が読み取れません: "${l.text}"`, l.line);
+      const [, name, dims, type] = p;
+      if (dims) {
+        if (name === "arr") continue;
+        throw new VbaParseError(`配列「${name}」は、ブロックでは表せません（ブロックの配列は arr だけです）`, l.line);
+      }
+      if (COUNTER_NAMES.includes(name)) continue;
+      if (!type || /^Variant$/i.test(type)) continue;
+      out.push({ text: `Dim ${name} As ${type}`, line: l.line });
+    }
+  }
+  return out;
+}
+
 function parseBody(lines) {
   counterStack = [];
-  const body = lines.filter((l) => !/^Dim\s+\S+/i.test(l.text));
+  const body = normalizeDims(lines);
   const cursor = new LineCursor(body);
   const root = parseStatements(cursor, []);
   if (!cursor.atEnd()) {
@@ -781,12 +846,14 @@ function parseVBA(source) {
         roots.push({ type: "form_button_click", fields: { CONTROL: click[1] }, inputs: DO });
         continue;
       }
-      // ふつうの Sub は1つだけブロックで表せる（ブロックの「MyMacro」になる）
-      macroCount++;
-      if (macroCount > 1 || !/^MyMacro$/i.test(p.name)) {
-        throw new VbaParseError(`「Sub ${p.name}」はブロックでは表せません（ブロックで表せるのは、ボタン・フォームの手続きと MyMacro です）`, p.line);
+      // MyMacro はブロックの「どこにも入っていないブロック」、それ以外の Sub は「📜 命令のまとまり」になる
+      if (/^MyMacro$/i.test(p.name)) {
+        macroCount++;
+        if (macroCount > 1) throw new VbaParseError("MyMacro が2つあります", p.line);
+        if (body) roots.push(body);
+        continue;
       }
-      if (body) roots.push(body);
+      roots.push({ type: "proc_sub", fields: { NAME: p.name }, inputs: DO });
     }
   }
   const variableNames = new Set();
@@ -805,12 +872,13 @@ function collectVariables(block, set) {
   if (block.next) collectVariables(block.next.block, set);
 }
 
-// {__var:name} プレースホルダを実際の変数IDに解決する（workspace が要る＝ブラウザ側で呼ぶ）
+// {__var:name} プレースホルダを、Blockly が読める変数の指定にする。
+// ID ではなく名前で指定する（Blockly.serialization.workspaces.load は読み込む前に変数を消すので、
+// 先に createVariable しておいた ID は使えず、名前が i・j… に置きかわってしまうため）
 function resolveVariables(block, workspace) {
   if (!block || typeof block !== "object") return;
   if (block.fields && block.fields.VAR && block.fields.VAR.__var) {
-    const v = workspace.createVariable(block.fields.VAR.__var);
-    block.fields.VAR = { id: v.getId() };
+    block.fields.VAR = { name: block.fields.VAR.__var };
   }
   if (block.inputs) {
     for (const key in block.inputs) resolveVariables(block.inputs[key].block, workspace);

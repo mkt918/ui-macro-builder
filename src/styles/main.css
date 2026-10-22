@@ -2014,3 +2014,41 @@ button.uf-button.run:disabled { cursor: default; }
   font-weight: 700;
   cursor: pointer;
 }
+
+/* ===== 🔀 流れ図 ===== */
+.flow-panel { background: #fff; color: #000; }
+.flow-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  background: #5b4bb7;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.flow-hint { font-weight: normal; opacity: 0.85; font-size: 11px; }
+.flow-body { flex: 1; min-height: 0; overflow: auto; padding: 10px; background: #f6f7fb; }
+.fc-row { display: flex; gap: 22px; align-items: flex-start; flex-wrap: wrap; }
+.fc-proc { background: #fff; border: 1px solid #dcdfe8; border-radius: 8px; padding: 6px 4px 4px; }
+.fc-title { font-size: 12px; font-weight: 700; color: #4a3fa0; text-align: center; font-family: Consolas, "MS Gothic", monospace; }
+.fc-svg { display: block; }
+.fc-node { cursor: pointer; }
+.fc-node rect, .fc-node polygon { fill: #fff; stroke: #333; stroke-width: 1.3; }
+.fc-node line { stroke: #333; stroke-width: 1.2; }
+.fc-node.fc-terminal rect { fill: #f3f1ff; }
+.fc-node.fc-decision polygon { fill: #fffaf0; }
+.fc-node.fc-io polygon { fill: #f2fbf6; }
+.fc-node.fc-prep polygon { fill: #fdf0e6; }
+.fc-node.fc-loopStart polygon, .fc-node.fc-loopEnd polygon { fill: #eef5ff; }
+.fc-node:hover rect, .fc-node:hover polygon { stroke: #2c7be5; stroke-width: 2; }
+.fc-node.active rect, .fc-node.active polygon { fill: #fff3b0; stroke: #e67e22; stroke-width: 2.6; }
+.fc-text { font-size: 13px; text-anchor: middle; fill: #111; font-family: "Yu Gothic UI", "Meiryo UI", sans-serif; pointer-events: none; }
+.fc-edge { stroke: #444; stroke-width: 1.3; }
+.fc-arrowhead { fill: #444; }
+.fc-yn { font-size: 11px; fill: #666; font-weight: 700; }
+.fc-yn.active { fill: #e67e22; font-size: 13px; }
+.fc-empty { color: #666; padding: 30px; text-align: center; line-height: 1.8; }
+.fc-legend { margin-top: 8px; font-size: 11px; color: #888; }
+.code-editor-host .code-hover-line { background: rgba(91, 75, 183, 0.18); }

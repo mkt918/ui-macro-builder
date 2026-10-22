@@ -631,7 +631,9 @@ Blockly.Blocks["value_math"] = {
         ["－ ひく", "-"],
         ["× かける", "*"],
         ["÷ わる", "/"],
-        ["÷のあまり", "mod"],
+        ["¥ わって整数（あまりは捨てる）", "\\"],
+        ["÷のあまり（Mod）", "mod"],
+        ["＾ べき乗（何回かける）", "^"],
       ]),
       "OP"
     );
@@ -639,7 +641,7 @@ Blockly.Blocks["value_math"] = {
     this.setInputsInline(true);
     this.setOutput(true, "Number");
     this.setColour(CAT_COLORS.value);
-    this.setTooltip("計算をします。「÷のあまり」は偶数・奇数の判定に使えます");
+    this.setTooltip("計算をします。7 ¥ 2 = 3（整数のわり算）、7 Mod 2 = 1（あまり）、7 ^ 2 = 49（7×7）。「÷のあまり」は偶数・奇数の判定にも使えます");
   },
 };
 
@@ -760,6 +762,92 @@ Blockly.Blocks["math_val"] = {
     this.setOutput(true, "Number");
     this.setColour(CAT_COLORS.value);
     this.setTooltip("文字を数に変えます。InputBox やテキストボックスに入力された文字で計算するときに使います（数でない文字は 0 になります）");
+  },
+};
+
+// ===== 変数の型・手続き・書式（教科書 第2節） =====
+const VAR_TYPE_OPTIONS = [
+  ["整数型（Integer）", "Integer"],
+  ["長整数型（Long）", "Long"],
+  ["単精度浮動小数点数型（Single）", "Single"],
+  ["倍精度浮動小数点数型（Double）", "Double"],
+  ["文字列型（String）", "String"],
+  ["バリアント型（Variant）", "Variant"],
+];
+
+// 箱（変数）を用意する：Dim Tanka As Integer
+Blockly.Blocks["var_dim"] = {
+  init: function () {
+    this.appendDummyInput()
+      .appendField("📦 箱を用意する Dim")
+      .appendField(new FieldVariableNoHiragana("Tanka"), "VAR")
+      .appendField("As")
+      .appendField(new Blockly.FieldDropdown(VAR_TYPE_OPTIONS), "TYPE");
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(CAT_COLORS.var);
+    this.setTooltip("変数（値を入れる箱）を、型を決めて用意します。整数型は -32768〜32767 の整数、文字列型は文字を入れる箱です");
+  },
+};
+
+// 命令のまとまり（Sub）を作る
+Blockly.Blocks["proc_sub"] = {
+  init: function () {
+    this.appendDummyInput()
+      .appendField("📜 命令のまとまり Sub")
+      .appendField(
+        new Blockly.FieldTextInput("Keisan", (v) => (/^[A-Za-z][A-Za-z0-9_]{0,39}$/.test(v) ? v : null)),
+        "NAME"
+      );
+    this.appendStatementInput("DO").appendField("↓ やること");
+    this.appendDummyInput().appendField("（ここまで）");
+    this.setColour("#6d4c41");
+    this.setTooltip("いくつかの命令に名前を付けてまとめます（Sub）。「📞 Call」で呼び出して使います。名前は英字で始めよう");
+  },
+};
+
+// まとめた命令を呼び出す：Call Keisan
+Blockly.Blocks["proc_call"] = {
+  init: function () {
+    const field = new Blockly.FieldDropdown(function () {
+      const ws = Blockly.getMainWorkspace && Blockly.getMainWorkspace();
+      const names = ws ? ws.getTopBlocks(false).filter((b) => b.type === "proc_sub").map((b) => b.getFieldValue("NAME")) : [];
+      const cur = this && typeof this.getValue === "function" ? this.getValue() : null;
+      if (cur && !names.includes(cur)) names.push(cur);
+      if (!names.length) names.push("Keisan");
+      return names.map((n) => [n, n]);
+    });
+    field.doClassValidation_ = (v) => (typeof v === "string" && v ? v : null);
+    this.appendDummyInput().appendField("📞 Call").appendField(field, "NAME").appendField("を呼び出す");
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour("#6d4c41");
+    this.setTooltip("「📜 命令のまとまり Sub」で作った命令を、ここで動かします");
+  },
+};
+
+// 書式を付けて文字にする：Format(Kin, "###,##0")
+Blockly.Blocks["math_format"] = {
+  init: function () {
+    this.appendValueInput("VALUE").appendField("🔢 Format(");
+    this.appendDummyInput()
+      .appendField(",")
+      .appendField(new Blockly.FieldTextInput("###,##0"), "FORMAT")
+      .appendField(")");
+    this.setInputsInline(true);
+    this.setOutput(true, null);
+    this.setColour(CAT_COLORS.value);
+    this.setTooltip("数を決まった形の文字にします。例：###,##0 → 3けたごとに「,」（8000 → 8,000）、0.00 → 小数第2位まで");
+  },
+};
+
+// 改行（vbCrLf）
+Blockly.Blocks["value_newline"] = {
+  init: function () {
+    this.appendDummyInput().appendField("↵ 改行（vbCrLf）");
+    this.setOutput(true, "String");
+    this.setColour(CAT_COLORS.value);
+    this.setTooltip("文字の途中で行をかえます。ラベルに何行も表示するときに、& でつなげて使います");
   },
 };
 
@@ -924,6 +1012,17 @@ const TOOLBOX = {
         { kind: "block", type: "value_text" },
         { kind: "block", type: "value_math" },
         { kind: "block", type: "math_val" },
+        { kind: "block", type: "math_format" },
+        { kind: "block", type: "value_newline" },
+      ],
+    },
+    {
+      kind: "category",
+      name: "📜 命令のまとまり",
+      colour: "#6d4c41",
+      contents: [
+        { kind: "block", type: "proc_sub" },
+        { kind: "block", type: "proc_call" },
       ],
     },
   ],
@@ -931,7 +1030,7 @@ const TOOLBOX = {
 
 // 教科書の順に並べ替える（名前で探すので、上の定義の順番は気にしなくてよい）
 (function reorderToolbox() {
-  const order = ["🪟 フォーム", "💬 入出力", "📦 変数", "🔢 数・文字", "❓ もし〜なら", "🔁 くりかえし", "📝 セル操作", "🎨 色・文字デザイン", "📦 リスト（配列）", "📑 シート操作"];
+  const order = ["🪟 フォーム", "💬 入出力", "📦 変数", "🔢 数・文字", "📜 命令のまとまり", "❓ もし〜なら", "🔁 くりかえし", "📝 セル操作", "🎨 色・文字デザイン", "📦 リスト（配列）", "📑 シート操作"];
   const all = [TOOLBOX_FORM].concat(TOOLBOX.contents);
   TOOLBOX.contents = order.map((n) => all.find((c) => c.name === n)).filter(Boolean);
   // 「💬 入出力」の MsgBox には、最初から「こんにちは」の文字を入れておく

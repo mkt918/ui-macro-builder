@@ -316,11 +316,28 @@ vbaGenerator.forBlock["sheet_select"] = function (block) {
 // ===== ユーザーフォーム =====
 // 手続き（Sub）を作るブロックは、本体のコードだけを返す。
 // Sub の見出し・Dim・End Sub は generateVBAWithMap がまとめて付ける
-const PROC_BLOCK_TYPES = new Set(["form_button_click", "form_initialize"]);
+const PROC_BLOCK_TYPES = new Set(["form_button_click", "form_initialize", "proc_sub"]);
 function procHeaderOf(block) {
   if (block.type === "form_initialize") return "Private Sub UserForm_Initialize()";
+  if (block.type === "proc_sub") return `Sub ${block.getFieldValue("NAME")}()`;
   return `Private Sub ${block.getFieldValue("CONTROL")}_Click()`;
 }
+vbaGenerator.forBlock["proc_sub"] = function (block) {
+  return vbaGenerator.statementToCode(block, "DO");
+};
+vbaGenerator.forBlock["proc_call"] = function (block) {
+  return `Call ${block.getFieldValue("NAME")}`;
+};
+vbaGenerator.forBlock["var_dim"] = function (block) {
+  return `Dim ${varName(block)} As ${block.getFieldValue("TYPE")}`;
+};
+vbaGenerator.forBlock["math_format"] = function (block) {
+  const v = vbaGenerator.valueToCode(block, "VALUE", vbaGenerator.ORDER_NONE) || "0";
+  return [`Format(${v}, ${vbaStr(block.getFieldValue("FORMAT"))})`, vbaGenerator.ORDER_ATOMIC];
+};
+vbaGenerator.forBlock["value_newline"] = function () {
+  return ["vbCrLf", vbaGenerator.ORDER_ATOMIC];
+};
 vbaGenerator.forBlock["form_button_click"] = function (block) {
   return vbaGenerator.statementToCode(block, "DO");
 };
@@ -461,6 +478,10 @@ function buildProc(header, stacks, ownerBlock, descendants) {
     head.push("    Dim arr(1 To 100) As Variant");
     declared.add("arr");
   }
+  // 「📦 箱を用意する（Dim）」ブロックで用意した変数は、自動で Dim しない
+  descendants.forEach((b) => {
+    if (b.type === "var_dim") declared.add(varName(b));
+  });
   collectVarNames(descendants).forEach((n) => {
     if (declared.has(n)) return;
     head.push(`    Dim ${n} As Variant`);
