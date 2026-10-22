@@ -375,15 +375,32 @@ End Sub`,
  */
 const WARIKAN_SERIES = "割り勘アプリをつくろう";
 
-// 結果を Label3・Label4 に出す課題（ステップ3・発展）のフォーム
-const warikanLabelForm = (cap1, cap2) =>
-  ufForm(300, 210, [
-    ufLabel("Label1", 24, 20, 110, 26, cap1, { FontSize: 14 }),
-    ufLabel("Label2", 24, 70, 110, 26, cap2, { FontSize: 14 }),
-    ufLabel("Label3", 144, 16, 120, 34, "", { SpecialEffect: 2, TextAlign: 1, FontSize: 16 }),
-    ufLabel("Label4", 144, 66, 120, 34, "", { SpecialEffect: 2, TextAlign: 1, FontSize: 16 }),
-    ufButton("CommandButton1", 90, 130, 120, 36, "計算する"),
-  ]);
+// 合計金額と人数を TextBox1・TextBox2 に書き、結果を Label3・Label4 に出す課題（ステップ3・発展）のフォーム。
+// withKanji: true なら、発展で足す「幹事（Label7・Label8）」「ほかの人（Label9・Label10）」の行まで置いたフォーム
+function warikanTextForm(withKanji) {
+  const out = { SpecialEffect: 2, TextAlign: 1, FontSize: 16 };
+  const cap = { FontSize: 14 };
+  const controls = [
+    ufLabel("Label5", 24, 20, 110, 26, "合計金額", cap),
+    ufText("TextBox1", 144, 16, 120, 28),
+    ufLabel("Label6", 24, 60, 110, 26, "人数", cap),
+    ufText("TextBox2", 144, 56, 120, 28),
+    ufLabel("Label1", 24, 110, 110, 26, "1人あたり", cap),
+    ufLabel("Label3", 144, 106, 120, 34, "", out),
+    ufLabel("Label2", 24, 160, 110, 26, "あまり", cap),
+    ufLabel("Label4", 144, 156, 120, 34, "", out),
+  ];
+  if (withKanji) {
+    controls.push(
+      ufLabel("Label7", 24, 210, 110, 26, "幹事", cap),
+      ufLabel("Label8", 144, 206, 120, 34, "", out),
+      ufLabel("Label9", 24, 260, 110, 26, "ほかの人", cap),
+      ufLabel("Label10", 144, 256, 120, 34, "", out)
+    );
+  }
+  controls.push(ufButton("CommandButton1", 90, withKanji ? 314 : 214, 120, 36, "計算する"));
+  return ufForm(300, withKanji ? 370 : 270, controls);
+}
 
 // ---- 回転ずしアプリ（皿ボタン4つ・枚数と小計と合計の Label、そのあと割り勘）----
 const SUSHI_SERIES = "回転ずしアプリをつくろう";
@@ -536,30 +553,30 @@ End Sub`,
     step: "ステップ3",
     title: "割り勘アプリ ステップ3　割り勘アプリを完成させよう",
     difficulty: 2,
-    goal: "合計金額と人数を入力すると、1人あたりの金額とあまりを、画面の Label に表示する「割り勘アプリ」を完成させよう。",
+    goal: "合計金額と人数をフォームの TextBox に書いてボタンを押すと、1人あたりの金額とあまりを、フォームの Label に表示する「割り勘アプリ」を完成させよう。",
     lesson: [
       {
         h: "考え方",
-        p: "ステップ2のプログラムが、そのまま土台になります。ちがうのは、答えを MsgBox ではなく Label に表示するところだけ。Label に文字を入れるときは「Label3.Caption = …」と書きます（教科書 4-2-02 と同じ）。",
+        p: "ステップ2のプログラムが土台です。ちがうところは2つ。\n① 入力：InputBox ではなく、フォームの TextBox に書く（TextBox の中身は「TextBox1.Text」。文字なので、Val( ) で数にする）\n② 出力：MsgBox ではなく、フォームの Label に表示する（Label に文字を入れるときは「Label3.Caption = …」）",
       },
     ],
     spec: {
-      input: "合計金額、人数　4580、6",
+      input: "TextBox1（合計金額）、TextBox2（人数）　4580、6",
       output: "1人あたり 763円／あまり 2円",
       conditions: [
-        "ボタンを押すと、InputBox で「合計金額を入力してください」「人数を入力してください」の順にたずねる。",
-        "合計金額は Gokei、人数は Ninzu、1人あたりは Hitori、あまりは Amari に入れる（型は Long）。",
+        "合計金額を TextBox1 に、人数を TextBox2 に書いてから、ボタンを押す。InputBox は使わない。",
+        "TextBox1 の中身を Gokei に、TextBox2 の中身を Ninzu に入れる。1人あたりは Hitori、あまりは Amari に入れる（型は Long）。",
         "Hitori と Amari は、ステップ2で使った計算（¥ と Mod）で求める。",
         "Label3 に1人あたりの金額を、Label4 にあまりを、それぞれ「円」をつけて表示する。MsgBox は使わない。",
       ],
-      inputExample: "InputBox に「4580」「6」の順に入力する",
+      inputExample: "TextBox1 に「4580」、TextBox2 に「6」と書いて、「計算する」ボタンを押す",
       outputExample: "Label3 に「763円」、Label4 に「2円」と表示される",
     },
-    form: warikanLabelForm("1人あたり", "あまり"),
+    form: warikanTextForm(false),
     hints: [
-      "ステップ2のプログラムをもとに、MsgBox の部分を Label への表示に書きかえよう。",
-      'Label3.Caption に Hitori と「円」を、Label4.Caption に Amari と「円」を入れます。「円」は & でつなげます（例：Hitori & "円"）。',
-      'Hitori = Gokei ¥ Ninzu ／ Amari = Gokei Mod Ninzu ／ Label3.Caption = Hitori & "円" ／ Label4.Caption = Amari & "円"',
+      "ステップ2のプログラムをもとに、①InputBox の部分を TextBox の中身を読む書き方に ②MsgBox の部分を Label への表示に、書きかえよう。",
+      'TextBox の中身は「TextBox1.Text」です。Val( ) で数にして、Gokei に入れます（例：Gokei = Val(TextBox1.Text)）。答えは Label3.Caption と Label4.Caption に、「円」を & でつないで入れます。',
+      'Gokei = Val(TextBox1.Text) ／ Ninzu = Val(TextBox2.Text) ／ Hitori = Gokei ¥ Ninzu ／ Amari = Gokei Mod Ninzu ／ Label3.Caption = Hitori & "円" ／ Label4.Caption = Amari & "円"',
     ],
     answer: `Option Explicit
 Private Sub CommandButton1_Click()
@@ -567,21 +584,25 @@ Private Sub CommandButton1_Click()
     Dim Ninzu As Long
     Dim Hitori As Long
     Dim Amari As Long
-    Gokei = Val(InputBox("合計金額を入力してください"))
-    Ninzu = Val(InputBox("人数を入力してください"))
+    Gokei = Val(TextBox1.Text)
+    Ninzu = Val(TextBox2.Text)
     Hitori = Gokei ¥ Ninzu
     Amari = Gokei Mod Ninzu
     Label3.Caption = Hitori & "円"
     Label4.Caption = Amari & "円"
 End Sub`,
     scenario: [
-      { click: "CommandButton1", inputs: ["3000", "3"], expect: { controls: { Label3: { Caption: "1000円" }, Label4: { Caption: "0円" } } } },
-      { click: "CommandButton1", inputs: ["1000", "3"], expect: { controls: { Label3: { Caption: "333円" }, Label4: { Caption: "1円" } } } },
-      { click: "CommandButton1", inputs: ["4580", "6"], expect: { controls: { Label3: { Caption: "763円" }, Label4: { Caption: "2円" } } } },
-      { click: "CommandButton1", inputs: ["500", "7"], expect: { controls: { Label3: { Caption: "71円" }, Label4: { Caption: "3円" } } } },
+      ["3000", "3", "1000円", "0円"],
+      ["1000", "3", "333円", "1円"],
+      ["4580", "6", "763円", "2円"],
+      ["500", "7", "71円", "3円"],
       // 1100÷3＝366.67…：「/」だと四捨五入で 367 になってしまう
-      { click: "CommandButton1", inputs: ["1100", "3"], expect: { controls: { Label3: { Caption: "366円" }, Label4: { Caption: "2円" } } } },
-    ],
+      ["1100", "3", "366円", "2円"],
+    ].map((r) => ({
+      text: { TextBox1: r[0], TextBox2: r[1] },
+      click: "CommandButton1",
+      expect: { controls: { Label3: { Caption: r[2] }, Label4: { Caption: r[3] } } },
+    })),
   },
   {
     id: "warikan4",
@@ -599,37 +620,27 @@ End Sub`,
       },
       {
         h: "フォームに足すもの（ここが新しい！）",
-        p: "ステップ3のフォームはそのまま使います。ボタンを下にずらして、あいたところに Label を4つ足そう。\nLabel5 … Caption を「幹事」にする（見出し）\nLabel6 … 幹事の金額を出す枠\nLabel7 … Caption を「ほかの人」にする（見出し）\nLabel8 … ほかの人の金額を出す枠\nLabel は作った順に、Label5・Label6・Label7・Label8 という名前になります。",
+        p: "ステップ3のフォームはそのまま使います。ボタンを下にずらして、あいたところに Label を4つ足そう。\nLabel7 … Caption を「幹事」にする（見出し）\nLabel8 … 幹事の金額を出す枠\nLabel9 … Caption を「ほかの人」にする（見出し）\nLabel10 … ほかの人の金額を出す枠\nLabel は作った順に、Label7・Label8・Label9・Label10 という名前になります。",
       },
     ],
     spec: {
-      input: "合計金額、人数　4580、6",
+      input: "TextBox1（合計金額）、TextBox2（人数）　4580、6",
       output: "1人あたり 763円／あまり 2円／幹事 765円／ほかの人 763円",
       conditions: [
         "ステップ3のプログラムとフォームを、そのまま使う。",
-        "フォームの下に Label を4つ足す。Label5 の Caption は「幹事」、Label7 の Caption は「ほかの人」にする。",
-        "Label6 に幹事が出す金額を、Label8 にほかの人が出す金額を、それぞれ「円」をつけて表示する。",
+        "フォームの下に Label を4つ足す。Label7 の Caption は「幹事」、Label9 の Caption は「ほかの人」にする。",
+        "Label8 に幹事が出す金額を、Label10 にほかの人が出す金額を、それぞれ「円」をつけて表示する。",
         "幹事の金額は、「1人あたり」に「あまり」をたした金額。変数 Kanji に入れる（型は Long）。ほかの人の金額は、「1人あたり」と同じ。",
       ],
-      inputExample: "InputBox に「4580」「6」の順に入力する",
-      outputExample: "Label3 に「763円」、Label4 に「2円」、Label6 に「765円」、Label8 に「763円」と表示される",
+      inputExample: "TextBox1 に「4580」、TextBox2 に「6」と書いて、「計算する」ボタンを押す",
+      outputExample: "Label3 に「763円」、Label4 に「2円」、Label8 に「765円」、Label10 に「763円」と表示される",
     },
-    form: warikanLabelForm("1人あたり", "あまり"),
-    answerForm: ufForm(300, 290, [
-      ufLabel("Label1", 24, 20, 110, 26, "1人あたり", { FontSize: 14 }),
-      ufLabel("Label2", 24, 70, 110, 26, "あまり", { FontSize: 14 }),
-      ufLabel("Label5", 24, 120, 110, 26, "幹事", { FontSize: 14 }),
-      ufLabel("Label7", 24, 170, 110, 26, "ほかの人", { FontSize: 14 }),
-      ufLabel("Label3", 144, 16, 120, 34, "", { SpecialEffect: 2, TextAlign: 1, FontSize: 16 }),
-      ufLabel("Label4", 144, 66, 120, 34, "", { SpecialEffect: 2, TextAlign: 1, FontSize: 16 }),
-      ufLabel("Label6", 144, 116, 120, 34, "", { SpecialEffect: 2, TextAlign: 1, FontSize: 16 }),
-      ufLabel("Label8", 144, 166, 120, 34, "", { SpecialEffect: 2, TextAlign: 1, FontSize: 16 }),
-      ufButton("CommandButton1", 90, 226, 120, 36, "計算する"),
-    ]),
+    form: warikanTextForm(false),
+    answerForm: warikanTextForm(true),
     hints: [
-      "ステップ3のプログラムに、続きを書こう。①フォームに Label を4つ足す ②幹事の金額を計算する ③Label6 と Label8 に表示する、の順です。",
+      "ステップ3のプログラムに、続きを書こう。①フォームに Label を4つ足す ②幹事の金額を計算する ③Label8 と Label10 に表示する、の順です。",
       "幹事の金額 ＝ 1人あたり ＋ あまり。Kanji という変数を用意して、Kanji = Hitori + Amari と計算します。ほかの人の金額は Hitori と同じです。",
-      'Kanji = Hitori + Amari ／ Label6.Caption = Kanji & "円" ／ Label8.Caption = Hitori & "円"（Label5 の Caption は「幹事」、Label7 の Caption は「ほかの人」）',
+      'Kanji = Hitori + Amari ／ Label8.Caption = Kanji & "円" ／ Label10.Caption = Hitori & "円"（Label7 の Caption は「幹事」、Label9 の Caption は「ほかの人」）',
     ],
     answer: `Option Explicit
 Private Sub CommandButton1_Click()
@@ -638,15 +649,15 @@ Private Sub CommandButton1_Click()
     Dim Hitori As Long
     Dim Amari As Long
     Dim Kanji As Long
-    Gokei = Val(InputBox("合計金額を入力してください"))
-    Ninzu = Val(InputBox("人数を入力してください"))
+    Gokei = Val(TextBox1.Text)
+    Ninzu = Val(TextBox2.Text)
     Hitori = Gokei ¥ Ninzu
     Amari = Gokei Mod Ninzu
     Kanji = Hitori + Amari
     Label3.Caption = Hitori & "円"
     Label4.Caption = Amari & "円"
-    Label6.Caption = Kanji & "円"
-    Label8.Caption = Hitori & "円"
+    Label8.Caption = Kanji & "円"
+    Label10.Caption = Hitori & "円"
 End Sub`,
     scenario: [
       ["3000", "3", "1000円", "0円", "1000円", "1000円"],
@@ -654,16 +665,16 @@ End Sub`,
       ["4580", "6", "763円", "2円", "765円", "763円"],
       ["1100", "3", "366円", "2円", "368円", "366円"],
     ].map((r) => ({
+      text: { TextBox1: r[0], TextBox2: r[1] },
       click: "CommandButton1",
-      inputs: [r[0], r[1]],
       expect: {
         controls: {
           Label3: { Caption: r[2] },
           Label4: { Caption: r[3] },
-          Label5: { Caption: "幹事" },
-          Label6: { Caption: r[4] },
-          Label7: { Caption: "ほかの人" },
-          Label8: { Caption: r[5] },
+          Label7: { Caption: "幹事" },
+          Label8: { Caption: r[4] },
+          Label9: { Caption: "ほかの人" },
+          Label10: { Caption: r[5] },
         },
       },
     })),

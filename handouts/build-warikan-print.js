@@ -28,6 +28,7 @@ const svgWrap = (w, h, inner, label, cls) => `<svg class="${cls || "mimg"}" view
 // ユーザーフォームの絵。rows: [{cap, val, mark}]、mark は「追加した枠」（点線でかこむ）
 function formG(x, y, w, rows, o = {}) {
   const rh = o.rh || 7.4;
+  const bh = rh - 1.8; // 枠の高さ
   const top = 5.2;
   const h = top + rows.length * rh + (o.button ? 10 : 2);
   let g = R(x, y, w, h, { fill: "#f0f0f0", sw: 0.5, rx: 0.8 });
@@ -36,15 +37,15 @@ function formG(x, y, w, rows, o = {}) {
   rows.forEach((r, i) => {
     const ry = y + top + 1.4 + i * rh;
     if (r.mark) g += R(x + 0.8, ry - 0.9, w - 1.6, rh - 0.4, { fill: "none", dash: 1, sw: 0.55, stroke: "#000", rx: 1 });
-    g += T(x + 3, ry + 4.2, r.cap, { fs: 3.1, b: 1 });
-    g += R(x + w * 0.43, ry, w * 0.54, 5.6, { sw: 0.5, rx: 0.3 });
-    if (r.val) g += T(x + w * 0.7, ry + 4, r.val, { fs: 3.3, a: "middle", b: 1 });
+    g += T(x + 3, ry + bh * 0.75, r.cap, { fs: 3.1, b: 1 });
+    g += R(x + w * 0.43, ry, w * 0.54, bh, { sw: 0.5, rx: 0.3 });
+    if (r.val) g += T(x + w * 0.7, ry + bh * 0.72, r.val, { fs: 3.3, a: "middle", b: 1 });
   });
   if (o.button) {
     const by = y + top + rows.length * rh + 2.2;
     g += R(x + w / 2 - 11, by, 22, 6, { fill: "#f7f7f7", sw: 0.45, rx: 1 }) + T(x + w / 2, by + 4.2, "計算する", { fs: 2.9, a: "middle" });
   }
-  return { svg: g, h, rowY: (i) => y + top + 1.4 + i * rh + 2.8 };
+  return { svg: g, h, rowY: (i) => y + top + 1.4 + i * rh + bh / 2 };
 }
 const callout = (x1, y, x2, name) =>
   `<line x1="${x1}" y1="${y}" x2="${x2 - 1}" y2="${y}" stroke="#222" stroke-width="0.35"/>` + T(x2, y + 1, name, { fs: 2.8, b: 1, mono: 1 });
@@ -82,40 +83,125 @@ const missionImg = {
       "ミッションの絵。合計金額1000円、人数3人を入力すると、1人あたりの金額とあまりが出る"
     ),
   warikan3: () => {
-    const f = formG(84, 8, 62, [{ cap: "1人あたり", val: "333円" }, { cap: "あまり", val: "1円" }], { button: true, rh: 8 });
+    // 前：InputBox で聞いて MsgBox で答える（小さな窓2つ）／後：フォームの TextBox に書いて Label に出す
+    const dlg = (y, h, title, body) =>
+      R(2, y, 56, h, { rx: 0.6, sw: 0.5 }) + R(2, y, 56, 4.6, { fill: "#c9d3e2", rx: 0.6, sw: 0.5 }) +
+      T(4, y + 3.3, title, { fs: 2.5 }) + T(55.5, y + 3.6, "×", { fs: 3, b: 1, a: "middle" }) + body;
+    const f = formG(86, 8, 62, [
+      { cap: "合計金額", val: "4580" },
+      { cap: "人数", val: "6" },
+      { cap: "1人あたり", val: "763円" },
+      { cap: "あまり", val: "2円" },
+    ], { rh: 6.9 });
     return svgWrap(
       172,
-      42,
-      tag(0, 0, 62, "ステップ2：MsgBox（べつの小さな窓）") +
-        R(2, 8, 54, 30, { rx: 0.6, sw: 0.5 }) + R(2, 8, 54, 5.5, { fill: "#c9d3e2", rx: 0.6, sw: 0.5 }) +
-        T(4, 11.9, "Microsoft Excel", { fs: 2.8 }) + T(53.5, 12.3, "×", { fs: 3.4, b: 1, a: "middle" }) +
-        T(29, 24, "1人333円です", { fs: 4.2, a: "middle", b: 1 }) +
-        R(22, 30, 14, 5.5, { fill: "#f4f4f4", sw: 0.45, rx: 0.8 }) + T(29, 34, "OK", { fs: 3, a: "middle" }) +
-        T(70, 17, "かわる！", { fs: 3.8, a: "middle", b: 1 }) + bigArrow(60, 19, 20, 10) +
-        tag(84, 0, 66, "ステップ3：フォームの Label に表示") + f.svg +
-        callout(147, f.rowY(0), 150.5, "Label3") + callout(147, f.rowY(1), 150.5, "Label4"),
-      "ミッションの絵。MsgBoxの小さな窓に出していた答えを、ユーザーフォームの Label3 と Label4 に出すように変わる"
+      f.h + 10,
+      tag(0, 0, 66, "ステップ2：InputBox と MsgBox（小さな窓）") +
+        dlg(7.5, 18, "Microsoft Excel", T(5, 15.4, "合計金額を入力してください", { fs: 2.6 }) + R(5, 17.6, 36, 4.4, { sw: 0.4, rx: 0.3 }) + T(7, 20.7, "4580", { fs: 2.8 })) +
+        dlg(28, 14.5, "Microsoft Excel", T(30, 36.4, "1人763円です", { fs: 3.6, a: "middle", b: 1 }) + R(23, 37.4, 14, 3.8, { fill: "#f4f4f4", sw: 0.4, rx: 0.8 })) +
+        bigArrow(62, 17, 20, 10) + T(72, 15, "かわる！", { fs: 3.8, a: "middle", b: 1 }) +
+        tag(86, 0, 62, "ステップ3：フォームの TextBox と Label") + f.svg +
+        callout(149, f.rowY(0), 151, "TextBox1") + callout(149, f.rowY(1), 151, "TextBox2") +
+        callout(149, f.rowY(2), 151, "Label3") + callout(149, f.rowY(3), 151, "Label4"),
+      "ミッションの絵。InputBox と MsgBox の小さな窓で入力と表示をしていたのが、ユーザーフォームの TextBox1、TextBox2 に書いて、Label3、Label4 に出すように変わる"
     );
   },
   warikan4: () => {
-    const rowsOld = [{ cap: "1人あたり", val: "763円" }, { cap: "あまり", val: "2円" }];
-    const f1 = formG(0, 8, 56, rowsOld, {});
-    const f2 = formG(78, 8, 62, rowsOld.concat([{ cap: "幹事", val: "765円", mark: true }, { cap: "ほかの人", val: "763円", mark: true }]), {});
+    const rowsOld = [
+      { cap: "合計金額", val: "4580" },
+      { cap: "人数", val: "6" },
+      { cap: "1人あたり", val: "763円" },
+      { cap: "あまり", val: "2円" },
+    ];
+    const f1 = formG(0, 8, 56, rowsOld, { rh: 6.2 });
+    const f2 = formG(78, 8, 62, rowsOld.concat([{ cap: "幹事", val: "765円", mark: true }, { cap: "ほかの人", val: "763円", mark: true }]), { rh: 6.2 });
     return svgWrap(
       172,
-      46,
+      f2.h + 10,
       tag(0, 0, 36, "ステップ3のフォーム") + f1.svg +
         T(66, 22, "足す！", { fs: 3.8, a: "middle", b: 1 }) + bigArrow(58, 24, 16, 9) +
         tag(78, 0, 56, "新しいフォーム（点線が追加）") + f2.svg +
-        callout(141, f2.rowY(2), 143, "←追加 Label5,6") + callout(141, f2.rowY(3), 143, "←追加 Label7,8"),
+        callout(141, f2.rowY(4), 143, "←追加 Label7,8") + callout(141, f2.rowY(5), 143, "←追加 Label9,10"),
       "ミッションの絵。ステップ3のフォームの下に、幹事とほかの人の Label を足したフォーム"
     );
   },
 };
 
+/* ---- 回転ずしアプリのミッションの絵 ---- */
+// 回転ずしのフォームの絵。rows: [{btn, lab, sub}]、wari があれば下に「割り勘」の行（追加＝点線）
+function sushiG(x, y, w, o) {
+  const top = 5.2;
+  const rh = 6.8;
+  const h = top + 1.2 + o.rows.length * rh + 9 + (o.wari ? rh + 2.4 : 0);
+  let g = R(x, y, w, h, { fill: "#f0f0f0", sw: 0.5, rx: 0.8 }) + R(x, y, w, top, { fill: "#d6d6d6", sw: 0.5, rx: 0.8 });
+  g += T(x + 1.8, y + 3.7, "UserForm1", { fs: 2.7 }) + T(x + w - 2.6, y + 4.1, "×", { fs: 3.6, b: 1, a: "middle" });
+  const btn = (bx, by, s) => R(bx, by, 28, 5.4, { fill: "#f7f7f7", rx: 1, sw: 0.4 }) + T(bx + 14, by + 3.9, s, { fs: 2.7, a: "middle" });
+  const lab = (lx, ly, lw, s) => R(lx, ly, lw, 5.4, { sw: 0.4, rx: 0.3 }) + (s ? T(lx + lw / 2, ly + 3.9, s, { fs: 2.8, a: "middle", b: 1 }) : "");
+  o.rows.forEach((r, i) => {
+    const ry = y + top + 1.2 + i * rh;
+    g += btn(x + 2, ry, r.btn) + lab(x + 34, ry, 38, r.lab) + lab(x + 77, ry, 39, r.sub);
+  });
+  const ty = y + top + 1.2 + o.rows.length * rh + 1.4;
+  g += lab(x + 34, ty, 82, o.total);
+  if (o.wari) {
+    const wy = ty + 7.2;
+    g += R(x + 0.8, wy - 1, w - 1.6, rh + 0.2, { fill: "none", dash: 1, sw: 0.55, stroke: "#000", rx: 1 });
+    g += btn(x + 2, wy, "割り勘") + lab(x + 34, wy, 38, o.wari[0]) + lab(x + 77, wy, 39, o.wari[1]);
+  }
+  return { svg: g, h, rowY: (i) => y + top + 1.2 + i * rh + 2.7, totalY: ty + 2.7, wariY: ty + 7.2 + 2.7 };
+}
+
+missionImg.sushi1 = () => {
+  const f = sushiG(0, 0, 118, {
+    rows: [
+      { btn: "100円皿", lab: "100円皿2枚", sub: "小計200円" },
+      { btn: "120円皿", lab: "120円皿1枚", sub: "小計120円" },
+      { btn: "150円皿", lab: "", sub: "" },
+      { btn: "200円皿", lab: "", sub: "" },
+    ],
+    total: "合計320円",
+  });
+  return svgWrap(
+    172,
+    f.h + 1.5,
+    f.svg +
+      T(146, 11, "🍣", { fs: 11, a: "middle" }) +
+      T(122, 20, "ボタンを押すたびに", { fs: 3.2, b: 1 }) +
+      T(124, 25.5, "・お皿の枚数がふえる", { fs: 3.1 }) +
+      T(124, 30.5, "・小計が出る", { fs: 3.1 }) +
+      T(124, 35.5, "・合計がふえる", { fs: 3.1 }),
+    "ミッションの絵。100円皿、120円皿、150円皿、200円皿のボタンがあり、押すと枚数、小計、合計が表示される"
+  );
+};
+
+missionImg.sushi2 = () => {
+  const f = sushiG(0, 0, 118, {
+    rows: [
+      { btn: "100円皿", lab: "100円皿2枚", sub: "小計200円" },
+      { btn: "120円皿", lab: "120円皿1枚", sub: "小計120円" },
+      { btn: "150円皿", lab: "", sub: "" },
+      { btn: "200円皿", lab: "", sub: "" },
+    ],
+    total: "合計320円",
+    wari: ["人数3人", "1人あたり106円"],
+  });
+  return svgWrap(
+    172,
+    f.h + 1.5,
+    f.svg +
+      T(122, f.wariY - 4.2, "追加！", { fs: 3.6, b: 1 }) +
+      callout(119, f.wariY, 122, "") +
+      T(122, f.wariY - 0.2, "CommandButton5", { fs: 2.7, b: 1, mono: 1 }) +
+      T(122, f.wariY + 3.4, "Label10・Label11", { fs: 2.7, b: 1, mono: 1 }) +
+      T(146, 11, "🍣", { fs: 11, a: "middle" }) +
+      T(122, 22, "合計は、そのまま使うよ", { fs: 3.1 }),
+    "ミッションの絵。回転ずしのフォームの下に、割り勘ボタンと、人数、1人あたりの金額を出す枠を足す"
+  );
+};
+
 /* ======================= 流れ図の部品 ======================= */
 // 記号は教科書の描き方：はじめ・おわり＝角丸、入出力＝平行四辺形、計算＝長方形
-const FC = { BX: 4, BW: 132, W: 146, FS: 3.1, GAP: 3.2, TH: 7.2, BH: 8.6, SK: 4 };
+const FC = { BX: 4, BW: 132, W: 146, FS: 3.1, GAP: 3.0, TH: 7, BH: 8.2, SK: 4 };
 function segs(x, y, list) {
   let out = "";
   list.forEach((s) => {
@@ -133,21 +219,14 @@ function segs(x, y, list) {
 const fT = (t) => ({ k: "term", t });
 // 前のステップと同じ部分は、1つの灰色の箱にまとめる（書かなくてよい）
 const fSame = (t) => ({ k: "same", t });
-const fIn = (fill) => ({
-  k: "io",
-  s: [{ t: "ことば" }, { w: 70, fill: fill && fill[0] }, { t: "→変数" }, { w: 20, fill: fill && fill[1] }, { t: "を入力" }],
-});
-const fMsg = () => ({ k: "io", s: [{ t: "ことば" }, { w: 90 }, { t: "を表示" }] });
-const fLabel = (add) => ({ k: "io", add, s: [{ w: 62 }, { t: "を" }, { t: "Label" }, { w: 12 }, { t: "に表示" }] });
-const fCalc = (a, op, b, add) => ({
-  k: "proc",
-  add,
-  s: [{ w: 26 }, op ? { t: op } : { w: 10 }, { w: 26 }].concat(b === "sum" ? [{ t: "＋" }, { w: 26 }] : []).concat([{ t: "→" }, { w: 26 }]),
-});
-const fSum3 = () => ({
-  k: "proc",
-  s: [{ w: 26 }, { t: "＋" }, { w: 26 }, { t: "＋" }, { w: 26 }, { t: "→" }, { w: 22 }],
-});
+// 流れ図の箱。引数が文字なら青い「お手本」が書いてあり、null なら書きこむ空欄。
+// 空欄は、1つの流れ図に3つぐらい（確認程度）にする。
+const fIn = (word, v) => ({ k: "io", s: [{ t: "ことば" }, { w: 70, fill: word }, { t: "→変数" }, { w: 20, fill: v }, { t: "を入力" }] });
+const fMsg = (word) => ({ k: "io", s: [{ t: "ことば" }, { w: 90, fill: word }, { t: "を表示" }] });
+const fTextIn = (cap, tb, v) => ({ k: "proc", s: [{ t: "見出し" }, { w: 28, fill: cap }, { t: "の" }, { t: "TextBox" }, { w: 8, fill: tb }, { t: "→変数" }, { w: 22, fill: v }] });
+const fLabel = (word, num, add) => ({ k: "io", add, s: [{ w: 62, fill: word }, { t: "を" }, { t: "Label" }, { w: 12, fill: num }, { t: "に表示" }] });
+const fCalc = (a, op, b, c, add) => ({ k: "proc", add, s: [{ w: 26, fill: a }, { t: op }, { w: 26, fill: b }, { t: "→" }, { w: 26, fill: c }] });
+const fSum3 = (a, b, c, d) => ({ k: "proc", s: [{ w: 26, fill: a }, { t: "＋" }, { w: 26, fill: b }, { t: "＋" }, { w: 26, fill: c }, { t: "→" }, { w: 22, fill: d }] });
 
 function flowchart(items) {
   const { BX, BW, W, FS, GAP, TH, BH, SK } = FC;
@@ -251,12 +330,23 @@ const ROAD = ["① ミッション", "② 仕様", "③ 流れ図", "④ 読む"
 const road = (on) => `<ol class="road">${ROAD.map((r, i) => `<li${on.includes(i) ? ' class="on"' : ""}>${r}</li>`).join("")}</ol>`;
 
 /* ======================= ステップの中身 ======================= */
-const STEPS = [
+const WARIKAN_STEPS = [
   {
     id: "warikan1",
     lead: "文化祭の打ち上げで、ジュース・ピザ・ケーキを注文しました。",
     main: "3つの値段と人数を入力すると、<u>合計</u>と<u>1人あたりの金額</u>を表示するプログラムを作ろう！",
-    flow: [fT("はじめ"), fIn(["ジュースの値段を入力してください", "Juice"]), fIn(), fIn(), fIn(), fSum3(), fMsg(), fCalc(0, "÷", 0), fMsg(), fT("おわり")],
+    flow: [
+      fT("はじめ"),
+      fIn("ジュースの値段を入力してください", "Juice"),
+      fIn("ピザの値段を入力してください", "Pizza"),
+      fIn(null, "Cake"),
+      fIn("人数を入力してください", null),
+      fSum3("Juice", "Pizza", "Cake", "Gokei"),
+      fMsg("合計は Gokei 円です"),
+      fCalc("Gokei", "÷", "Ninzu", "Hitori"),
+      fMsg(null),
+      fT("おわり"),
+    ],
     legendExtra: "",
     lesson: [
       { n: "1", h: "値段を聞いて、変数（数を入れる箱）にしまう", p: "InputBox で聞いた答えは「文字」です。<b>Val( )</b> をつけると「数」になります。<span class=\"note\">（Long は大きめの整数が入る型）</span>", code: 'Dim Juice As Long\nJuice = Val(InputBox("ジュースの値段を入力してください"))' },
@@ -290,7 +380,16 @@ const STEPS = [
     id: "warikan2",
     lead: "1000円を3人で分けると、1人333円で1円あまります。お金に小数はありません。",
     main: "合計金額と人数を入力すると、<u>1人あたりの金額</u>と<u>あまり</u>を表示するプログラムを作ろう！",
-    flow: [fT("はじめ"), fIn(["合計金額を入力してください", "Gokei"]), fIn(), { k: "proc", s: [{ w: 26 }, { t: "¥" }, { w: 26 }, { t: "→" }, { w: 26 }] }, { k: "proc", s: [{ w: 26 }, { t: "Mod" }, { w: 26 }, { t: "→" }, { w: 26 }] }, fMsg(), fMsg(), fT("おわり")],
+    flow: [
+      fT("はじめ"),
+      fIn("合計金額を入力してください", "Gokei"),
+      fIn("人数を入力してください", null),
+      fCalc("Gokei", "¥", "Ninzu", "Hitori"),
+      fCalc("Gokei", "Mod", "Ninzu", null),
+      fMsg("1人 Hitori 円です"),
+      fMsg(null),
+      fT("おわり"),
+    ],
     legendExtra: '<div class="lg-n"><b>¥</b>＝わり算の答えの整数の部分<br><b>Mod</b>＝わり算のあまり</div>',
     lesson: [
       { n: "1", h: "割り切れないとき", p: "1000円を3人で分けると、<b>1人333円</b>で、<b>1円あまり</b>ます。このあまりまで考えるのが「割り勘」です。<br>たしかめ算：<b>333 × 3 + 1 = 1000</b> になれば、正しく分けられています。" },
@@ -319,45 +418,62 @@ const STEPS = [
   },
   {
     id: "warikan3",
-    lead: "ステップ2では、答えを MsgBox（べつの小さな窓）に出しました。",
-    main: "ステップ3では、答えを<u>フォームの Label</u> に出す、本物の「割り勘アプリ」にしよう！",
-    band: "MsgBox  →  Label に表示するように、かわるよ！",
-    flow: [fT("はじめ"), fIn(), fIn(), fCalc(0, 0, 0), fCalc(0, 0, 0), fLabel(), fLabel(), fT("おわり")],
-    legendExtra: '<div class="lg-n"><b>Label</b>に出すときは<br>「○○を Label3 に表示」<br>のように書く</div>',
-    lesson: [
-      { n: "1", h: "答えを出す場所が、かわる", p: "ステップ2では MsgBox に出しました。ステップ3では、フォームの上の <b>Label</b> に出します。", code: 'ステップ2：MsgBox ("1人" & Hitori & "円です")\nステップ3：Label3.Caption = Hitori & "円"' },
-      { n: "2", h: "Label に文字を入れる書き方", p: "<b>Label名.Caption = 入れたいもの</b> と書きます。「円」は & でつなぎます。<br>Label3 は上の枠（1人あたり）、Label4 は下の枠（あまり）です。", code: 'Label4.Caption = Amari & "円"' },
-      { n: "3", h: "MsgBox は使わない", p: "MsgBox を書くと、小さな窓が出てしまいます。Dim・InputBox・¥・Mod はステップ2と同じです。" },
+    lead: "ステップ2では、InputBox で答え、MsgBox で表示しました（どちらも小さな窓）。",
+    main: "ステップ3では、<u>フォームの TextBox に書いて</u>、<u>フォームの Label に出す</u>、本物の「割り勘アプリ」にしよう！",
+    band: "InputBox → TextBox　／　MsgBox → Label　に、かわるよ！",
+    flow: [
+      fT("はじめ"),
+      fTextIn("合計金額", "1", null),
+      fTextIn("人数", null, "Ninzu"),
+      fCalc("Gokei", "¥", "Ninzu", "Hitori"),
+      fCalc("Gokei", "Mod", "Ninzu", "Amari"),
+      fLabel("Hitori と 円", "3"),
+      fLabel(null, "4"),
+      fT("おわり"),
     ],
-    note: "ステップ2から、いちばん下の2行だけが新しくなったよ。",
+    legendExtra: '<div class="lg-n"><b>TextBox</b>から読むときは<br>「見出し ○○ の TextBox1 → 変数」</div><div class="lg-n"><b>Label</b>に出すときは<br>「○○を Label3 に表示」</div>',
+    lesson: [
+      { n: "1", h: "入力する場所が、かわる", p: "ステップ2では InputBox に答えました。ステップ3では、フォームの <b>TextBox</b> に書きます。中身は「TextBox1.Text」。文字なので <b>Val( )</b> で数にします。", code: 'ステップ2：Gokei = Val(InputBox("合計金額を入力してください"))\nステップ3：Gokei = Val(TextBox1.Text)' },
+      { n: "2", h: "答えを出す場所も、かわる", p: "MsgBox ではなく、フォームの <b>Label</b> に出します。<b>Label名.Caption = 入れたいもの</b>。「円」は & でつなぎます。<br>Label3 は上の枠（1人あたり）、Label4 は下の枠（あまり）です。", code: 'ステップ2：MsgBox ("1人" & Hitori & "円です")\nステップ3：Label3.Caption = Hitori & "円"' },
+      { n: "3", h: "ほかはステップ2と同じ", p: "InputBox と MsgBox は使いません。Dim・¥・Mod は、ステップ2と同じです。" },
+    ],
+    note: "ステップ2から、入力の2行と、いちばん下の2行が新しくなったよ。",
     program: [
       "Private Sub CommandButton1_Click()",
       "    Dim Gokei As Long",
       "    Dim Ninzu As Long",
       "    Dim Hitori As Long",
       "    Dim Amari As Long",
-      '    Gokei = Val(InputBox("合計金額を入力してください"))',
-      '    Ninzu = Val(InputBox("人数を入力してください"))',
+      "★    Gokei = Val(TextBox[[s]].Text)||InputBox をやめて TextBox に！",
+      "★    Ninzu = Val(TextBox[[s]].Text)||InputBox をやめて TextBox に！",
       "    Hitori = Gokei ¥ Ninzu",
       "    Amari = Gokei Mod Ninzu",
       '★    Label[[s]].Caption = [[m]] & "円"||MsgBox をやめて Label に！',
       '★    Label[[s]].Caption = [[m]] & "円"||MsgBox をやめて Label に！',
       "End Sub",
     ],
-    tryHead: ["合計金額", "人数", "Label3（1人あたり）", "Label4（あまり）"],
+    tryHead: ["TextBox1（合計金額）", "TextBox2（人数）", "Label3（1人あたり）", "Label4（あまり）"],
     tryRows: [["3000", "3", "1000円", "0円"], ["1000", "3", "333円", "1円"], ["4580", "6", "763円", "2円"], ["500", "7", "71円", "3円"]],
-    foot: "※ MsgBox の窓が出たら、MsgBox を消し忘れています。",
+    foot: "※ 小さな窓が出たら、InputBox か MsgBox を消し忘れています。",
   },
   {
     id: "warikan4",
     lead: "あまったお金は、幹事が引き受けます。",
     main: "ステップ3のフォームの下に、<u>「幹事」と「ほかの人」の金額を出す枠（Label）</u>を足そう！",
-    band: "★ 新しく足すもの：Label を4つ（Label5・6・7・8）",
-    flow: [fT("はじめ"), fSame("ステップ3と同じ：入力2つ → ¥ と Mod の計算"), fCalc(0, 0, 0, true), fSame("ステップ3と同じ：Label3・Label4 に表示"), fLabel(true), fLabel(true), fT("おわり")],
+    band: "★ 新しく足すもの：Label を4つ（Label7・8・9・10）",
+    flow: [
+      fT("はじめ"),
+      fSame("ステップ3と同じ：TextBox から読む → ¥ と Mod の計算"),
+      fCalc("Hitori", "＋", null, "Kanji", true),
+      fSame("ステップ3と同じ：Label3・Label4 に表示"),
+      fLabel(null, "8", true),
+      fLabel("Hitori と 円", null, true),
+      fT("おわり"),
+    ],
     legendExtra: '<div class="lg-n"><b>灰色の箱</b>…ステップ3と同じ（書かなくてOK）</div><div class="lg-n"><b>追加</b>…ステップ3から<br>新しく足すところ。ここだけ書く</div>',
     lesson: [
       { n: "1", h: "幹事の金額を考える", p: "4580円を6人で分けると、1人763円であまりは2円。ほかの5人が763円ずつ出すなら、幹事は <b>763 + 2 = 765円</b> 出せば、ぴったり4580円になります。<br>たしかめ算：<b>765 + 763 × 5 = 4580</b>" },
-      { n: "2", h: "フォームに足す Label（ここが新しい！）", p: "ボタンを下にずらして、あいたところに Label を4つ足します。<br><b>Label5</b>＝見出し（Caption を「幹事」）　<b>Label6</b>＝幹事の金額を出す枠<br><b>Label7</b>＝見出し（Caption を「ほかの人」）　<b>Label8</b>＝ほかの人の金額を出す枠<br><span class=\"note\">Label は作った順に Label5・6・7・8 という名前になります。</span>" },
+      { n: "2", h: "フォームに足す Label（ここが新しい！）", p: "ボタンを下にずらして、あいたところに Label を4つ足します。<br><b>Label7</b>＝見出し（Caption を「幹事」）　<b>Label8</b>＝幹事の金額を出す枠<br><b>Label9</b>＝見出し（Caption を「ほかの人」）　<b>Label10</b>＝ほかの人の金額を出す枠<br><span class=\"note\">Label は作った順に Label7・8・9・10 という名前になります。</span>" },
     ],
     note: "ステップ3の続きに、「追加」の行を足そう。",
     program: [
@@ -367,8 +483,8 @@ const STEPS = [
       "    Dim Hitori As Long",
       "    Dim Amari As Long",
       "★    Dim [[m]] As Long||追加（幹事の金額を入れる箱）",
-      '    Gokei = Val(InputBox("合計金額を入力してください"))',
-      '    Ninzu = Val(InputBox("人数を入力してください"))',
+      "    Gokei = Val(TextBox1.Text)",
+      "    Ninzu = Val(TextBox2.Text)",
       "    Hitori = Gokei ¥ Ninzu",
       "    Amari = Gokei Mod Ninzu",
       "★    [[m]] = Hitori + [[m]]||追加（幹事 ＝ 1人あたり ＋ あまり）",
@@ -378,26 +494,27 @@ const STEPS = [
       '★    Label[[s]].Caption = [[m]] & "円"||追加（ほかの人）',
       "End Sub",
     ],
-    tryHead: ["合計金額", "人数", "Label3（1人あたり）", "Label4（あまり）", "Label6（幹事）", "Label8（ほかの人）"],
+    tryHead: ["TextBox1（合計金額）", "TextBox2（人数）", "Label3（1人あたり）", "Label4（あまり）", "Label8（幹事）", "Label10（ほかの人）"],
     tryRows: [["3000", "3", "1000円", "0円", "1000円", "1000円"], ["1000", "3", "333円", "1円", "334円", "333円"], ["4580", "6", "763円", "2円", "765円", "763円"], ["1100", "3", "366円", "2円", "368円", "366円"]],
     foot: "🎉 ここまでできたら、割り勘アプリの完成です！",
   },
 ];
 
 /* ======================= ページを組む ======================= */
-const nameBox = '<div class="name">　　年<span></span>組<span></span>番　名前<span class="long"></span></div>';
+// 4桁番号（年・組・番号を数字4つで）と名前。各ステップの最後（うらの右下）に置く
+const whoTable =
+  '<table class="who"><tr><th>4桁番号</th><td class="digits"><i></i><i></i><i></i><i></i></td><th>名前</th><td class="nm"></td></tr></table>';
+// 題名は横幅いっぱいの1行。ページ番号は右上
+const headHtml = (t, tail, pg) => `<div class="head">
+    <div class="hrow"><span class="series">${t.seriesIcon || "🍕"} ${esc(t.series)}${tail}</span><span class="pg">${pg}</span></div>
+    <div class="title"><span class="step-tag">${esc(t.step)}</span>${esc(t.title.replace(/^\S+\s*(ステップ\d|発展)\s*/, ""))}</div>
+  </div>`;
 
-function front(st, idx) {
+function front(st, idx, total) {
   const t = taskOf(st.id);
   const kind = t.kind === "guide" ? "解説つき" : "自分で考えよう";
   return `<section class="page">
-  <div class="head">
-    <div>
-      <div class="series">${t.seriesIcon || "🍕"} ${esc(t.series)}　［${kind}］　<b>おもて：考える</b></div>
-      <div class="title"><span class="step-tag">${esc(t.step)}</span>${esc(t.title.replace(/^割り勘アプリ\s*(ステップ\d|発展)\s*/, ""))}</div>
-    </div>
-    ${nameBox}
-  </div>
+  ${headHtml(t, `　［${kind}］　<b>おもて：考える</b>`, `${idx * 2 + 1} / ${total}`)}
   ${road([0, 1, 2])}
   <div class="mission2">
     <div class="mhead">🎯 ① ミッション　<span>ここが一番大事！ どんなアプリを作るのか、イメージしよう</span></div>
@@ -408,32 +525,37 @@ function front(st, idx) {
       ${missionImg[st.id]()}
     </div>
   </div>
-  <h2>② 仕様を確かめよう</h2>
-  ${specHtml(t.spec)}
-  <h2>③ 流れ図を書こう　<span class="h2note">平行四辺形には、<b>画面に出す「ことば」</b>と<b>「変数名」</b>を必ず書く</span></h2>
-  <div class="flowrow">${flowchart(st.flow)}${legend(st.legendExtra)}</div>
-  <div class="footer"><span>流れ図が書けたら、うら（作る）へ →</span><span>${idx * 2 + 1} / 8</span></div>
+  <div class="sec">
+    <h2>② 仕様を確かめよう</h2>
+    ${specHtml(t.spec)}
+  </div>
+  <div class="sec">
+    <h2>③ 流れ図を書こう　<span class="h2note">${st.flowNote || "平行四辺形には、<b>画面に出す「ことば」</b>と<b>「変数名」</b>を必ず書く"}</span></h2>
+    <div class="flowrow">${flowchart(st.flow)}${legend(st.legendExtra)}</div>
+  </div>
+  <div class="footer"><span>流れ図が書けたら、うら（作る）へ →</span></div>
 </section>`;
 }
 
-function back(st, idx) {
+function back(st, idx, total) {
   const t = taskOf(st.id);
   return `<section class="page">
-  <div class="head">
-    <div>
-      <div class="series">${t.seriesIcon || "🍕"} ${esc(t.series)}　<b>うら：作る</b></div>
-      <div class="title"><span class="step-tag">${esc(t.step)}</span>${esc(t.title.replace(/^割り勘アプリ\s*(ステップ\d|発展)\s*/, ""))}</div>
-    </div>
-    ${nameBox}
-  </div>
+  ${headHtml(t, "　<b>うら：作る</b>", `${idx * 2 + 2} / ${total}`)}
   ${road([3, 4, 5])}
-  <h2>④ まず読もう</h2>
-  ${lessonHtml(st.lesson)}
-  <h2>⑤ プログラムを完成させよう　<span class="h2note">${esc(st.note)}</span></h2>
-  ${prog(st.program)}
-  <h2>⑥ 動かしてたしかめよう</h2>
-  ${tryHtml(st.tryHead, st.tryRows)}
-  <div class="footer"><span>${esc(st.foot)}</span><span>${idx * 2 + 2} / 8</span></div>
+  <div class="sec">
+    <h2>④ まず読もう</h2>
+    ${lessonHtml(st.lesson)}
+  </div>
+  <div class="sec">
+    <h2>⑤ プログラムを完成させよう　<span class="h2note">${esc(st.note)}</span></h2>
+    ${prog(st.program)}
+    ${st.after || ""}
+  </div>
+  <div class="sec">
+    <h2>⑥ 動かしてたしかめよう</h2>
+    ${tryHtml(st.tryHead, st.tryRows)}
+  </div>
+  <div class="footer"><span>${esc(st.foot)}</span>${whoTable}</div>
 </section>`;
 }
 
@@ -454,29 +576,40 @@ const CSS = `
   }
   @media print { html, body { background: #fff; } .page { width: auto; min-height: 0; margin: 0; padding: 0; box-shadow: none; } }
 
-  .head { display: flex; justify-content: space-between; align-items: flex-end; gap: 10px; border-bottom: 2.5px solid var(--line); padding-bottom: 3px; }
+  .head { border-bottom: 2.5px solid var(--line); padding-bottom: 3px; }
+  .hrow { display: flex; justify-content: space-between; align-items: baseline; }
+  .pg { font-size: 9pt; color: var(--sub); }
   .series { font-size: 9pt; color: var(--sub); }
-  .title { font-size: 15pt; font-weight: 700; line-height: 1.25; }
+  .title { width: 100%; white-space: nowrap; font-size: 17pt; font-weight: 700; line-height: 1.25; }
   .step-tag { display: inline-block; margin-right: 6px; padding: 0 9px; border: 2px solid var(--line); border-radius: 6px; font-size: 12pt; vertical-align: 1px; }
-  .name { font-size: 9.5pt; white-space: nowrap; }
-  .name span { display: inline-block; min-width: 20mm; border-bottom: 1px solid var(--line); margin: 0 3px 0 2px; }
-  .name span.long { min-width: 36mm; }
+  /* 4桁番号・名前の表（うらの右下） */
+  table.who { border-collapse: collapse; flex: none; color: var(--ink); }
+  table.who th, table.who td { border: 1.5px solid var(--line); height: 8mm; padding: 0 5px; font-size: 9pt; }
+  table.who th { background: var(--soft); font-weight: 700; white-space: nowrap; }
+  table.who td.digits { padding: 0; width: 30mm; }
+  table.who td.digits i { display: inline-block; width: 7.4mm; height: 7.6mm; border-right: 1px dotted #777; vertical-align: top; }
+  table.who td.digits i:last-child { border-right: none; }
+  table.who td.nm { width: 44mm; }
 
   /* 流れ（①〜⑥） */
   ol.road { list-style: none; display: flex; gap: 0; margin: 4px 0 0; padding: 0; font-size: 8.5pt; }
   ol.road li { flex: 1; text-align: center; padding: 1px 2px; border: 1.2px solid #999; color: #777; margin-left: -1px; }
   ol.road li.on { background: #111; color: #fff; border-color: #111; font-weight: 700; }
 
+  /* ①〜⑥ のかたまりは、枠で囲む */
+  .sec { margin-top: 4px; border: 1.8px solid var(--line); border-radius: 8px; padding: 0 8px 3px; }
+  .sec .box { border: none; padding: 0; margin-top: 0; }
+  .sec h2 { margin-top: 3px; }
   h2 { margin: 7px 0 3px; font-size: 10.5pt; padding-left: 7px; border-left: 5px solid var(--line); line-height: 1.3; }
   .h2note { font-size: 8.8pt; font-weight: 400; color: var(--sub); }
 
   /* ミッション（いちばん目立たせる） */
   .mission2 { margin-top: 6px; border: 3px solid #000; border-radius: 10px; overflow: hidden; }
-  .mhead { background: #000; color: #fff; padding: 2px 10px; font-size: 12pt; font-weight: 700; }
+  .mhead { background: #000; color: #fff; padding: 1px 10px; font-size: 11.5pt; font-weight: 700; }
   .mhead span { font-size: 8.5pt; font-weight: 400; margin-left: 6px; }
   .mbody { padding: 4px 10px 6px; }
   .mlead { margin: 0; font-size: 10pt; }
-  .mmain { margin: 2px 0 3px; font-size: 12.5pt; font-weight: 700; line-height: 1.35; }
+  .mmain { margin: 1px 0 2px; font-size: 12pt; font-weight: 700; line-height: 1.35; }
   .mmain u { text-decoration: none; background: linear-gradient(transparent 60%, #d7d7d7 60%); }
   .mband { margin: 3px 0 4px; padding: 2px 8px; border: 2px dashed #000; border-radius: 6px; font-size: 11.5pt; font-weight: 700; text-align: center; background: #f4f4f4; }
   .mimg { display: block; width: 100%; height: auto; }
@@ -498,7 +631,7 @@ const CSS = `
 
   /* 仕様 */
   table.spec { width: 100%; border-collapse: collapse; margin-top: 3px; }
-  table.spec th, table.spec td { border: 1.5px solid var(--line); padding: 2px 7px; vertical-align: top; text-align: left; }
+  table.spec th, table.spec td { border: 1.5px solid var(--line); font-size: 9pt; padding: 1px 7px; vertical-align: top; text-align: left; }
   table.spec th { width: 19mm; background: var(--soft); font-weight: 700; white-space: nowrap; }
   table.spec ul { margin: 0; padding-left: 16px; }
   table.spec li { margin: 0; }
@@ -514,7 +647,7 @@ const CSS = `
   .lg-n.blue { color: #1f4e8c; font-weight: 700; }
 
   /* プログラム */
-  .codebox { margin-top: 3px; border: 1.5px solid var(--line); border-radius: 6px; padding: 3px 10px 4px; font-family: Consolas, "BIZ UDGothic", "MS Gothic", monospace; font-size: 9.5pt; line-height: 1.75; }
+  .codebox { margin-top: 3px; border: 1.5px solid var(--line); border-radius: 6px; padding: 3px 10px 4px; font-family: Consolas, "BIZ UDGothic", "MS Gothic", monospace; font-size: 9.5pt; line-height: 1.55; }
   .ln.new { background: var(--soft); border-left: 4px solid #000; margin-left: -6px; padding-left: 6px; }
   .lnote { margin-left: 10px; font-family: "BIZ UDPGothic", "Yu Gothic", "Meiryo", sans-serif; font-size: 8.5pt; font-weight: 700; }
   .blank { display: inline-block; min-width: 3.2em; height: 1.05em; border-bottom: 1.5px solid var(--line); vertical-align: -1px; }
@@ -527,23 +660,133 @@ const CSS = `
   table.try th, table.try td { border: 1.5px solid var(--line); padding: 1px 6px; }
   table.try th { background: var(--soft); font-weight: 700; }
   table.try td.chk { width: 18mm; }
+  table.ref td, table.ref th { padding: 0 5px; font-size: 8.8pt; }
 
-  .footer { margin-top: 4px; display: flex; justify-content: space-between; font-size: 9pt; color: var(--sub); }
+  .footer { margin-top: 5px; display: flex; justify-content: space-between; align-items: flex-end; gap: 8px; font-size: 9pt; color: var(--sub); }
 `;
 
-const html = `<!doctype html>
+/* ---- 回転ずしアプリの流れ図の部品とステップ ---- */
+// 「A ＋ B → C」の計算の箱（fill = お手本に書いておく文字）
+const fAdd = (a, b, c) => ({ k: "proc", s: [{ w: 26, fill: a }, { t: "＋" }, { w: 14, fill: b }, { t: "→" }, { w: 26, fill: c }] });
+const fLabelSay = (word, num) => ({ k: "io", s: [{ t: "ことば" }, { w: 76, fill: word }, { t: "を" }, { t: "Label" }, { w: 8, fill: num }, { t: "に表示" }] });
+
+const SUSHI_STEPS = [
+  {
+    id: "sushi1",
+    lead: "回転ずしで食べたお皿の数を、アプリで数えます。",
+    main: "100円・120円・150円・200円のお皿のボタンを押すと、<u>枚数・小計・合計</u>が出るお会計アプリを作ろう！",
+    flowNote: "100円皿のボタン（CommandButton1）を押したときの流れ。ほかのお皿も、数字と Label の名前をかえて同じ流れ",
+    flow: [
+      fT("はじめ"),
+      fAdd("Mai100", "1", "Mai100"),
+      fAdd("Gokei", "100", null),
+      fLabelSay("100円皿 Mai100 枚", "1"),
+      fLabelSay(null, "5"),
+      fLabelSay("合計 Gokei 円", null),
+      fT("おわり"),
+    ],
+    legendExtra: '<div class="lg-n"><b>Sub の外</b>の Dim（枚数の箱）は、流れ図には書かない</div><div class="lg-n"><b>ことば</b>は、たとえば<br>「100円皿 2 枚」のように書く</div>',
+    lesson: [
+      { n: "1", h: "押すたびに数がふえる箱", p: "Sub の<b>外</b>に Dim を書くと、ボタンを押し終わっても数が消えません。1ずつふやすには「Mai100 = Mai100 + 1」と書きます。", code: "Dim Mai100 As Long\nPrivate Sub CommandButton1_Click()\n    Mai100 = Mai100 + 1\nEnd Sub" },
+      { n: "2", h: "合計の箱と、小計を Label に表示する", p: "合計の箱 Gokei には 100 をたします。小計は「枚数 × 1枚の値段」。Label には <b>Label名.Caption = 入れたいもの</b> で入れ、「&」で文字と数をつなげます。", code: 'Gokei = Gokei + 100\nLabel5.Caption = "小計" & Mai100 * 100 & "円"' },
+    ],
+    note: "1・2で書き方をつかんだら、150円皿・200円皿は下の表を見て自分で書こう（合計はどれも Label9）",
+    program: [
+      "Dim Mai100 As Long",
+      "Dim Mai120 As Long",
+      "Dim Mai150 As Long",
+      "Dim Mai200 As Long",
+      "Dim Gokei As Long",
+      "Private Sub CommandButton1_Click()",
+      "    Mai100 = Mai100 + 1",
+      "    Gokei = Gokei + [[m]]",
+      '    Label1.Caption = "100円皿" & Mai100 & "[[s]]"',
+      '    Label5.Caption = "小計" & Mai100 * [[m]] & "円"',
+      '    Label9.Caption = "合計" & [[m]] & "円"',
+      "End Sub",
+      "Private Sub CommandButton2_Click()",
+      "    [[m]] = Mai120 + 1",
+      "    Gokei = Gokei + [[m]]",
+      '    Label[[s]].Caption = "120円皿" & [[m]] & "枚"',
+      '    Label[[s]].Caption = "小計" & [[m]] * [[m]] & "円"',
+      '    Label9.Caption = "合計" & Gokei & "円"',
+      "End Sub",
+    ],
+    after: `<table class="try ref"><tr><th>お皿</th><th>ボタン</th><th>枚数の箱</th><th>1枚の値段</th><th>枚数の Label</th><th>小計の Label</th></tr>
+      <tr><td>100円皿</td><td>CommandButton1</td><td>Mai100</td><td>100</td><td>Label1</td><td>Label5</td></tr>
+      <tr><td>120円皿</td><td>CommandButton2</td><td>Mai120</td><td>120</td><td>Label2</td><td>Label6</td></tr>
+      <tr><td>150円皿</td><td>CommandButton3</td><td>Mai150</td><td>150</td><td>Label3</td><td>Label7</td></tr>
+      <tr><td>200円皿</td><td>CommandButton4</td><td>Mai200</td><td>200</td><td>Label4</td><td>Label8</td></tr></table>
+`,
+    tryHead: ["押すボタン（上から順に）", "枚数の Label", "小計の Label", "Label9（合計）"],
+    tryRows: [
+      ["100円皿", "Label1：100円皿1枚", "Label5：小計100円", "合計100円"],
+      ["100円皿", "Label1：100円皿2枚", "Label5：小計200円", "合計200円"],
+      ["120円皿", "Label2：120円皿1枚", "Label6：小計120円", "合計320円"],
+      ["200円皿", "Label4：200円皿1枚", "Label8：小計200円", "合計520円"],
+    ],
+    foot: "※ 枚数が1から数え直しになるときは、Dim を Sub の中に書いていないか見直そう。",
+  },
+  {
+    id: "sushi2",
+    lead: "みんなで食べ終わったら、割り勘にしたい！",
+    main: "ステップ1のアプリに「割り勘」ボタンを足して、<u>人数と1人あたりの金額</u>を出そう！",
+    band: "★ 新しく足すもの：ボタン1つ（CommandButton5）と、Label を2つ（Label10・Label11）",
+    flowNote: "割り勘ボタン（CommandButton5）を押したときの流れ。お皿のボタンは、ステップ1のまま",
+    flow: [
+      fT("はじめ"),
+      fIn("人数を入力してください", null),
+      fCalc("Gokei", "¥", "Ninzu", null),
+      fLabelSay("人数 Ninzu 人", "10"),
+      fLabelSay(null, "11"),
+      fT("おわり"),
+    ],
+    legendExtra: '<div class="lg-n"><b>合計</b>の箱 Gokei は、お皿のボタンで作ったものをそのまま使う</div>',
+    lesson: [
+      { n: "1", h: "フォームに足すもの（ここが新しい！）", p: "<b>CommandButton5</b>＝Caption を「割り勘」にする<br><b>Label10</b>＝人数を出す枠　<b>Label11</b>＝1人あたりの金額を出す枠" },
+      { n: "2", h: "合計の箱は、そのまま使える", p: "Gokei は Sub の外で用意してあるので、割り勘ボタンの中でも使えます。" },
+      { n: "3", h: "割り勘の計算", p: "割り勘アプリで使った「¥」（整数の割り算）です。", code: "Hitori = Gokei ¥ Ninzu" },
+    ],
+    note: "お皿の Sub と Dim は、ステップ1のまま。割り勘ボタンの Sub を足そう。",
+    program: [
+      "（お皿の Dim と、CommandButton1〜4 の Sub は、ステップ1のまま）",
+      "★Private Sub CommandButton5_Click()||追加",
+      "★    Dim Ninzu As Long",
+      "★    Dim Hitori As Long",
+      '★    [[m]] = Val(InputBox("[[xl]]"))',
+      "★    Hitori = [[m]] [[s]] [[m]]",
+      '★    Label10.Caption = "人数" & [[m]] & "人"',
+      '★    Label11.Caption = "1人あたり" & [[m]] & "円"',
+      "★End Sub",
+    ],
+    tryHead: ["お皿のボタンを押す", "Label9（合計）", "割り勘で入力する人数", "Label10", "Label11"],
+    tryRows: [
+      ["100円皿・120円皿・100円皿", "合計320円", "3", "人数3人", "1人あたり106円"],
+      ["さらに 200円皿", "合計520円", "4", "人数4人", "1人あたり130円"],
+    ],
+    foot: "🎉 ここまでできたら、回転ずしアプリの完成です！",
+  },
+];
+
+/* ======================= 書き出し ======================= */
+function build(steps, outName, docTitle) {
+  const total = steps.length * 2;
+  const html = `<!doctype html>
 <html lang="ja">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>割り勘アプリをつくろう（プリント）</title>
+<title>${docTitle}</title>
 <style>${CSS}</style>
 </head>
 <body>
-${STEPS.map((st, i) => front(st, i) + "\n" + back(st, i)).join("\n")}
+${steps.map((st, i) => front(st, i, total) + "\n" + back(st, i, total)).join("\n")}
 </body>
 </html>
 `;
+  fs.writeFileSync(path.join(__dirname, outName), html);
+  console.log(outName + " を作りました（" + total + " ページ）");
+}
 
-fs.writeFileSync(path.join(__dirname, "warikan-print.html"), html);
-console.log("warikan-print.html を作りました（" + STEPS.length * 2 + " ページ）");
+build(WARIKAN_STEPS, "warikan-print.html", "割り勘アプリをつくろう（プリント）");
+build(SUSHI_STEPS, "sushi-print.html", "回転ずしアプリをつくろう（プリント）");
