@@ -223,6 +223,7 @@
         status: res ? res.status : session.status,
         error: session.error,
         newMsgs: msgsNow.slice(countMsgs(session, before)),
+        stepsAfter: session.steps.length, // この操作が終わった時点の状態は session.modelAt(stepsAfter - 1)
       });
       if (session.status === "error" || session.status === "ended") break;
     }

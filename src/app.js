@@ -39,6 +39,7 @@
   const savedFiles = {}; // taskId -> { ファイル名: 中身 }（📁 ファイルタブの仮想ファイル）
   const LS_FILES = "umb_files";
   let filesPanel = null; // 📁 ファイル
+  let questRanOnce = false; // この課題で、▶実行を押したか（押すまでは、判定の「まだです」を出さない）
   let flowChart = null; // 🔀 流れ図
   let flowAst = null; // 流れ図にするプログラム（AST）
   let flowMsg = null; // 描けないときの説明
@@ -836,6 +837,7 @@
     }
     session = s;
     runActive = true;
+    questRanOnce = true;
     hideProgramError();
     setFlowSource(s.ast);
     startTarget(s);
@@ -1386,14 +1388,24 @@
   function buildQuestModal() {
     const list = document.getElementById("quest-list");
     list.innerHTML = "";
+    let lastGroup = null;
     TASKS.forEach((quest) => {
+      const group = quest.kind ? "textbook" : "cell";
+      if (group !== lastGroup) {
+        lastGroup = group;
+        const head = document.createElement("div");
+        head.className = "quest-group-head";
+        head.textContent = group === "textbook" ? "📘 教科書の例題・実習問題（第4章）" : "📊 おまけ：セルを使った練習";
+        list.appendChild(head);
+      }
       const item = document.createElement("div");
       item.className = "quest-item";
       if (solved.has(quest.id)) item.classList.add("solved");
+      const badge = quest.kind ? `<span class="quest-kind ${quest.kind}">${quest.kind === "example" ? "例題" : "実習"}</span>` : "";
       item.innerHTML = `
         <div class="quest-item-left">
-          <div class="quest-item-title">${quest.title}</div>
-          <div class="quest-item-goal">${quest.goal.split("\n")[0]}</div>
+          <div class="quest-item-title">${badge}${escapeHtml(quest.kind ? quest.title.replace(/^(例題|実習問題)\s*/, "") : quest.title)}</div>
+          <div class="quest-item-goal">${escapeHtml(quest.goal.split("\n")[0])}</div>
         </div>
         <div class="quest-item-stars">${"★".repeat(quest.difficulty)}</div>
       `;
@@ -1442,6 +1454,9 @@
     document.getElementById("task-difficulty").textContent = "★".repeat(task.difficulty) +
       "☆".repeat(5 - task.difficulty);
     document.getElementById("task-goal").textContent = task.goal;
+    renderTaskSpec(task);
+    questRanOnce = false;
+    renderTaskCheck(null);
     renderGoalPreview(task);
 
     // ヒントUIリセット
@@ -1468,6 +1483,20 @@
     runActive = false;
     formPanel.setForm(savedForms[taskId] || (task.form ? task.form : UserFormUtil.defaultForm()));
     filesPanel.setFiles(savedFiles[taskId] || task.files || {});
+    // フォームの課題を初めて開いたときは、ボタンごとに「ボタンをクリックしたとき」の入れ物を置いておく
+    if (task.form && !xml && !savedCode[taskId] && workspace.getTopBlocks(false).length === 0) {
+      let y = 40;
+      task.form.controls
+        .filter((c) => c.type === "CommandButton")
+        .forEach((c) => {
+          const hat = workspace.newBlock("form_button_click");
+          hat.setFieldValue(c.name, "CONTROL");
+          hat.initSvg();
+          hat.render();
+          hat.moveBy(40, y);
+          y += 150;
+        });
+    }
 
     updateCurrentQuestDisplay();
     onWorkspaceChange();
@@ -1526,6 +1555,109 @@
     updateCurrentQuestDisplay();
     onWorkspaceChange();
     return true;
+  }
+
+  // 模範解答をエディタに出す。ブロックの形（answerBlocks）があればそれを、無ければ answer のコードから
+  // ブロックを自動で作る。ブロックで表せない書き方（Open など）のときは、コードのまま出す。
+  // 課題のフォーム・ファイルも、模範解答が使う名前のものにそろえる
+  function showAnswerInEditor(task) {
+    if (!confirmReplaceCode()) return;
+    codeDirty = false;
+    if (task.form) {
+      formPanel.setForm(task.form);
+      savedForms[currentKey()] = formPanel.getForm();
+    }
+    if (task.files) {
+      filesPanel.setFiles(Object.assign({}, filesPanel.getFiles(), task.files));
+      savedFiles[currentKey()] = filesPanel.getFiles();
+    }
+    let asBlocks = false;
+    let blocksJson = task.answerBlocks || null;
+    let parsed = null;
+    if (!blocksJson && task.answer) {
+      try {
+        parsed = window.VbaParser.parseVBA(task.answer);
+        parsed.roots.forEach((r) => window.VbaParser.resolveVariables(r, workspace));
+        blocksJson = window.VbaParser.toWorkspaceJson(parsed.roots);
+      } catch (e) {
+        blocksJson = null; // ブロックでは表せない書き方（コード専用）
+        blocksMismatchReason = e.line ? `${e.line}行目: ${e.message}` : e.message;
+      }
+    }
+    if (blocksJson) {
+      suppressSave = true;
+      try {
+        workspace.clear();
+        Blockly.serialization.workspaces.load(blocksJson, workspace);
+        workspace.cleanUp();
+        workspace.scrollCenter();
+        asBlocks = true;
+      } catch (e) {
+        console.warn("模範解答ブロックの読み込み失敗:", e);
+      }
+      suppressSave = false;
+    }
+    persist();
+    if (asBlocks) {
+      switchToBlocksOwner();
+      document.getElementById("tab-blocks").click();
+      showToast("📖 模範解答のブロックを表示しました。▶ 実行で動きを確かめよう");
+    } else {
+      // コード専用：ブロックは空にして、コードのまま実行する
+      workspace.clear();
+      codeOwner = "code";
+      blocksMatchCode = false;
+      setEditorCode(task.answer);
+      saveCodeState();
+      updateCodeSyncStatus();
+      updateCodeOwnerOverlay();
+      document.getElementById("tab-code").click();
+      schedulePreview(100);
+      showToast("📖 模範解答を VBAコードタブに出しました（ブロックでは表せない書き方があります）。▶ 実行で動きを確かめよう", 5500);
+    }
+  }
+
+  // ----- 教科書と同じ「入力データ・出力データ・処理条件・入力例・出力例」 -----
+  function renderTaskSpec(task) {
+    const el = document.getElementById("task-spec");
+    if (!el) return;
+    if (!task || !task.spec) {
+      el.hidden = true;
+      el.innerHTML = "";
+      return;
+    }
+    const s = task.spec;
+    const kind = task.kind === "example" ? "例題" : "実習問題";
+    el.hidden = false;
+    el.innerHTML = `
+      <div class="spec-meta">📘 ${kind} ${escapeHtml(task.code)}（教科書 p.${task.page}）</div>
+      <div class="spec-grid">
+        <div class="spec-box"><span class="spec-tag in">入力データ</span><div>${escapeHtml(s.input)}</div></div>
+        <div class="spec-box"><span class="spec-tag out">出力データ</span><div>${escapeHtml(s.output)}</div></div>
+      </div>
+      <div class="spec-box"><span class="spec-tag cond">処理条件</span>
+        <ul>${s.conditions.map((c) => `<li>${escapeHtml(c)}</li>`).join("")}</ul></div>
+      <div class="spec-grid">
+        <div class="spec-box"><span class="spec-tag ex">入力例</span><div>${escapeHtml(s.inputExample)}</div></div>
+        <div class="spec-box"><span class="spec-tag ex">出力例</span><div>${escapeHtml(s.outputExample)}</div></div>
+      </div>`;
+  }
+
+  // 自動判定の結果（▶ 実行したあとから出る）。result: null なら隠す
+  function renderTaskCheck(result) {
+    const el = document.getElementById("task-check");
+    if (!el) return;
+    if (!result) {
+      el.hidden = true;
+      el.innerHTML = "";
+      return;
+    }
+    el.hidden = false;
+    el.className = "task-check " + (result.passed ? "pass" : "fail");
+    el.innerHTML = result.passed
+      ? "✅ ぜんぶ台本どおりに動きました！ 合格です"
+      : `🔎 まだ台本とちがうところがあります<ul>${result.failures.slice(0, 3).map((f) => `<li>${escapeHtml(f)}</li>`).join("")}</ul>` +
+        (result.failures.length > 3 ? `<div class="task-check-more">ほか ${result.failures.length - 3} 件</div>` : "");
   }
 
   // ----- 完成イメージのミニグリッド描画（F7）-----
@@ -1623,17 +1755,36 @@
     return !!session && session.status !== "error" && session.steps.some((st) => STATE_SCOPES.has(st.scope) && !st.declare);
   }
 
+  // 台本（scenario）のある課題：台本どおりに自動で動かして判定する（画面には出さない）
+  function evalTaskScenario(task) {
+    try {
+      return runTaskScenario(task, currentSource(), {
+        form: formPanel.runtimeForm(),
+        files: filesPanel.getFiles(),
+        initialCells: view.getInitialCells(),
+      });
+    } catch (e) {
+      return { passed: false, failures: [e.friendly || e.message] };
+    }
+  }
+
   function checkQuestClear() {
     const task = TASKS.find((t) => t.id === currentTaskId);
     const banner = document.getElementById("clear-banner");
     const nextBtn = document.getElementById("next-quest-btn");
-    if (!task || typeof task.check !== "function") {
+    if (!task || (typeof task.check !== "function" && !task.scenario)) {
       banner.classList.remove("show");
       if (nextBtn) nextBtn.hidden = true;
       return;
     }
     let passed = false;
-    if (hasExecutableProgram()) {
+    if (task.scenario) {
+      // 文法のまちがいがあるとき（session が無いとき）は、判定しない
+      const r = session ? evalTaskScenario(task) : { passed: false, failures: ["プログラムにまちがいがあります（下の説明を見て直そう）"] };
+      passed = r.passed;
+      // ▶ 実行を押したあとだけ、まだのときの理由を出す（書いている最中に毎回「まだです」を出さない）
+      renderTaskCheck(questRanOnce || r.passed ? r : null);
+    } else if (hasExecutableProgram()) {
       try {
         passed = task.check(view.finalModel());
       } catch (e) {
@@ -1936,25 +2087,7 @@
       )}</pre>`;
       document.getElementById("hint-display").appendChild(item);
 
-      // 模範解答のブロック配置をワークスペースに読み込む（コードだけでなく組み方も見せる）。
-      // コードタブに未反映の変更があれば先に確認する（中止なら文字コードの表示だけで終わる）
-      if (task.answerBlocks && confirmReplaceCode()) {
-        codeOwner = "blocks";
-        codeDirty = false;
-        suppressSave = true;
-        try {
-          workspace.clear();
-          Blockly.serialization.workspaces.load(task.answerBlocks, workspace);
-          workspace.cleanUp(); // 整列して見やすく
-          workspace.scrollCenter();
-          document.getElementById("tab-blocks").click(); // ブロックタブで見せる
-        } catch (e) {
-          console.warn("模範解答ブロックの読み込み失敗:", e);
-        }
-        suppressSave = false;
-        switchToBlocksOwner();
-        showToast("📖 模範解答のブロックを表示しました。▶ 実行で動きを確かめよう");
-      }
+      showAnswerInEditor(task);
     });
 
     // 実行コントロール

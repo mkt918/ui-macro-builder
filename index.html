@@ -56,9 +56,9 @@
   <script src="vendor/codemirror/addon/hint/show-hint.min.js"
           onerror="console.warn('入力アシスト機能の読み込みに失敗しました（エディタ自体は使えます）')"></script>
 </head>
-<!-- quest-mode-off: クエスト機能を一旦非表示（コード直打ち機能を作り込んでから再検討する）。
-     クラスを外せば元のクエスト選択UIに戻る -->
-<body class="quest-mode-off">
+<!-- 以前はここに quest-mode-off を付けてクエストを隠していたが、教科書の課題を作ったので再表示した
+     （付け直せば、また隠せる） -->
+<body>
 
   <!-- ===== ヘッダー ===== -->
   <header class="app-header">
@@ -102,6 +102,10 @@
           <div class="task-difficulty" id="task-difficulty"></div>
         </div>
         <p class="task-goal" id="task-goal"></p>
+        <!-- 教科書と同じ「入力データ・出力データ・処理条件・入力例・出力例」 -->
+        <div class="task-spec" id="task-spec" hidden></div>
+        <!-- 自動判定の結果（▶ 実行したあとに出る） -->
+        <div class="task-check" id="task-check" hidden></div>
         <div class="goal-preview" id="goal-preview" hidden>
           <div class="goal-preview-label">🎯 完成イメージ</div>
           <table class="goal-preview-grid" id="goal-preview-grid"></table>
@@ -368,7 +372,7 @@
   <div class="modal-overlay" id="answer-modal" hidden>
     <div class="modal">
       <h3>⚠️ 本当に答えを見ますか？</h3>
-      <p>まずは自分で挑戦してみましょう。答えを見ると学習効果が下がるかもしれません。<br><b>いま組んでいるブロックは、模範解答のブロックに置き換わります。</b></p>
+      <p>まずは自分で挑戦してみましょう。答えを見ると学習効果が下がるかもしれません。<br><b>いま組んでいるブロック（または書いたコード）は、模範解答に置き換わります。フォームも、課題の見本のフォームになります。</b></p>
       <div class="modal-actions">
         <button class="modal-btn cancel" id="answer-cancel">もう少し頑張る</button>
         <button class="modal-btn confirm" id="answer-confirm">答えを見る</button>
@@ -505,6 +509,7 @@
   <script src="src/tour.js"></script>
   <script src="src/excel-preview.js"></script>
   <script src="src/tasks/tasks.js"></script>
+  <script src="src/tasks/textbook-tasks.js"></script>
   <script src="src/app.js"></script>
 </body>
 </html>

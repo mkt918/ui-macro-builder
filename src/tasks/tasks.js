@@ -13,6 +13,20 @@
  *   check     : (model) => boolean  クリア自動判定。
  *               model = { cells:{"A1":{value,bg,bold}}, arr:{1:v}, sheet, sheets }
  *               省略すると自動判定なし。
+ *
+ * 教科書（第4章）の例題・実習問題用の追加フィールド:
+ *   kind      : "example"（例題）/ "practice"（実習問題）
+ *   code      : 教科書の番号（例 "4-2-03"）
+ *   page      : 教科書のページ
+ *   spec      : { input, output, conditions[], inputExample, outputExample }
+ *               教科書と同じ「入力データ・出力データ・処理条件・入力例・出力例」の5つの欄
+ *   form      : フォームの初期配置（src/userform.js の form。controls の name/type/left/top/width/height/props）
+ *   files     : { "uriage.csv": "…" }  📁 ファイルタブに最初から入れる仮想ファイル
+ *   scenario  : 台本どおりに自動で動かして判定する。check の代わりに使う。
+ *               [{ text:{TextBox1:"1"}, inputs:["22"], click:"CommandButton1",
+ *                  expect:{ msgs:["重量オーバーです"], controls:{Label4:{Caption:"84"}}, closed:true } }, …]
+ *               （inputs は InputBox に順に答える値。expect の msgs は、その操作で出た MsgBox の全文）
+ *   answer    : 模範解答の VBA コード。answerBlocks が無ければ、ここからブロックを自動で作る
  */
 
 // クリア判定用ヘルパー
@@ -31,7 +45,7 @@ const txt = (t) => ({ type: "value_text", fields: { TEXT: t } });
 const idx = () => ({ type: "loop_index" });
 const wrap = (block) => ({ blocks: { languageVersion: 0, blocks: [block] } });
 
-const TASKS = [
+const CELL_TASKS = [
   {
     id: "t01",
     title: "セルに名前を書こう",
@@ -241,3 +255,5 @@ const TASKS = [
     },
   },
 ];
+
+if (typeof module !== "undefined" && module.exports) module.exports = { CELL_TASKS };

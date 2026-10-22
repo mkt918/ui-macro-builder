@@ -2116,3 +2116,32 @@ button.uf-button.run:disabled { cursor: default; }
 .array-cell.changed-now .array-idx { color: #e67e22; }
 .array-2d td.changed-now { background: #ffe2b0; outline: 2px solid #e67e22; outline-offset: -2px; }
 .array-2d td.changed-prev { background: #e4efff; }
+
+/* ===== 教科書の課題（入力データ・出力データ・処理条件・入力例・出力例） ===== */
+.quest-group-head { margin: 10px 4px 4px; font-size: 13px; font-weight: 700; color: var(--accent-blue); }
+.quest-kind { display: inline-block; margin-right: 6px; padding: 0 7px; border-radius: 999px; font-size: 11px; font-weight: 700; color: #fff; vertical-align: 1px; }
+.quest-kind.example { background: #2c7be5; }
+.quest-kind.practice { background: #d63384; }
+.task-spec { margin-top: 8px; font-size: 13px; line-height: 1.6; }
+.spec-meta { font-size: 12px; font-weight: 700; color: var(--accent-blue); margin-bottom: 4px; }
+.spec-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 6px; }
+.spec-box {
+  margin-bottom: 6px;
+  padding: 6px 8px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-editor);
+}
+.spec-box ul { margin: 2px 0 0 18px; padding: 0; }
+.spec-box li { margin-bottom: 2px; }
+.spec-tag { display: inline-block; margin-bottom: 3px; padding: 0 8px; border-radius: 4px; font-size: 11px; font-weight: 700; color: #fff; }
+.spec-tag.in { background: #c0392b; }
+.spec-tag.out { background: #c0392b; }
+.spec-tag.cond { background: #7f8c8d; }
+.spec-tag.ex { background: #5d6d7e; }
+.task-check { margin-top: 8px; padding: 8px 10px; border-radius: 6px; font-size: 13px; line-height: 1.6; }
+.task-check[hidden] { display: none; }
+.task-check.pass { background: rgba(46, 204, 113, 0.18); border: 1px solid #2ecc71; color: var(--text); font-weight: 700; }
+.task-check.fail { background: rgba(230, 126, 34, 0.15); border: 1px solid #e67e22; color: var(--text); }
+.task-check ul { margin: 4px 0 0 18px; padding: 0; }
+.task-check-more { font-size: 12px; opacity: 0.8; }
